@@ -12,7 +12,7 @@ import AppKit
 
 struct ContentView: View {
     @StateObject private var viewModel = TranslationViewModel()
-    @AppStorage("apiKey") private var apiKey: String = ""
+    @ObservedObject private var apiKeyStore = APIKeyStore.shared
     @AppStorage("baseURL") private var baseURLString: String = "https://api.openai.com/v1"
     @AppStorage("selectedModel") private var selectedEngineId: String = ModelOptions.defaults.first ?? "gpt-4o-mini"
     @AppStorage("sourceLanguage") private var sourceLanguage: String = "auto"
@@ -89,12 +89,13 @@ struct ContentView: View {
            let baseURLString = customEngine.baseURL,
            let baseURL = URL(string: baseURLString),
            !baseURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let key = (customEngine.apiKey?.isEmpty == false) ? (customEngine.apiKey ?? "") : apiKey
+            let key = (customEngine.apiKey?.isEmpty == false) ? (customEngine.apiKey ?? "") : apiKeyStore.apiKey
             let config = LLMService.Configuration(
                 baseURL: baseURL,
                 apiKey: key,
                 model: customEngine.resolvedModel,
-                systemPrompt: systemPrompt()
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage
             )
             viewModel.streamTranslate { source in
                 await LLMService.shared.streamTranslate(configuration: config, sourceText: source)
@@ -105,22 +106,14 @@ struct ContentView: View {
         let baseURL = URL(string: baseURLString) ?? URL(string: "https://api.openai.com/v1")!
         let config = LLMService.Configuration(
             baseURL: baseURL,
-            apiKey: apiKey,
+            apiKey: apiKeyStore.apiKey,
             model: engineId,
-            systemPrompt: systemPrompt()
+            sourceLanguage: sourceLanguage,
+            targetLanguage: targetLanguage
         )
         viewModel.streamTranslate { source in
             await LLMService.shared.streamTranslate(configuration: config, sourceText: source)
         }
-    }
-
-    private func systemPrompt() -> String {
-        let targetName = LanguageOptions.name(for: targetLanguage)
-        if sourceLanguage == "auto" {
-            return "You are a translation assistant. Detect the source language and translate the user's text into \(targetName). Preserve markdown formatting."
-        }
-        let sourceName = LanguageOptions.name(for: sourceLanguage)
-        return "You are a translation assistant. Translate the user's text from \(sourceName) into \(targetName). Preserve markdown formatting."
     }
 }
 

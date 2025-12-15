@@ -12,6 +12,7 @@ import Foundation
 final class TranslationViewModel: ObservableObject {
     @Published var sourceText: String = ""
     @Published var translatedText: String = ""
+    @Published var wordExplanation: WordExplanation?
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
@@ -26,8 +27,16 @@ final class TranslationViewModel: ObservableObject {
         activeTask = nil
         sourceText = ""
         translatedText = ""
+        wordExplanation = nil
         isLoading = false
         errorMessage = nil
+    }
+
+    var copyText: String {
+        if let wordExplanation {
+            return wordExplanation.copyText
+        }
+        return translatedText
     }
 
     func translate(using translator: @escaping (String) async throws -> String) {
@@ -35,12 +44,14 @@ final class TranslationViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         translatedText = ""
+        wordExplanation = nil
 
         activeTask = Task {
             do {
                 let result = try await translator(sourceText)
                 guard !Task.isCancelled else { return }
                 translatedText = result
+                parseWordExplanationIfPossible()
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription
@@ -54,6 +65,7 @@ final class TranslationViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         translatedText = ""
+        wordExplanation = nil
 
         activeTask = Task {
             do {
@@ -62,11 +74,22 @@ final class TranslationViewModel: ObservableObject {
                     guard !Task.isCancelled else { return }
                     translatedText += token
                 }
+                parseWordExplanationIfPossible()
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription
             }
             isLoading = false
+        }
+    }
+
+    private func parseWordExplanationIfPossible() {
+        let trimmed = translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else { return }
+        guard let data = trimmed.data(using: .utf8) else { return }
+        if let decoded = try? JSONDecoder().decode(WordExplanation.self, from: data),
+           !decoded.word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            wordExplanation = decoded
         }
     }
 }

@@ -17,8 +17,12 @@ struct SettingsView: View {
     @AppStorage("selectedModel") private var selectedEngineId: String = ModelOptions.defaults.first ?? "gpt-4o-mini"
 
     // Global OpenAI-compatible config used by built-in AI models.
-    @AppStorage("apiKey") private var globalAPIKey: String = ""
+    @ObservedObject private var apiKeyStore = APIKeyStore.shared
     @AppStorage("baseURL") private var globalBaseURL: String = "https://api.openai.com/v1"
+
+    #if os(macOS)
+    @ObservedObject private var launchAtLogin = LaunchAtLoginManager.shared
+    #endif
 
     @State private var customEngines: [TranslationEngine] = EngineStore.loadCustomEngines()
     @State private var showingAddEngine = false
@@ -50,6 +54,8 @@ struct SettingsView: View {
                 Text("点击后按下新的快捷键，Esc 取消。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+
+                Toggle("开机自启动", isOn: launchAtLoginBinding)
 #endif
             }
 
@@ -91,6 +97,11 @@ struct SettingsView: View {
         .onChange(of: customEngines) { engines in
             EngineStore.saveCustomEngines(engines)
         }
+        #if os(macOS)
+        .onAppear {
+            LaunchAtLoginManager.shared.refresh()
+        }
+        #endif
     }
 
     private var hotKeyBinding: Binding<HotKey> {
@@ -105,6 +116,17 @@ struct SettingsView: View {
             }
         )
     }
+
+    #if os(macOS)
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { launchAtLogin.isEnabled },
+            set: { newValue in
+                launchAtLogin.setEnabled(newValue)
+            }
+        )
+    }
+    #endif
 
     private var freeEngines: [TranslationEngine] {
         EngineStore.builtInEngines.filter { $0.kind == .free }
@@ -168,7 +190,7 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                SecureField("API Key", text: $globalAPIKey)
+                SecureField("API Key", text: $apiKeyStore.apiKey)
                     .textContentType(.password)
                     .textFieldStyle(.roundedBorder)
 
