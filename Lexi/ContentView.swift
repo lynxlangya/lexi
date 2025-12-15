@@ -65,7 +65,7 @@ struct ContentView: View {
             await translateCurrent(engineId: selectedEngineId)
         } catch {
             WindowManager.shared.showPopupNearMouse()
-            viewModel.errorMessage = error.localizedDescription
+            viewModel.presentError(error)
         }
     }
 
@@ -73,46 +73,17 @@ struct ContentView: View {
         let text = viewModel.sourceText
         guard !text.isEmpty else { return }
 
-        if ModelOptions.freeEngines.contains(engineId) {
-            viewModel.translate { source in
-                try await FreeTranslateService.shared.translate(
-                    engineId: engineId,
-                    sourceLanguage: sourceLanguage,
-                    targetLanguage: targetLanguage,
-                    text: source
-                )
-            }
-            return
-        }
-
-        if let customEngine = EngineStore.loadCustomEngines().first(where: { $0.id == engineId }),
-           let baseURLString = customEngine.baseURL,
-           let baseURL = URL(string: baseURLString),
-           !baseURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let key = (customEngine.apiKey?.isEmpty == false) ? (customEngine.apiKey ?? "") : apiKeyStore.apiKey
-            let config = LLMService.Configuration(
-                baseURL: baseURL,
-                apiKey: key,
-                model: customEngine.resolvedModel,
-                sourceLanguage: sourceLanguage,
-                targetLanguage: targetLanguage
-            )
-            viewModel.streamTranslate { source in
-                await LLMService.shared.streamTranslate(configuration: config, sourceText: source)
-            }
-            return
-        }
-
-        let baseURL = URL(string: baseURLString) ?? URL(string: "https://api.openai.com/v1")!
-        let config = LLMService.Configuration(
-            baseURL: baseURL,
-            apiKey: apiKeyStore.apiKey,
-            model: engineId,
-            sourceLanguage: sourceLanguage,
-            targetLanguage: targetLanguage
-        )
+        let engine = EngineStore.engine(for: engineId)
+            ?? TranslationEngine(id: engineId, kind: .openAICompatible, displayName: engineId)
         viewModel.streamTranslate { source in
-            await LLMService.shared.streamTranslate(configuration: config, sourceText: source)
+            await TranslationService.shared.streamTranslate(
+                engine: engine,
+                globalBaseURLString: baseURLString,
+                globalAPIKey: apiKeyStore.apiKey,
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage,
+                text: source
+            )
         }
     }
 }

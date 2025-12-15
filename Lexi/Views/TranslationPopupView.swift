@@ -132,10 +132,8 @@ struct TranslationPopupView: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            } else if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.red)
+            } else if let banner = viewModel.errorBanner {
+                ErrorBannerView(banner: banner)
             } else if let explanation = viewModel.wordExplanation {
                 #if os(macOS)
                 WordExplanationView(

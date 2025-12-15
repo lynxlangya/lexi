@@ -8,13 +8,24 @@
 import Combine
 import Foundation
 
+struct ErrorBanner: Hashable, Identifiable {
+    enum Style: Hashable {
+        case warning
+        case error
+    }
+
+    let id = UUID()
+    let message: String
+    let style: Style
+}
+
 @MainActor
 final class TranslationViewModel: ObservableObject {
     @Published var sourceText: String = ""
     @Published var translatedText: String = ""
     @Published var wordExplanation: WordExplanation?
     @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
+    @Published var errorBanner: ErrorBanner?
 
     private var activeTask: Task<Void, Never>?
 
@@ -29,7 +40,7 @@ final class TranslationViewModel: ObservableObject {
         translatedText = ""
         wordExplanation = nil
         isLoading = false
-        errorMessage = nil
+        errorBanner = nil
     }
 
     var copyText: String {
@@ -42,7 +53,7 @@ final class TranslationViewModel: ObservableObject {
     func translate(using translator: @escaping (String) async throws -> String) {
         activeTask?.cancel()
         isLoading = true
-        errorMessage = nil
+        errorBanner = nil
         translatedText = ""
         wordExplanation = nil
 
@@ -54,7 +65,7 @@ final class TranslationViewModel: ObservableObject {
                 parseWordExplanationIfPossible()
             } catch {
                 guard !Task.isCancelled else { return }
-                errorMessage = error.localizedDescription
+                presentError(error)
             }
             isLoading = false
         }
@@ -63,7 +74,7 @@ final class TranslationViewModel: ObservableObject {
     func streamTranslate(using translator: @escaping (String) async throws -> AsyncThrowingStream<String, Error>) {
         activeTask?.cancel()
         isLoading = true
-        errorMessage = nil
+        errorBanner = nil
         translatedText = ""
         wordExplanation = nil
 
@@ -77,10 +88,22 @@ final class TranslationViewModel: ObservableObject {
                 parseWordExplanationIfPossible()
             } catch {
                 guard !Task.isCancelled else { return }
-                errorMessage = error.localizedDescription
+                presentError(error)
             }
             isLoading = false
         }
+    }
+
+    func presentError(_ error: Error) {
+        if let translationError = error as? TranslationError {
+            errorBanner = ErrorBanner(
+                message: translationError.localizedDescription,
+                style: translationError.severity == .warning ? .warning : .error
+            )
+            return
+        }
+
+        errorBanner = ErrorBanner(message: error.localizedDescription, style: .error)
     }
 
     private func parseWordExplanationIfPossible() {
