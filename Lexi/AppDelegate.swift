@@ -9,7 +9,11 @@
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let automaticTerminationReason = "Lexi keeps a global hotkey listener active."
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        ProcessInfo.processInfo.disableAutomaticTermination(automaticTerminationReason)
+
         let hotKey = loadHotKeyFromDefaults()
         HotKeyManager.shared.registerHotKey(hotKey) {
             NotificationCenter.default.post(name: .lexiHotKeyPressed, object: nil)
@@ -20,6 +24,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             WindowManager.shared.hidePopup()
         }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        WindowManager.shared.prepareForTermination()
+        return .terminateNow
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        ProcessInfo.processInfo.enableAutomaticTermination(automaticTerminationReason)
     }
 
     private func loadHotKeyFromDefaults() -> HotKey {

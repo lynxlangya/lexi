@@ -43,13 +43,6 @@ final class TranslationViewModel: ObservableObject {
         errorBanner = nil
     }
 
-    var copyText: String {
-        if let wordExplanation {
-            return wordExplanation.copyText
-        }
-        return translatedText
-    }
-
     func translate(using translator: @escaping (String) async throws -> String) {
         activeTask?.cancel()
         isLoading = true

@@ -9,12 +9,8 @@ import SwiftUI
 
 struct TranslationPopupView: View {
     @ObservedObject var viewModel: TranslationViewModel
-    let onCopy: (String) -> Void
     let engines: [TranslationEngine]
     @Binding var selectedEngineId: String
-    #if os(macOS)
-    @ObservedObject private var tts = TextToSpeechService.shared
-    #endif
 
     var body: some View {
         VStack(spacing: 12) {
@@ -33,13 +29,6 @@ struct TranslationPopupView: View {
                 .allowsHitTesting(false)
         )
         .frame(width: 360)
-        #if os(macOS)
-        .onChange(of: viewModel.translatedText) { newValue in
-            if newValue.isEmpty {
-                TextToSpeechService.shared.stop()
-            }
-        }
-        #endif
     }
 
 	    private var header: some View {
@@ -135,14 +124,7 @@ struct TranslationPopupView: View {
             } else if let banner = viewModel.errorBanner {
                 ErrorBannerView(banner: banner)
             } else if let explanation = viewModel.wordExplanation {
-                #if os(macOS)
-                WordExplanationView(
-                    explanation: explanation,
-                    onSpeak: { TextToSpeechService.shared.toggleSpeak(text: explanation.word) }
-                )
-                #else
-                WordExplanationView(explanation: explanation, onSpeak: {})
-                #endif
+                WordExplanationView(explanation: explanation)
             } else if !viewModel.translatedText.isEmpty {
                 MarkdownText(viewModel.translatedText)
             } else {
@@ -157,29 +139,6 @@ struct TranslationPopupView: View {
 
 	    private var footer: some View {
 	        HStack {
-	            Button {
-	                onCopy(viewModel.copyText)
-	            } label: {
-	                Label("Copy", systemImage: "doc.on.doc")
-	                    .font(.system(size: 12))
-	            }
-	            .buttonStyle(.borderless)
-	            .disabled(viewModel.copyText.isEmpty)
-
-	            #if os(macOS)
-	            if viewModel.wordExplanation == nil {
-	                Button {
-	                    TextToSpeechService.shared.toggleSpeak(text: englishSpeakText)
-	                } label: {
-	                    Image(systemName: tts.isSpeaking ? "speaker.slash.fill" : "speaker.wave.2")
-	                        .font(.system(size: 12))
-	                }
-	                .buttonStyle(.borderless)
-	                .disabled(englishSpeakText.isEmpty)
-	                .help(tts.isSpeaking ? "Stop Speaking" : "Speak")
-	            }
-	            #endif
-
 	            Spacer()
 	            Text(selectedEngineName)
 	                .font(.system(size: 12))
@@ -192,43 +151,6 @@ struct TranslationPopupView: View {
 
 	    private var selectedEngineName: String {
 	        engines.first(where: { $0.id == selectedEngineId })?.displayName ?? selectedEngineId
-	    }
-
-	    private var englishSpeakText: String {
-	        if let explanation = viewModel.wordExplanation, !explanation.word.isEmpty {
-	            return explanation.word
-	        }
-	        if looksLikeEnglish(viewModel.sourceText) {
-	            return viewModel.sourceText
-	        }
-	        if looksLikeEnglish(viewModel.translatedText) {
-	            return viewModel.translatedText
-	        }
-	        return ""
-	    }
-
-	    private func looksLikeEnglish(_ text: String) -> Bool {
-	        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-	        guard !trimmed.isEmpty else { return false }
-
-	        let allowedPunctuation = CharacterSet(charactersIn: "'-.,!?;:()\"/\\")
-	        var hasAsciiLetter = false
-
-	        for scalar in trimmed.unicodeScalars {
-	            if (65...90).contains(scalar.value) || (97...122).contains(scalar.value) {
-	                hasAsciiLetter = true
-	                continue
-	            }
-	            if scalar.properties.isWhitespace {
-	                continue
-	            }
-	            if allowedPunctuation.contains(scalar) {
-	                continue
-	            }
-	            return false
-	        }
-
-	        return hasAsciiLetter
 	    }
 }
 
@@ -255,9 +177,8 @@ private struct MarkdownText: View {
 #Preview {
     TranslationPopupView(
         viewModel: TranslationViewModel(),
-        onCopy: { _ in },
         engines: EngineStore.allEngines(),
-        selectedEngineId: .constant("gpt-4o-mini")
+        selectedEngineId: .constant("gpt-4o")
     )
     .padding()
     .frame(width: 380)

@@ -17,6 +17,8 @@ final class WindowManager {
     private let defaultContentSize = NSSize(width: 360, height: 180)
     private var localMonitor: Any?
     private var globalMonitor: Any?
+    private var windowDelegate: PopupWindowDelegate?
+    private var allowsWindowClose: Bool = false
 
     func attach(window: NSWindow) {
         self.window = window
@@ -54,6 +56,10 @@ final class WindowManager {
         }
     }
 
+    func prepareForTermination() {
+        allowsWindowClose = true
+    }
+
     private func configure(_ window: NSWindow) {
         // Remove titled/toolbar area so content fills the whole window (no top bar).
         window.styleMask = [.borderless]
@@ -69,6 +75,17 @@ final class WindowManager {
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         window.isMovableByWindowBackground = true
+        window.isReleasedWhenClosed = false
+
+        windowDelegate = PopupWindowDelegate(
+            shouldAllowClose: { [weak self] in
+                self?.allowsWindowClose == true
+            },
+            onCloseAttempt: { [weak self] in
+                self?.dismissFromOutsideClick()
+            }
+        )
+        window.delegate = windowDelegate
     }
 
     private func startDismissMonitorsIfNeeded() {
@@ -137,6 +154,25 @@ final class WindowManager {
         }
 
         window.setFrameOrigin(origin)
+    }
+}
+
+private final class PopupWindowDelegate: NSObject, NSWindowDelegate {
+    private let shouldAllowClose: () -> Bool
+    private let onCloseAttempt: () -> Void
+
+    init(shouldAllowClose: @escaping () -> Bool, onCloseAttempt: @escaping () -> Void) {
+        self.shouldAllowClose = shouldAllowClose
+        self.onCloseAttempt = onCloseAttempt
+        super.init()
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if shouldAllowClose() {
+            return true
+        }
+        onCloseAttempt()
+        return false
     }
 }
 #endif

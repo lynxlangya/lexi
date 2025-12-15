@@ -14,7 +14,7 @@ struct SettingsView: View {
     @AppStorage("hotKeyModifiers") private var hotKeyModifiers: Int = Int(HotKey.default.modifiers)
 
     // Selected engine/model id (kept for backward compatibility).
-    @AppStorage("selectedModel") private var selectedEngineId: String = ModelOptions.defaults.first ?? "gpt-4o-mini"
+    @AppStorage("selectedModel") private var selectedEngineId: String = ModelOptions.defaults.first ?? "gpt-4o"
 
     // Global OpenAI-compatible config used by built-in AI models.
     @ObservedObject private var apiKeyStore = APIKeyStore.shared
@@ -100,8 +100,15 @@ struct SettingsView: View {
         #if os(macOS)
         .onAppear {
             LaunchAtLoginManager.shared.refresh()
+            normalizeSelectedEngineIfNeeded()
         }
         #endif
+    }
+
+    @MainActor
+    private func normalizeSelectedEngineIfNeeded() {
+        guard EngineStore.engine(for: selectedEngineId) == nil else { return }
+        selectedEngineId = ModelOptions.defaults.first ?? "gpt-4o"
     }
 
     private var hotKeyBinding: Binding<HotKey> {
@@ -178,7 +185,7 @@ struct SettingsView: View {
                     let removedId = customEngines[index].id
                     customEngines.remove(at: index)
                     if selectedEngineId == removedId {
-                        selectedEngineId = ModelOptions.defaults.first ?? "gpt-4o-mini"
+                        selectedEngineId = ModelOptions.defaults.first ?? "gpt-4o"
                     }
                 }
                 .buttonStyle(.borderless)
@@ -254,7 +261,7 @@ private struct AddCustomEngineSheet: View {
                     }
 
                     LabeledContent("模型") {
-                        TextField("gpt-4o-mini", text: $model)
+                        TextField("gpt-4o", text: $model)
                             .textFieldStyle(.roundedBorder)
                     }
 

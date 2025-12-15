@@ -9,7 +9,6 @@ import SwiftUI
 
 struct WordExplanationView: View {
     let explanation: WordExplanation
-    let onSpeak: () -> Void
     #if os(macOS)
     @ObservedObject private var tts = TextToSpeechService.shared
     #endif
@@ -34,12 +33,16 @@ struct WordExplanationView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(.secondary)
 
-                    Button(action: onSpeak) {
-                        Image(systemName: speakerImageName)
+                    #if os(macOS)
+                    Button {
+                        TextToSpeechService.shared.toggleSpeak(text: explanation.word)
+                    } label: {
+                        Image(systemName: tts.isSpeaking ? "speaker.slash.fill" : "speaker.wave.2")
                             .font(.system(size: 14, weight: .semibold))
                     }
                     .buttonStyle(.plain)
-                    .help(speakerHelpText)
+                    .help(tts.isSpeaking ? "Stop Speaking" : "Speak")
+                    #endif
 
                     Spacer()
                 }
@@ -73,22 +76,6 @@ struct WordExplanationView: View {
         guard let raw, !raw.isEmpty else { return nil }
         return raw
     }
-
-    private var speakerImageName: String {
-        #if os(macOS)
-        return tts.isSpeaking ? "speaker.slash.fill" : "speaker.wave.2"
-        #else
-        return "speaker.wave.2"
-        #endif
-    }
-
-    private var speakerHelpText: String {
-        #if os(macOS)
-        return tts.isSpeaking ? "Stop Speaking" : "Speak"
-        #else
-        return "Speak"
-        #endif
-    }
 }
 
 #Preview {
@@ -100,8 +87,7 @@ struct WordExplanationView: View {
                 .init(pos: "pron.", meaning: "哪个；那；哪一个"),
                 .init(pos: "web.", meaning: "哪些；哪一些；那一个"),
             ]
-        ),
-        onSpeak: {}
+        )
     )
     .padding()
     .frame(width: 360)

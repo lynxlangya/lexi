@@ -13,7 +13,6 @@ enum EngineStore {
     static var builtInEngines: [TranslationEngine] {
         var engines: [TranslationEngine] = []
         engines.append(.free(id: "google", displayName: "Google"))
-        engines.append(.free(id: "microsoft", displayName: "Microsoft"))
 
         for model in ModelOptions.openAIModels {
             engines.append(.openAIModel(id: model, displayName: model))
@@ -44,4 +43,3 @@ enum EngineStore {
         UserDefaults.standard.set(data, forKey: customEnginesKey)
     }
 }
-

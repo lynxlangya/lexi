@@ -6,15 +6,12 @@
 //
 
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
 
 struct ContentView: View {
     @StateObject private var viewModel = TranslationViewModel()
     @ObservedObject private var apiKeyStore = APIKeyStore.shared
     @AppStorage("baseURL") private var baseURLString: String = "https://api.openai.com/v1"
-    @AppStorage("selectedModel") private var selectedEngineId: String = ModelOptions.defaults.first ?? "gpt-4o-mini"
+    @AppStorage("selectedModel") private var selectedEngineId: String = ModelOptions.defaults.first ?? "gpt-4o"
     @AppStorage("sourceLanguage") private var sourceLanguage: String = "auto"
     @AppStorage("targetLanguage") private var targetLanguage: String = "zh-Hans"
 
@@ -22,10 +19,6 @@ struct ContentView: View {
         let engines = EngineStore.allEngines()
         TranslationPopupView(
             viewModel: viewModel,
-            onCopy: { text in
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-            },
             engines: engines,
             selectedEngineId: $selectedEngineId
         )
@@ -37,10 +30,16 @@ struct ContentView: View {
         .background(WindowAccessor { window in
             WindowManager.shared.attach(window: window)
         })
+        .onAppear {
+            normalizeSelectedEngineIfNeeded()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .lexiHotKeyPressed)) { _ in
             Task { await handleHotKey() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .lexiPopupDismissRequested)) { _ in
+            #if os(macOS)
+            TextToSpeechService.shared.stop()
+            #endif
             viewModel.clear()
         }
         .onChange(of: selectedEngineId) { newEngineId in
@@ -85,6 +84,12 @@ struct ContentView: View {
                 text: source
             )
         }
+    }
+
+    @MainActor
+    private func normalizeSelectedEngineIfNeeded() {
+        guard EngineStore.engine(for: selectedEngineId) == nil else { return }
+        selectedEngineId = ModelOptions.defaults.first ?? "gpt-4o"
     }
 }
 

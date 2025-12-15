@@ -37,7 +37,8 @@ final class TextToSpeechService: NSObject, ObservableObject {
 
     func stop() {
         if synthesizer.isSpeaking || synthesizer.isPaused {
-            synthesizer.stopSpeaking(at: .immediate)
+            // Use a graceful stop to avoid occasional CoreAudio zero-buffer warnings.
+            synthesizer.stopSpeaking(at: .word)
         }
         isSpeaking = false
     }
@@ -46,11 +47,23 @@ final class TextToSpeechService: NSObject, ObservableObject {
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = preferredVoice(for: text)
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.prefersAssistiveTechnologySettings = false
         synthesizer.speak(utterance)
     }
 
     private func preferredVoice(for text: String) -> AVSpeechSynthesisVoice? {
         let language = Self.containsHanCharacters(text) ? "zh-CN" : "en-US"
+
+        // Prefer compact system voices to avoid Siri/Assistant voice selection quirks.
+        let preferredIdentifierByLanguage: [String: String] = [
+            "en-US": "com.apple.voice.compact.en-US.Samantha",
+            "zh-CN": "com.apple.voice.compact.zh-CN.Tingting",
+        ]
+        if let identifier = preferredIdentifierByLanguage[language],
+           let voice = AVSpeechSynthesisVoice(identifier: identifier) {
+            return voice
+        }
+
         return AVSpeechSynthesisVoice(language: language)
     }
 
