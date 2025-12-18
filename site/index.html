@@ -1,1074 +1,696 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lexi - macOS 极简划词翻译浮窗</title>
     <meta
       name="description"
-      content="Lexi 是一款 macOS 14+ 极简划词翻译浮窗：全局快捷键唤起，OpenAI 兼容流式翻译（OpenAI/DeepSeek），单词学习卡片（US 音标/释义/朗读），点击外部自动关闭。"
+      content="Lexi 是一款 macOS 14+ 极简划词翻译浮窗：全局快捷键唤起，OpenAI 兼容流式翻译，单词学习卡片，点击外部自动关闭。"
     />
     <meta name="theme-color" content="#0B1220" />
-
-    <meta property="og:title" content="Lexi - macOS 极简划词翻译浮窗" />
-    <meta
-      property="og:description"
-      content="选中文字，一键翻译。支持 OpenAI 兼容流式输出（OpenAI/DeepSeek）与单词学习卡片（音标/释义/朗读）。"
-    />
-    <meta property="og:type" content="website" />
-
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="preconnect" href="https://github.com" crossorigin />
+
+    <!-- Google Fonts for a more techy feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
       :root {
-        color-scheme: light dark;
-        --bg: #0b1220;
-        --bg-elev: rgba(255, 255, 255, 0.06);
-        --border: rgba(255, 255, 255, 0.12);
-        --text: rgba(255, 255, 255, 0.92);
-        --muted: rgba(255, 255, 255, 0.72);
-        --faint: rgba(255, 255, 255, 0.52);
-        --accent: #8b5cf6;
-        --accent2: #22c55e;
-        --shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
-        --radius: 18px;
-        --radius-sm: 14px;
+        --bg: #050505;
+        --text: #ffffff;
+        --text-secondary: #a1a1aa;
+        --primary: #8b5cf6;
+        --primary-glow: rgba(139, 92, 246, 0.5);
+        --accent: #10b981;
+        --border: rgba(255, 255, 255, 0.1);
+        --card-bg: rgba(20, 20, 22, 0.6);
+        --card-hover-border: rgba(255, 255, 255, 0.2);
         --container: 1080px;
-      }
-
-      @media (prefers-color-scheme: light) {
-        :root {
-          --bg: #f7f8fb;
-          --bg-elev: rgba(10, 14, 25, 0.04);
-          --border: rgba(10, 14, 25, 0.12);
-          --text: rgba(10, 14, 25, 0.92);
-          --muted: rgba(10, 14, 25, 0.68);
-          --faint: rgba(10, 14, 25, 0.5);
-          --shadow: 0 18px 60px rgba(10, 14, 25, 0.14);
-        }
+        --spotlight-size: 400px;
       }
 
       * {
         box-sizing: border-box;
       }
 
-      html,
-      body {
-        height: 100%;
+      html {
+        scroll-behavior: smooth;
       }
 
       body {
         margin: 0;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-          "SF Pro Display", "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
-          "Microsoft YaHei", Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        background: radial-gradient(
-            1200px 600px at 10% 10%,
-            rgba(139, 92, 246, 0.28),
-            rgba(11, 18, 32, 0)
-          ),
-          radial-gradient(
-            900px 480px at 80% 0%,
-            rgba(34, 197, 94, 0.22),
-            rgba(11, 18, 32, 0)
-          ),
-          radial-gradient(
-            1100px 520px at 50% 105%,
-            rgba(59, 130, 246, 0.2),
-            rgba(11, 18, 32, 0)
-          ),
-          var(--bg);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        background-color: var(--bg);
         color: var(--text);
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
       }
 
-      a {
-        color: inherit;
-      }
-
-      .container {
-        width: min(var(--container), calc(100% - 40px));
-        margin: 0 auto;
-      }
-
-      .nav {
-        position: sticky;
+      /* --- Animated Background --- */
+      .bg-animation {
+        position: fixed;
         top: 0;
-        z-index: 50;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        background: linear-gradient(
-          to bottom,
-          rgba(0, 0, 0, 0.18),
-          rgba(0, 0, 0, 0.06)
-        );
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1;
+        overflow: hidden;
+        background: radial-gradient(circle at 50% 50%, #0a0a0a, #000);
       }
 
-      @media (prefers-color-scheme: light) {
-        .nav {
-          background: linear-gradient(
-            to bottom,
-            rgba(255, 255, 255, 0.7),
-            rgba(255, 255, 255, 0.35)
-          );
-          border-bottom: 1px solid rgba(10, 14, 25, 0.08);
-        }
+      .blob {
+        position: absolute;
+        filter: blur(80px);
+        opacity: 0.4;
+        animation: float 20s infinite ease-in-out;
+        border-radius: 50%;
+      }
+
+      .blob-1 {
+        top: -10%;
+        left: -10%;
+        width: 50vw;
+        height: 50vw;
+        background: var(--primary);
+        animation-delay: 0s;
+      }
+
+      .blob-2 {
+        bottom: -20%;
+        right: -10%;
+        width: 60vw;
+        height: 60vw;
+        background: #3b82f6;
+        animation-delay: -5s;
+        opacity: 0.3;
+      }
+
+      .blob-3 {
+        top: 40%;
+        left: 40%;
+        width: 30vw;
+        height: 30vw;
+        background: var(--accent);
+        opacity: 0.2;
+        animation-delay: -10s;
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(30px, -50px) scale(1.1); }
+        66% { transform: translate(-20px, 20px) scale(0.9); }
+      }
+
+      /* --- Typography & Utilities --- */
+      a { color: inherit; text-decoration: none; transition: 0.2s; }
+      .container { width: min(var(--container), calc(100% - 48px)); margin: 0 auto; position: relative; }
+      
+      /* --- Header --- */
+      .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        backdrop-filter: blur(20px);
+        background: rgba(5, 5, 5, 0.5);
+        border-bottom: 1px solid var(--border);
       }
 
       .nav__inner {
         display: flex;
-        align-items: center;
         justify-content: space-between;
-        padding: 14px 0;
-        gap: 14px;
+        align-items: center;
+        height: 70px;
       }
 
       .brand {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        gap: 10px;
-        font-weight: 680;
-        letter-spacing: 0.2px;
-        text-decoration: none;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: -0.5px;
       }
 
       .logo {
-        width: 30px;
-        height: 30px;
-        border-radius: 11px;
-        background: linear-gradient(135deg, var(--accent), #60a5fa);
-        box-shadow: 0 10px 30px rgba(139, 92, 246, 0.35);
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--primary), #3b82f6);
         display: grid;
         place-items: center;
-        flex: 0 0 auto;
+        box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
       }
-
-      .logo svg {
-        width: 16px;
-        height: 16px;
-        color: rgba(255, 255, 255, 0.95);
-      }
+      
+      .logo svg { width: 18px; height: 18px; color: white; }
 
       .nav__links {
         display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
+        gap: 24px;
       }
 
       .nav__links a {
-        text-decoration: none;
         font-size: 14px;
-        color: var(--muted);
-        padding: 8px 10px;
-        border-radius: 10px;
-        transition: background 160ms ease, color 160ms ease;
+        color: var(--text-secondary);
+        font-weight: 500;
       }
 
-      .nav__links a:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: var(--text);
+      .nav__links a:hover { color: var(--text); }
+      
+      @media(max-width: 768px) {
+        .nav__links { display: none; }
       }
 
-      @media (prefers-color-scheme: light) {
-        .nav__links a:hover {
-          background: rgba(10, 14, 25, 0.06);
-        }
+      /* --- Hero Section --- */
+      .hero {
+        padding-top: 160px;
+        padding-bottom: 100px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 60px;
+        align-items: center;
       }
+
+      @media(max-width: 900px) {
+        .hero { grid-template-columns: 1fr; text-align: center; padding-top: 120px; }
+        .hero__cta { justify-content: center; }
+        .pills { justify-content: center; }
+      }
+
+      .hero__title {
+        font-size: clamp(40px, 6vw, 64px);
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -1.5px;
+        margin: 0 0 24px;
+        background: linear-gradient(to right, #fff, #a5b4fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .hero__desc {
+        font-size: 18px;
+        line-height: 1.6;
+        color: var(--text-secondary);
+        margin-bottom: 32px;
+        max-width: 500px;
+      }
+      
+      @media(max-width: 900px) { .hero__desc { margin: 0 auto 32px; } }
+
+      /* Buttons */
+      .hero__cta { display: flex; gap: 16px; margin-bottom: 32px; }
 
       .btn {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        gap: 10px;
-        padding: 12px 14px;
-        border-radius: 14px;
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.06);
-        text-decoration: none;
-        font-weight: 620;
-        font-size: 14px;
-        letter-spacing: 0.15px;
-        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
-        transition: transform 160ms ease, box-shadow 160ms ease,
-          background 160ms ease, border-color 160ms ease;
+        gap: 8px;
+        padding: 12px 24px;
+        border-radius: 99px;
+        font-weight: 600;
+        font-size: 15px;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        border: 1px solid transparent;
+        position: relative;
+        overflow: hidden;
       }
 
-      .btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
-        border-color: rgba(255, 255, 255, 0.22);
-      }
+      .btn svg { width: 18px; height: 18px; }
 
       .btn--primary {
-        background: linear-gradient(135deg, rgba(139, 92, 246, 0.95), #60a5fa);
-        border-color: rgba(255, 255, 255, 0.12);
-        color: rgba(255, 255, 255, 0.96);
-        box-shadow: 0 18px 60px rgba(139, 92, 246, 0.18);
+        background: var(--text);
+        color: #000;
       }
 
       .btn--primary:hover {
-        box-shadow: 0 26px 80px rgba(139, 92, 246, 0.22);
+        background: #e0e0e0;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 30px -10px rgba(255, 255, 255, 0.3);
       }
 
       .btn--ghost {
-        background: transparent;
-      }
-
-      .btn svg {
-        width: 16px;
-        height: 16px;
-        opacity: 0.95;
-      }
-
-      main {
-        padding: 42px 0 68px;
-      }
-
-      .hero {
-        display: grid;
-        grid-template-columns: 1.1fr 0.9fr;
-        gap: 26px;
-        align-items: center;
-        padding: 22px 0 34px;
-      }
-
-      @media (max-width: 920px) {
-        .hero {
-          grid-template-columns: 1fr;
-          padding-top: 10px;
-        }
-      }
-
-      .hero__title {
-        font-size: clamp(34px, 5vw, 52px);
-        line-height: 1.05;
-        margin: 0 0 12px;
-        letter-spacing: -0.4px;
-      }
-
-      .hero__desc {
-        margin: 0;
-        max-width: 54ch;
-        line-height: 1.75;
-        color: var(--muted);
-        font-size: 16px;
-      }
-
-      .hero__cta {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-top: 18px;
-      }
-
-      .pills {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 16px;
-      }
-
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 13px;
-        color: var(--faint);
+        background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 999px;
-        padding: 7px 10px;
-        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
       }
 
-      @media (prefers-color-scheme: light) {
-        .pill {
-          border-color: rgba(10, 14, 25, 0.12);
-          background: rgba(10, 14, 25, 0.03);
-        }
+      .btn--ghost:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
       }
 
-      .pill svg {
-        width: 14px;
-        height: 14px;
-        opacity: 0.9;
+      /* Pills */
+      .pills { display: flex; gap: 12px; flex-wrap: wrap; }
+      .pill {
+        font-size: 13px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      
+      .kbd {
+        font-family: monospace;
+        background: rgba(255,255,255,0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #fff;
+      }
+
+      /* Hero Image Floating Effect */
+      .shot-wrapper {
+        position: relative;
+        perspective: 1000px;
       }
 
       .shot {
-        border-radius: 22px;
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.08),
-          rgba(255, 255, 255, 0.03)
-        );
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        padding: 12px;
-        box-shadow: var(--shadow);
-      }
-
-      @media (prefers-color-scheme: light) {
-        .shot {
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.9),
-            rgba(255, 255, 255, 0.55)
-          );
-          border-color: rgba(10, 14, 25, 0.12);
-        }
-      }
-
-      .shot__img {
-        width: 100%;
-        height: auto;
-        display: block;
+        position: relative;
         border-radius: 16px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.04);
+        backdrop-filter: blur(20px);
+        box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+        animation: floatImg 6s ease-in-out infinite;
+        transform-style: preserve-3d;
       }
 
-      @media (prefers-color-scheme: light) {
-        .shot__img {
-          border-color: rgba(10, 14, 25, 0.12);
-          background: rgba(10, 14, 25, 0.02);
-        }
+      .shot img {
+        width: 100%;
+        border-radius: 10px;
+        display: block;
+        border: 1px solid rgba(255,255,255,0.1);
       }
 
-      .shot__cap {
-        margin-top: 10px;
-        font-size: 12px;
-        color: var(--faint);
-        line-height: 1.5;
+      @keyframes floatImg {
+        0%, 100% { transform: translateY(0) rotateX(0deg); }
+        50% { transform: translateY(-20px) rotateX(2deg); }
       }
 
-      .section {
-        margin-top: 44px;
-      }
-
-      .section__head {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 14px;
-      }
-
+      /* --- Cards & Spotlight Effect --- */
+      .section { padding: 100px 0; }
       .section__title {
-        margin: 0;
-        font-size: 18px;
-        letter-spacing: 0.15px;
+        font-size: 32px;
+        font-weight: 700;
+        margin: 0 0 10px;
+        letter-spacing: -1px;
       }
-
-      .section__hint {
-        font-size: 13px;
-        color: var(--faint);
-      }
+      .section__hint { color: var(--primary); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: block;}
 
       .grid {
         display: grid;
-        grid-template-columns: repeat(12, 1fr);
-        gap: 14px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-top: 40px;
       }
+
+      @media(max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+      @media(max-width: 600px) { .grid { grid-template-columns: 1fr; } }
 
       .card {
-        grid-column: span 4;
-        border-radius: var(--radius);
-        padding: 16px;
-        background: var(--bg-elev);
+        position: relative;
+        background: var(--card-bg);
         border: 1px solid var(--border);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
+        border-radius: 16px;
+        padding: 24px;
+        overflow: hidden; /* Needed for spotlight */
+        transition: transform 0.2s;
+        /* For spotlight calc */
+        --mouse-x: -1000px;
+        --mouse-y: -1000px;
       }
 
-      @media (max-width: 980px) {
-        .card {
-          grid-column: span 6;
-        }
+      /* The Spotlight Magic */
+      .card::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: radial-gradient(
+          var(--spotlight-size) circle at var(--mouse-x) var(--mouse-y),
+          rgba(255, 255, 255, 0.08),
+          transparent 40%
+        );
+        z-index: 1;
+        pointer-events: none;
+      }
+      
+      /* Border Glow */
+      .card::after {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: radial-gradient(
+          var(--spotlight-size) circle at var(--mouse-x) var(--mouse-y),
+          rgba(255, 255, 255, 0.4),
+          transparent 40%
+        );
+        z-index: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        /* Use a mask to only show the border */
+        -webkit-mask: 
+          linear-gradient(#fff 0 0) content-box, 
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        padding: 1px; /* Border width */
       }
 
-      @media (max-width: 640px) {
-        .card {
-          grid-column: span 12;
-        }
-      }
-
-      .card--wide {
-        grid-column: span 6;
-      }
-
-      .card--full {
-        grid-column: span 12;
+      .card__content {
+        position: relative;
+        z-index: 2;
       }
 
       .card__icon {
-        width: 34px;
-        height: 34px;
-        border-radius: 12px;
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
+        border: 1px solid rgba(255,255,255,0.1);
         display: grid;
         place-items: center;
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 10px;
+        margin-bottom: 16px;
+        color: var(--primary);
       }
+      
+      .card__title { font-size: 18px; font-weight: 600; margin: 0 0 8px; color: #fff; }
+      .card__text { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+      
+      .card--wide { grid-column: span 2; }
+      @media(max-width: 600px) { .card--wide { grid-column: span 1; } }
+      .card--full { grid-column: span 3; }
+      @media(max-width: 900px) { .card--full { grid-column: span 2; } }
+      @media(max-width: 600px) { .card--full { grid-column: span 1; } }
 
-      @media (prefers-color-scheme: light) {
-        .card__icon {
-          background: rgba(10, 14, 25, 0.04);
-          border-color: rgba(10, 14, 25, 0.12);
-        }
-      }
-
-      .card__icon svg {
-        width: 16px;
-        height: 16px;
-        opacity: 0.9;
-      }
-
-      .card__title {
-        margin: 0 0 6px;
-        font-size: 15px;
-        letter-spacing: 0.1px;
-      }
-
-      .card__text {
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.7;
-        font-size: 14px;
-      }
-
-      .steps {
-        margin: 10px 0 0;
-        padding: 0;
-        list-style: none;
-        display: grid;
-        gap: 10px;
-      }
-
-      .step {
-        display: flex;
-        gap: 10px;
-        align-items: flex-start;
-      }
-
+      /* Steps List */
+      .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
+      .step { display: flex; gap: 16px; }
       .step__num {
-        width: 22px;
-        height: 22px;
-        border-radius: 8px;
+        width: 24px; height: 24px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
         display: grid;
         place-items: center;
-        background: rgba(139, 92, 246, 0.18);
-        border: 1px solid rgba(139, 92, 246, 0.35);
-        color: rgba(255, 255, 255, 0.92);
-        font-weight: 700;
-        font-size: 12px;
-        flex: 0 0 auto;
+        flex-shrink: 0;
+        box-shadow: 0 0 10px var(--primary-glow);
       }
 
-      @media (prefers-color-scheme: light) {
-        .step__num {
-          color: rgba(10, 14, 25, 0.9);
-        }
+      /* Code Block */
+      code {
+        background: rgba(0,0,0,0.3);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+        color: #a5b4fc;
+        border: 1px solid rgba(255,255,255,0.1);
       }
 
-      .step__body {
-        color: var(--muted);
-        line-height: 1.65;
+      /* Footer */
+      .footer {
+        border-top: 1px solid var(--border);
+        padding: 40px 0;
+        margin-top: 80px;
+        text-align: center;
+        color: var(--text-secondary);
         font-size: 14px;
       }
+      .footer a:hover { color: var(--primary); }
 
-      .kbd {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 2px 8px;
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: rgba(255, 255, 255, 0.06);
-        font-size: 12px;
-        color: var(--text);
+      /* --- Scroll Reveal Animation --- */
+      .reveal {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: all 0.8s cubic-bezier(0.5, 0, 0, 1);
+      }
+      
+      .reveal.active {
+        opacity: 1;
+        transform: translateY(0);
       }
 
-      @media (prefers-color-scheme: light) {
-        .kbd {
-          border-color: rgba(10, 14, 25, 0.12);
-          background: rgba(10, 14, 25, 0.03);
-        }
-      }
-
-      .note {
-        margin-top: 14px;
-        color: var(--faint);
-        line-height: 1.7;
-        font-size: 13px;
-      }
-
-      .note code {
-        font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco,
-          Consolas, "Liberation Mono", "Courier New", monospace;
-        padding: 2px 7px;
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: var(--text);
-      }
-
-      @media (prefers-color-scheme: light) {
-        .note code {
-          background: rgba(10, 14, 25, 0.03);
-          border-color: rgba(10, 14, 25, 0.12);
-        }
-      }
-
-      .footer {
-        margin-top: 52px;
-        padding-top: 18px;
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
-        color: var(--faint);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 12px;
-        font-size: 13px;
-      }
-
-      @media (prefers-color-scheme: light) {
-        .footer {
-          border-top-color: rgba(10, 14, 25, 0.08);
-        }
-      }
-
-      .footer a {
-        color: var(--muted);
-        text-decoration: none;
-      }
-
-      .footer a:hover {
-        text-decoration: underline;
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        * {
-          scroll-behavior: auto !important;
-          transition: none !important;
-        }
-      }
     </style>
   </head>
   <body>
+    
+    <!-- Animated Background Blobs -->
+    <div class="bg-animation">
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+    </div>
+
     <header class="nav">
       <div class="container nav__inner">
-        <a class="brand" href="#top" aria-label="Lexi Home">
-          <span class="logo" aria-hidden="true">
+        <a class="brand" href="#top">
+          <span class="logo">
             <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 2l1.2 4.6L18 8l-4.8 1.4L12 14l-1.2-4.6L6 8l4.8-1.4L12 2z"
-                fill="currentColor"
-              />
-              <path
-                d="M18.2 12.8l.8 3.1L22 17l-3 .9-.8 3.1-.8-3.1-3-.9 3-.9.8-3.1z"
-                fill="currentColor"
-                opacity="0.85"
-              />
+              <path d="M12 2l1.2 4.6L18 8l-4.8 1.4L12 14l-1.2-4.6L6 8l4.8-1.4L12 2z" fill="currentColor"/>
+              <path d="M18.2 12.8l.8 3.1L22 17l-3 .9-.8 3.1-.8-3.1-3-.9 3-.9.8-3.1z" fill="currentColor" opacity="0.85"/>
             </svg>
           </span>
           Lexi
         </a>
-
-        <nav class="nav__links" aria-label="Site">
+        <nav class="nav__links">
           <a href="#features">功能</a>
           <a href="#how">使用</a>
           <a href="#engines">引擎</a>
-          <a href="#privacy">隐私</a>
-          <a href="#open-source">开源</a>
-          <a
-            href="https://github.com/lynxlangya/lexi"
-            target="_blank"
-            rel="noreferrer noopener"
-            >GitHub</a
-          >
+          <a href="https://github.com/lynxlangya/lexi" target="_blank">GitHub</a>
         </nav>
       </div>
     </header>
 
     <main id="top">
       <div class="container">
+        
+        <!-- Hero -->
         <section class="hero">
-          <div>
-            <h1 class="hero__title">选中文字，一键翻译。</h1>
+          <div class="reveal">
+            <h1 class="hero__title">
+              翻译，<br>
+              从未如此优雅。
+            </h1>
             <p class="hero__desc">
-              Lexi 是一款 macOS 14+ 极简划词翻译浮窗：全局快捷键唤起，OpenAI
-              兼容流式翻译（OpenAI / DeepSeek），并为单词学习提供词典卡片（US
-              音标 / 释义 / 朗读）。
+              专为 macOS 设计的极简划词翻译。支持 OpenAI 流式输出、单词卡片模式。
+              <br>选中文字，按 <span class="kbd">⌘⇧L</span>，即刻呈现。
             </p>
 
             <div class="hero__cta">
-              <a
-                class="btn btn--primary"
-                href="https://github.com/lynxlangya/lexi/releases/latest"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 3v10m0 0l4-4m-4 4l-4-4"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                  <path
-                    d="M5 15v4a2 2 0 002 2h10a2 2 0 002-2v-4"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
+              <a class="btn btn--primary" href="https://github.com/lynxlangya/lexi/releases/latest" target="_blank">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 下载 DMG
               </a>
-              <a
-                class="btn btn--ghost"
-                href="https://github.com/lynxlangya/lexi"
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 2a10 10 0 00-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.2-3.4-1.2-.4-1.1-1.1-1.4-1.1-1.4-.9-.6.1-.6.1-.6 1 .1 1.6 1.1 1.6 1.1.9 1.6 2.4 1.1 3 .8.1-.7.4-1.1.7-1.4-2.2-.3-4.6-1.1-4.6-5a3.9 3.9 0 011-2.7 3.7 3.7 0 01.1-2.7s.9-.3 2.8 1a9.7 9.7 0 015.2 0c1.9-1.3 2.8-1 2.8-1a3.7 3.7 0 01.1 2.7 3.9 3.9 0 011 2.7c0 3.9-2.4 4.7-4.7 5 .4.3.7.9.7 1.8v2.6c0 .3.2.6.7.5A10 10 0 0012 2z"
-                    fill="currentColor"
-                  />
-                </svg>
-                GitHub 源码
+              <a class="btn btn--ghost" href="https://github.com/lynxlangya/lexi" target="_blank">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2A10 10 0 002 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02a9.68 9.68 0 015 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"/></svg>
+                Star on GitHub
               </a>
             </div>
 
-            <div class="pills" aria-label="Highlights">
-              <span class="pill"
-                ><svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M6 6h12v12H6z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    opacity="0.55"
-                  />
-                  <path
-                    d="M9 3h6M9 21h6"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
-                macOS 14+</span
-              >
-              <span class="pill"
-                ><svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M4 12h16"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                  <path
-                    d="M12 4v16"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    opacity="0.55"
-                  />
-                </svg>
-                默认快捷键 <span class="kbd">⌘⇧L</span></span
-              >
-              <span class="pill"
-                ><svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 2l7 4v6c0 5-3 9-7 10-4-1-7-5-7-10V6l7-4z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-                Keychain 存储 API Key</span
-              >
+            <div class="pills">
+              <span class="pill">macOS 14+</span>
+              <span class="pill">OpenAI / DeepSeek</span>
+              <span class="pill">Keychain 安全存储</span>
             </div>
           </div>
 
-          <div class="shot">
-            <img
-              class="shot__img"
-              src="./assets/snipaste.png"
-              alt="Lexi 浮窗截图"
-              loading="lazy"
-              decoding="async"
-            />
-            <div class="shot__cap">
-              浮窗毛玻璃 + 单词学习卡片（US 音标 / 释义 / 点击朗读）。
+          <div class="shot-wrapper reveal" style="transition-delay: 0.1s;">
+            <div class="shot">
+              <img src="./assets/snipaste.png" alt="App Screenshot" />
+              <div style="margin-top: 12px; font-size: 12px; color: var(--text-secondary); text-align: center;">
+                Lexi 浮窗界面预览 · 自动音标与释义
+              </div>
             </div>
           </div>
         </section>
 
+        <!-- Features -->
         <section id="features" class="section">
-          <div class="section__head">
-            <h2 class="section__title">功能亮点</h2>
-            <div class="section__hint">极简体验，但细节到位</div>
+          <div class="reveal">
+            <span class="section__hint">Features</span>
+            <h2 class="section__title">不仅是翻译，更是阅读助手</h2>
           </div>
 
           <div class="grid">
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M5 7h14M5 12h10M5 17h14"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
+            <div class="card reveal" data-spotlight>
+              <div class="card__content">
+                <div class="card__icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <h3 class="card__title">极致速度</h3>
+                <p class="card__text">选中文字，按下快捷键，0.3s 内响应。无需切换应用，保持当前阅读心流。</p>
               </div>
-              <h3 class="card__title">划词即用</h3>
-              <p class="card__text">
-                在任意 App 选中文字，按快捷键立即显示翻译浮窗，无需切换上下文。
-              </p>
-            </article>
+            </div>
 
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M6 16c0-4 3-7 6-7s6 3 6 7"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                  <path
-                    d="M8 16h8"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    opacity="0.7"
-                  />
-                </svg>
+            <div class="card reveal" data-spotlight style="transition-delay: 0.1s;">
+              <div class="card__content">
+                <div class="card__icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18m-9-9h18" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <h3 class="card__title">AI 流式输出</h3>
+                <p class="card__text">兼容 OpenAI 接口协议。支持 DeepSeek、GPT-4o，像真人一样逐字吐出翻译结果。</p>
               </div>
-              <h3 class="card__title">毛玻璃浮窗</h3>
-              <p class="card__text">
-                原生 Material 风格，靠近鼠标显示；点击外部自动关闭并清空内容。
-              </p>
-            </article>
+            </div>
 
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M5 12h14"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                  <path
-                    d="M12 5l7 7-7 7"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    opacity="0.7"
-                  />
-                </svg>
+            <div class="card reveal" data-spotlight style="transition-delay: 0.2s;">
+              <div class="card__content">
+                <div class="card__icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </div>
+                <h3 class="card__title">单词卡片</h3>
+                <p class="card__text">智能识别单词模式，自动展示美式音标、词性、释义。点击单词即可发音。</p>
               </div>
-              <h3 class="card__title">流式输出</h3>
-              <p class="card__text">
-                OpenAI 兼容 SSE 流式解析，边生成边展示（OpenAI / DeepSeek）。
-              </p>
-            </article>
+            </div>
 
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M7 10h10M7 14h6"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                  <path
-                    d="M5 6a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    opacity="0.75"
-                  />
-                </svg>
+            <div class="card reveal" data-spotlight style="transition-delay: 0.3s;">
+              <div class="card__content">
+                <div class="card__icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                </div>
+                <h3 class="card__title">隐形存在</h3>
+                <p class="card__text">点击外部自动消失，没有任何多余的窗口残留。用完即走，不打扰你的工作区。</p>
               </div>
-              <h3 class="card__title">单词学习卡片</h3>
-              <p class="card__text">
-                选中单词时自动生成词典样式解释（US 音标 + 词性释义），支持朗读。
-              </p>
-            </article>
+            </div>
 
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 2a10 10 0 100 20 10 10 0 000-20z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    opacity="0.7"
-                  />
-                  <path
-                    d="M12 6v6l4 2"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
+            <div class="card card--wide reveal" data-spotlight style="transition-delay: 0.4s;">
+              <div class="card__content">
+                <div class="card__icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"/></svg>
+                </div>
+                <h3 class="card__title">高度可配置</h3>
+                <p class="card__text">
+                  自定义 Base URL (方便接入 One API 或本地 LLM)、自定义 Model Name。内置 Google 翻译兜底，没有 Key 也能用。
+                </p>
               </div>
-              <h3 class="card__title">常驻后台</h3>
-              <p class="card__text">
-                菜单栏入口 + 全局快捷键，启动后保持可用，不打扰但随时可用。
-              </p>
-            </article>
-
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M7 7h10v10H7z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    opacity="0.7"
-                  />
-                  <path
-                    d="M9 9h6v6H9z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  />
-                </svg>
-              </div>
-              <h3 class="card__title">可配置</h3>
-              <p class="card__text">
-                源/目标语种、快捷键、开机自启、引擎切换、自定义 OpenAI 兼容引擎。
-              </p>
-            </article>
+            </div>
           </div>
         </section>
 
+        <!-- How it works -->
         <section id="how" class="section">
-          <div class="section__head">
-            <h2 class="section__title">如何使用</h2>
-            <div class="section__hint">1 分钟上手</div>
+           <div class="reveal">
+            <span class="section__hint">Quick Start</span>
+            <h2 class="section__title">即刻上手</h2>
           </div>
 
           <div class="grid">
-            <div class="card card--wide">
-              <h3 class="card__title">安装</h3>
-              <p class="card__text">
-                下载 DMG 后，把 <span class="kbd">Lexi.app</span> 拖入
-                <span class="kbd">/Applications</span>。
-              </p>
-              <ul class="steps">
-                <li class="step">
-                  <span class="step__num">1</span>
-                  <span class="step__body"
-                    >首次打开如被拦截：右键 app → Open，或在 System Settings →
-                    Privacy &amp; Security 允许打开。</span
-                  >
-                </li>
-                <li class="step">
-                  <span class="step__num">2</span>
-                  <span class="step__body"
-                    >在任意 App 选中文字，按 <span class="kbd">⌘⇧L</span> 唤起浮窗。</span
-                  >
-                </li>
-                <li class="step">
-                  <span class="step__num">3</span>
-                  <span class="step__body"
-                    >打开设置填写 API Key / Base URL，或使用内置 Google 引擎。</span
-                  >
-                </li>
-              </ul>
+            <div class="card card--wide reveal" data-spotlight>
+              <div class="card__content">
+                <h3 class="card__title">安装三部曲</h3>
+                <ul class="steps" style="margin-top: 20px;">
+                  <li class="step">
+                    <span class="step__num">1</span>
+                    <div>
+                      <div>下载并拖入 /Applications</div>
+                      <div class="card__text">首次打开若被 macOS 拦截，请在 Finder 中右键点击 Open。</div>
+                    </div>
+                  </li>
+                  <li class="step">
+                    <span class="step__num">2</span>
+                    <div>
+                      <div>授予权限</div>
+                      <div class="card__text">系统设置 → 隐私与安全性 → 辅助功能，开启 Lexi 权限（用于读取选中文本）。</div>
+                    </div>
+                  </li>
+                  <li class="step">
+                    <span class="step__num">3</span>
+                    <div>
+                      <div>配置 API</div>
+                      <div class="card__text">点击菜单栏图标 Settings，填入你的 Key。也可以先用 Google 引擎体验。</div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
             </div>
 
-            <div class="card card--wide" id="privacy">
-              <h3 class="card__title">权限与隐私</h3>
-              <p class="card__text">
-                Lexi 需要 Accessibility 权限读取选中文本。API Key 存储在 macOS
-                Keychain。
-              </p>
-              <ul class="steps">
-                <li class="step">
-                  <span class="step__num">A</span>
-                  <span class="step__body"
-                    >System Settings → Privacy &amp; Security → Accessibility →
-                    启用 Lexi。</span
-                  >
-                </li>
-                <li class="step">
-                  <span class="step__num">B</span>
-                  <span class="step__body"
-                    >选中文本会发送给你选择的翻译服务（OpenAI / DeepSeek /
-                    Google）。请避免翻译敏感内容。</span
-                  >
-                </li>
-              </ul>
-              <p class="note">
-                提示：如果刚开启 Accessibility，重启 Lexi 一次即可生效。
-              </p>
+            <div class="card reveal" data-spotlight style="transition-delay: 0.2s;">
+              <div class="card__content">
+                <h3 class="card__title">配置示例</h3>
+                <div style="margin-top: 16px; font-size: 13px; display: flex; flex-direction: column; gap: 12px;">
+                  <div>
+                    <div style="color:white; margin-bottom:4px;">OpenAI</div>
+                    <code>https://api.openai.com/v1</code>
+                  </div>
+                  <div>
+                    <div style="color:white; margin-bottom:4px;">DeepSeek</div>
+                    <code>https://api.deepseek.com</code>
+                  </div>
+                  <div class="card__text" style="font-size: 12px; margin-top: 4px;">
+                    Lexi 会自动补全 chat/completions 路径。
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <section id="engines" class="section">
-          <div class="section__head">
-            <h2 class="section__title">翻译引擎</h2>
-            <div class="section__hint">内置 + 可扩展</div>
-          </div>
-
-          <div class="grid">
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 2a10 10 0 100 20 10 10 0 000-20z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    opacity="0.75"
-                  />
-                  <path
-                    d="M2 12h20"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </div>
-              <h3 class="card__title">Google（免费）</h3>
-              <p class="card__text">无需 Key，适合轻量翻译（可能被限流）。</p>
-            </article>
-
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 3l7 4v6c0 5-3 9-7 10-4-1-7-5-7-10V7l7-4z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linejoin="round"
-                  />
-                  <path
-                    d="M9 12h6"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    opacity="0.7"
-                  />
-                </svg>
-              </div>
-              <h3 class="card__title">gpt-4o（流式）</h3>
-              <p class="card__text">
-                OpenAI 兼容接口，支持 SSE 流式输出，体验更顺滑。
-              </p>
-            </article>
-
-            <article class="card">
-              <div class="card__icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M7 7h10v10H7z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    opacity="0.75"
-                  />
-                  <path
-                    d="M9 9h6v6H9z"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  />
-                </svg>
-              </div>
-              <h3 class="card__title">deepseek-chat（流式）</h3>
-              <p class="card__text">
-                OpenAI 兼容接口。把 Base URL 设置为 DeepSeek，直接使用。
-              </p>
-            </article>
-
-            <article class="card card--full">
-              <h3 class="card__title">Base URL 示例</h3>
-              <p class="note">
-                OpenAI：<code>https://api.openai.com/v1</code><br />
-                DeepSeek：<code>https://api.deepseek.com</code>
-                （Lexi 会自动补全 <code>/v1/chat/completions</code>）
-              </p>
-              <p class="note">
-                你也可以在 Settings 添加任意 OpenAI 兼容引擎（自定义 Base URL +
-                model + key）。
-              </p>
-            </article>
-          </div>
-        </section>
-
-        <section id="open-source" class="section">
-          <div class="section__head">
-            <h2 class="section__title">开源与贡献</h2>
-            <div class="section__hint">MIT License</div>
-          </div>
-
-          <div class="grid">
-            <div class="card card--full">
-              <p class="card__text">
-                Lexi 以 Swift + SwiftUI 开发，遵循 MVVM 架构，核心模块包括选区读取
-                (AXUIElement)、翻译服务层（流式 / 非流式）、窗口管理与全局热键。
-              </p>
-              <div class="hero__cta" style="margin-top: 14px">
-                <a
-                  class="btn"
-                  href="https://github.com/lynxlangya/lexi"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  查看源码
-                </a>
-                <a
-                  class="btn btn--ghost"
-                  href="https://github.com/lynxlangya/lexi/issues"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  提交 Issue
-                </a>
-              </div>
-              <p class="note">
-                想了解实现细节？可阅读仓库内的 <code>Architecture.md</code>。
-              </p>
-            </div>
-          </div>
+        <!-- Open Source -->
+        <section class="section">
+           <div class="reveal">
+             <div style="text-align: center; max-width: 600px; margin: 0 auto;">
+               <h2 class="section__title">100% 开源透明</h2>
+               <p style="color: var(--text-secondary); margin-bottom: 30px;">
+                 Lexi 使用 Swift + SwiftUI 原生开发，不收集任何用户隐私。<br>
+                 你的 API Key 仅存储于本地 macOS Keychain。
+               </p>
+               <a class="btn btn--ghost" href="https://github.com/lynxlangya/lexi" target="_blank">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2A10 10 0 002 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02a9.68 9.68 0 015 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0012 2z"/></svg>
+                  View Code on GitHub
+               </a>
+             </div>
+           </div>
         </section>
 
         <footer class="footer">
-          <div>© <span id="year"></span> Lexi. Built for macOS.</div>
-          <div>
-            <a
-              href="https://github.com/lynxlangya/lexi"
-              target="_blank"
-              rel="noreferrer noopener"
-              >GitHub</a
-            >
-            ·
-            <a
-              href="https://github.com/lynxlangya/lexi/releases/latest"
-              target="_blank"
-              rel="noreferrer noopener"
-              >Download</a
-            >
-          </div>
+          <p>© <span id="year"></span> Lexi for macOS. Created by Lynx.</p>
         </footer>
+
       </div>
     </main>
 
     <script>
-      document.getElementById("year").textContent = String(
-        new Date().getFullYear()
-      );
+      // 1. Footer Year
+      document.getElementById("year").textContent = new Date().getFullYear();
+
+      // 2. Scroll Reveal Animation
+      const observerOptions = {
+        threshold: 0.1,
+        rootMargin: "0px 0px -50px 0px"
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('active');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, observerOptions);
+
+      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+      // 3. Spotlight Effect
+      // Calculates mouse position relative to the card container
+      const cards = document.querySelectorAll('[data-spotlight]');
+      
+      cards.forEach(card => {
+        card.addEventListener('mousemove', e => {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          
+          card.style.setProperty('--mouse-x', `${x}px`);
+          card.style.setProperty('--mouse-y', `${y}px`);
+        });
+      });
     </script>
   </body>
 </html>
-
