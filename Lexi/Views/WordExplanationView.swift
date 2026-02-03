@@ -41,7 +41,7 @@ struct WordExplanationView: View {
                             .font(.system(size: 14, weight: .semibold))
                     }
                     .buttonStyle(.plain)
-                    .help(tts.isSpeaking ? "Stop Speaking" : "Speak")
+                    .help(tts.isSpeaking ? "停止朗读" : "朗读")
                     #endif
 
                     Spacer()

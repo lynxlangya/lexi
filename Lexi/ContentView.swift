@@ -46,6 +46,23 @@ struct ContentView: View {
             guard !viewModel.sourceText.isEmpty else { return }
             Task { await translateCurrent(engineId: newEngineId) }
         }
+        .onChange(of: viewModel.translatedText) { _ in
+            WindowManager.shared.refreshLayout()
+        }
+        .onChange(of: viewModel.wordExplanation) { _ in
+            WindowManager.shared.refreshLayout()
+        }
+        .onChange(of: viewModel.errorBanner) { _ in
+            WindowManager.shared.refreshLayout()
+        }
+        .onChange(of: viewModel.isLoading) { _ in
+            WindowManager.shared.refreshLayout()
+        }
+        .onExitCommand {
+            TextToSpeechService.shared.stop()
+            WindowManager.shared.hidePopup()
+            viewModel.clear()
+        }
         #endif
     }
 
@@ -88,6 +105,10 @@ struct ContentView: View {
 
     @MainActor
     private func normalizeSelectedEngineIfNeeded() {
+        if selectedEngineId == "microsoft" {
+            selectedEngineId = "google"
+            return
+        }
         guard EngineStore.engine(for: selectedEngineId) == nil else { return }
         selectedEngineId = ModelOptions.defaults.first ?? "gpt-4o"
     }

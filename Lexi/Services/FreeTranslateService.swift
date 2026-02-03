@@ -15,11 +15,11 @@ enum FreeTranslateError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unsupportedEngine:
-            return "Unsupported free engine."
+            return "不支持的免费引擎。"
         case .invalidResponse:
-            return "Invalid response from translation service."
+            return "翻译服务返回异常。"
         case let .httpError(code, message):
-            return "HTTP \(code): \(message)"
+            return "HTTP \(code)：\(message)"
         }
     }
 }
@@ -36,8 +36,6 @@ actor FreeTranslateService {
         switch engineId {
         case "google":
             return try await translateWithGoogle(sourceLanguage: sourceLanguage, targetLanguage: targetLanguage, text: text)
-        case "microsoft":
-            return try await translateWithMicrosoft(sourceLanguage: sourceLanguage, targetLanguage: targetLanguage, text: text)
         default:
             throw FreeTranslateError.unsupportedEngine
         }
@@ -67,38 +65,6 @@ actor FreeTranslateService {
         throw FreeTranslateError.invalidResponse
     }
 
-    private func translateWithMicrosoft(sourceLanguage: String, targetLanguage: String, text: String) async throws -> String {
-        var components = URLComponents(string: "https://api-edge.cognitive.microsofttranslator.com/translate")!
-        var items: [URLQueryItem] = [
-            URLQueryItem(name: "api-version", value: "3.0"),
-            URLQueryItem(name: "to", value: microsoftCode(from: targetLanguage)),
-        ]
-        let fromCode = microsoftCode(from: sourceLanguage)
-        if fromCode != "auto" {
-            items.append(URLQueryItem(name: "from", value: fromCode))
-        }
-        components.queryItems = items
-
-        var request = URLRequest(url: components.url!)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode([["Text": text]])
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw FreeTranslateError.invalidResponse }
-        guard (200..<300).contains(http.statusCode) else {
-            throw FreeTranslateError.httpError(http.statusCode, String(data: data, encoding: .utf8) ?? "")
-        }
-
-        struct MicrosoftResponse: Decodable {
-            struct Translation: Decodable { let text: String }
-            let translations: [Translation]
-        }
-
-        let decoded = try JSONDecoder().decode([MicrosoftResponse].self, from: data)
-        return decoded.first?.translations.first?.text ?? ""
-    }
-
     private func googleCode(from code: String) -> String {
         switch code {
         case "zh-Hans":
@@ -109,16 +75,4 @@ actor FreeTranslateService {
             return code
         }
     }
-
-    private func microsoftCode(from code: String) -> String {
-        switch code {
-        case "zh-Hans":
-            return "zh-Hans"
-        case "zh-Hant":
-            return "zh-Hant"
-        default:
-            return code
-        }
-    }
 }
-

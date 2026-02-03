@@ -31,77 +31,77 @@ struct TranslationPopupView: View {
         .frame(width: 360)
     }
 
-	    private var header: some View {
-	        HStack(spacing: 8) {
-	            Image(systemName: "sparkles")
-	                .font(.system(size: 14, weight: .semibold))
-	            Text("Lexi")
-	                .font(.system(size: 13, weight: .semibold))
-	            Spacer()
-	            #if os(macOS)
-	            modelMenu
-	            SettingsLink {
-	                Image(systemName: "gearshape")
-	            }
-	            .buttonStyle(.plain)
-	            #endif
-	        }
-	    }
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .semibold))
+            Text("Lexi")
+                .font(.system(size: 13, weight: .semibold))
+            Spacer()
+            #if os(macOS)
+            modelMenu
+            SettingsLink {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.plain)
+            #endif
+        }
+    }
 
-	    #if os(macOS)
-	    private var modelMenu: some View {
-	        Menu {
-	            let freeEngines = engines.filter { $0.kind == .free }
-	            let aiEngines = engines.filter { $0.kind == .openAICompatible && !$0.isCustom }
-	            let customEngines = engines.filter { $0.kind == .openAICompatible && $0.isCustom }
+    #if os(macOS)
+    private var modelMenu: some View {
+        Menu {
+            let freeEngines = engines.filter { $0.kind == .free }
+            let aiEngines = engines.filter { $0.kind == .openAICompatible && !$0.isCustom }
+            let customEngines = engines.filter { $0.kind == .openAICompatible && $0.isCustom }
 
-	            if !freeEngines.isEmpty {
-	                Section("免费引擎") {
-	                    ForEach(freeEngines) { engine in
-	                        modelItem(title: engine.displayName, value: engine.id)
-	                    }
-	                }
-	            }
+            if !freeEngines.isEmpty {
+                Section("免费引擎") {
+                    ForEach(freeEngines) { engine in
+                        modelItem(title: engine.displayName, value: engine.id)
+                    }
+                }
+            }
 
-	            if !aiEngines.isEmpty {
-	                Divider()
-	                Section("AI 模型") {
-	                    ForEach(aiEngines) { engine in
-	                        modelItem(title: engine.displayName, value: engine.id)
-	                    }
-	                }
-	            }
+            if !aiEngines.isEmpty {
+                Divider()
+                Section("AI 模型") {
+                    ForEach(aiEngines) { engine in
+                        modelItem(title: engine.displayName, value: engine.id)
+                    }
+                }
+            }
 
-	            if !customEngines.isEmpty {
-	                Divider()
-	                Section("自定义引擎") {
-	                    ForEach(customEngines) { engine in
-	                        modelItem(title: engine.displayName, value: engine.id)
-	                    }
-	                }
-	            }
-	        } label: {
-	            Image(systemName: "square.stack.3d.up")
-	                .font(.system(size: 13, weight: .semibold))
-	                .padding(.horizontal, 4)
-	        }
-	        .menuStyle(.borderlessButton)
-	        .help("Switch Model")
-	    }
+            if !customEngines.isEmpty {
+                Divider()
+                Section("自定义引擎") {
+                    ForEach(customEngines) { engine in
+                        modelItem(title: engine.displayName, value: engine.id)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "square.stack.3d.up")
+                .font(.system(size: 13, weight: .semibold))
+                .padding(.horizontal, 4)
+        }
+        .menuStyle(.borderlessButton)
+        .help("切换模型")
+    }
 
-	    @ViewBuilder
-	    private func modelItem(title: String, value: String) -> some View {
-	        Button {
-	            selectedEngineId = value
-	        } label: {
-	            if selectedEngineId == value {
-	                Label(title, systemImage: "checkmark")
-	            } else {
-	                Text(title)
-	            }
-	        }
-	    }
-	    #endif
+    @ViewBuilder
+    private func modelItem(title: String, value: String) -> some View {
+        Button {
+            selectedEngineId = value
+        } label: {
+            if selectedEngineId == value {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+    #endif
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -116,7 +116,7 @@ struct TranslationPopupView: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Translating…")
+                    Text("正在翻译…")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
@@ -128,7 +128,7 @@ struct TranslationPopupView: View {
             } else if !viewModel.translatedText.isEmpty {
                 MarkdownText(viewModel.translatedText)
             } else {
-                Text("Select text and press the hotkey to translate.")
+                Text("选中文本后按快捷键翻译。")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -137,21 +137,21 @@ struct TranslationPopupView: View {
         .padding(.vertical, 4)
     }
 
-	    private var footer: some View {
-	        HStack {
-	            Spacer()
-	            Text(selectedEngineName)
-	                .font(.system(size: 12))
-	                .foregroundStyle(.secondary)
-	                .padding(.horizontal, 8)
-	                .padding(.vertical, 4)
-	                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-	        }
-	    }
+    private var footer: some View {
+        HStack {
+            Spacer()
+            Text(selectedEngineName)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+    }
 
-	    private var selectedEngineName: String {
-	        engines.first(where: { $0.id == selectedEngineId })?.displayName ?? selectedEngineId
-	    }
+    private var selectedEngineName: String {
+        engines.first(where: { $0.id == selectedEngineId })?.displayName ?? selectedEngineId
+    }
 }
 
 private struct MarkdownText: View {

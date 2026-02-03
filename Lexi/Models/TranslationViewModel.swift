@@ -14,9 +14,14 @@ struct ErrorBanner: Hashable, Identifiable {
         case error
     }
 
+    enum Action: Hashable {
+        case openAccessibilitySettings
+    }
+
     let id = UUID()
     let message: String
     let style: Style
+    let action: Action?
 }
 
 @MainActor
@@ -88,15 +93,25 @@ final class TranslationViewModel: ObservableObject {
     }
 
     func presentError(_ error: Error) {
-        if let translationError = error as? TranslationError {
+        if error is SelectionError {
             errorBanner = ErrorBanner(
-                message: translationError.localizedDescription,
-                style: translationError.severity == .warning ? .warning : .error
+                message: error.localizedDescription,
+                style: .warning,
+                action: .openAccessibilitySettings
             )
             return
         }
 
-        errorBanner = ErrorBanner(message: error.localizedDescription, style: .error)
+        if let translationError = error as? TranslationError {
+            errorBanner = ErrorBanner(
+                message: translationError.localizedDescription,
+                style: translationError.severity == .warning ? .warning : .error,
+                action: nil
+            )
+            return
+        }
+
+        errorBanner = ErrorBanner(message: error.localizedDescription, style: .error, action: nil)
     }
 
     private func parseWordExplanationIfPossible() {

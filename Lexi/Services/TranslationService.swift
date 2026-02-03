@@ -32,21 +32,21 @@ enum TranslationError: LocalizedError, Hashable {
     var errorDescription: String? {
         switch self {
         case .httpStatus(401):
-            return "API Key is invalid or expired."
+            return "API Key 无效或已过期。"
         case .httpStatus(429):
-            return "Usage limit exceeded. Please check your quota."
+            return "使用额度已超限，请检查配额。"
         case .noInternet:
-            return "Please check your network connection."
+            return "网络不可用，请检查连接。"
         case let .httpStatus(code):
-            return "Translation failed (Error code: \(code))."
+            return "翻译失败（错误码：\(code)）。"
         case .missingAPIKey:
-            return "API Key is missing."
+            return "缺少 API Key。"
         case .invalidResponse:
-            return "Translation failed. Please try again."
+            return "翻译失败，请稍后再试。"
         case .unsupportedEngine:
-            return "Unsupported engine."
+            return "不支持的引擎。"
         case .unknown:
-            return "Translation failed. Please try again."
+            return "翻译失败，请稍后再试。"
         }
     }
 

@@ -15,11 +15,11 @@ enum LLMServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            return "Invalid response from server."
+            return "服务返回异常。"
         case let .httpError(code, message):
-            return "HTTP \(code): \(message)"
+            return "HTTP \(code)：\(message)"
         case .missingAPIKey:
-            return "API Key is missing."
+            return "缺少 API Key。"
         }
     }
 }

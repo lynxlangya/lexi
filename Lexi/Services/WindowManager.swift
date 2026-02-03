@@ -19,6 +19,8 @@ final class WindowManager {
     private var globalMonitor: Any?
     private var windowDelegate: PopupWindowDelegate?
     private var allowsWindowClose: Bool = false
+    private var lastAnchorPoint: NSPoint?
+    private var isAutoPositioned: Bool = true
 
     func attach(window: NSWindow) {
         self.window = window
@@ -44,9 +46,13 @@ final class WindowManager {
 
     func showPopupNearMouse() {
         guard let window else { return }
+        lastAnchorPoint = NSEvent.mouseLocation
+        isAutoPositioned = true
         window.setContentSize(defaultContentSize)
         window.minSize = defaultContentSize
-        position(window: window, near: NSEvent.mouseLocation)
+        if let anchor = lastAnchorPoint {
+            position(window: window, near: anchor)
+        }
         startDismissMonitorsIfNeeded()
         NSApp.activate(ignoringOtherApps: true)
         if window.canBecomeKey {
@@ -54,10 +60,20 @@ final class WindowManager {
         } else {
             window.orderFrontRegardless()
         }
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshLayout()
+        }
     }
 
     func prepareForTermination() {
         allowsWindowClose = true
+    }
+
+    func refreshLayout() {
+        guard let window, window.isVisible else { return }
+        updateWindowToFittingSize(window)
+        guard isAutoPositioned, let anchor = lastAnchorPoint else { return }
+        position(window: window, near: anchor)
     }
 
     private func configure(_ window: NSWindow) {
@@ -83,6 +99,9 @@ final class WindowManager {
             },
             onCloseAttempt: { [weak self] in
                 self?.dismissFromOutsideClick()
+            },
+            onMove: { [weak self] in
+                self?.isAutoPositioned = false
             }
         )
         window.delegate = windowDelegate
@@ -129,7 +148,25 @@ final class WindowManager {
         window.contentView?.layoutSubtreeIfNeeded()
         let fittingSize = window.contentView?.fittingSize ?? .zero
         guard fittingSize != .zero else { return }
-        window.setContentSize(fittingSize)
+        var frame = window.frame
+        frame.size = fittingSize
+        let screen = window.screen ?? NSScreen.main
+        let visibleFrame = screen?.visibleFrame ?? .zero
+
+        if frame.maxX > visibleFrame.maxX {
+            frame.origin.x = max(visibleFrame.minX + 8, visibleFrame.maxX - frame.size.width - 8)
+        }
+        if frame.minX < visibleFrame.minX {
+            frame.origin.x = visibleFrame.minX + 8
+        }
+        if frame.maxY > visibleFrame.maxY {
+            frame.origin.y = max(visibleFrame.minY + 8, visibleFrame.maxY - frame.size.height - 8)
+        }
+        if frame.minY < visibleFrame.minY {
+            frame.origin.y = visibleFrame.minY + 8
+        }
+
+        window.setFrame(frame, display: true)
     }
 
     private func position(window: NSWindow, near point: NSPoint) {
@@ -160,10 +197,16 @@ final class WindowManager {
 private final class PopupWindowDelegate: NSObject, NSWindowDelegate {
     private let shouldAllowClose: () -> Bool
     private let onCloseAttempt: () -> Void
+    private let onMove: () -> Void
 
-    init(shouldAllowClose: @escaping () -> Bool, onCloseAttempt: @escaping () -> Void) {
+    init(
+        shouldAllowClose: @escaping () -> Bool,
+        onCloseAttempt: @escaping () -> Void,
+        onMove: @escaping () -> Void
+    ) {
         self.shouldAllowClose = shouldAllowClose
         self.onCloseAttempt = onCloseAttempt
+        self.onMove = onMove
         super.init()
     }
 
@@ -173,6 +216,10 @@ private final class PopupWindowDelegate: NSObject, NSWindowDelegate {
         }
         onCloseAttempt()
         return false
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        onMove()
     }
 }
 #endif

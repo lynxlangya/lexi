@@ -17,7 +17,7 @@ enum SelectionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notAuthorized:
-            return "Accessibility permission is required to read selected text."
+            return "需要辅助功能权限才能读取选中文本。"
         }
     }
 }

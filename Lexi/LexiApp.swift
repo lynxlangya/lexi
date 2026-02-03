@@ -28,11 +28,11 @@ struct LexiApp: App {
             Button {
                 WindowManager.shared.showPopupNearMouse()
             } label: {
-                Label("Show Popup", systemImage: "rectangle.on.rectangle")
+                Label("显示翻译", systemImage: "rectangle.on.rectangle")
             }
 
             SettingsLink {
-                Label("Settings…", systemImage: "gearshape")
+                Label("设置…", systemImage: "gearshape")
             }
             .keyboardShortcut(",", modifiers: [.command])
 
@@ -41,7 +41,7 @@ struct LexiApp: App {
             Button {
                 NSApp.terminate(nil)
             } label: {
-                Label("Quit Lexi", systemImage: "power")
+                Label("退出 Lexi", systemImage: "power")
             }
             .keyboardShortcut("q")
         }

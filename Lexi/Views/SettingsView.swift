@@ -107,6 +107,10 @@ struct SettingsView: View {
 
     @MainActor
     private func normalizeSelectedEngineIfNeeded() {
+        if selectedEngineId == "microsoft" {
+            selectedEngineId = "google"
+            return
+        }
         guard EngineStore.engine(for: selectedEngineId) == nil else { return }
         selectedEngineId = ModelOptions.defaults.first ?? "gpt-4o"
     }

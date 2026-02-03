@@ -7,6 +7,12 @@
 
 import Combine
 import Foundation
+import os
+
+private let keychainLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Lexi",
+    category: "Keychain"
+)
 
 @MainActor
 final class APIKeyStore: ObservableObject {
@@ -46,7 +52,7 @@ final class APIKeyStore: ObservableObject {
             }
         } catch {
             // Keychain errors should not crash the UI; log for debugging.
-            print("Keychain error: \(error)")
+            keychainLogger.error("Keychain error: \(String(describing: error), privacy: .public)")
         }
 
         // Ensure legacy value isn't kept around.

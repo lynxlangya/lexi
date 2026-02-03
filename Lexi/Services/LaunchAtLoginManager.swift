@@ -10,6 +10,12 @@ import AppKit
 import Combine
 import Foundation
 import ServiceManagement
+import os
+
+private let launchLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Lexi",
+    category: "LaunchAtLogin"
+)
 
 @MainActor
 final class LaunchAtLoginManager: ObservableObject {
@@ -50,7 +56,7 @@ final class LaunchAtLoginManager: ObservableObject {
                 try service.unregister()
             }
         } catch {
-            print("LaunchAtLogin error: \(error)")
+            launchLogger.error("LaunchAtLogin error: \(String(describing: error), privacy: .public)")
         }
         refresh()
     }
