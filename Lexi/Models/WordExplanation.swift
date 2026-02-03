@@ -16,5 +16,6 @@ struct WordExplanation: Decodable, Hashable {
 
     let word: String
     let phoneticUS: String?
+    let web: String?
     let senses: [Sense]
 }

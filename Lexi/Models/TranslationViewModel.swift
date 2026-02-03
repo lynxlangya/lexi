@@ -115,12 +115,51 @@ final class TranslationViewModel: ObservableObject {
     }
 
     private func parseWordExplanationIfPossible() {
-        let trimmed = translatedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else { return }
-        guard let data = trimmed.data(using: .utf8) else { return }
+        guard isEnglishWordQuery(sourceText) else { return }
+        guard let jsonString = extractJSONFragment(from: translatedText),
+              let data = jsonString.data(using: .utf8)
+        else { return }
+
         if let decoded = try? JSONDecoder().decode(WordExplanation.self, from: data),
            !decoded.word.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             wordExplanation = decoded
         }
+    }
+
+    private func extractJSONFragment(from text: String) -> String? {
+        let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+        let cleanedLines = lines.filter { line in
+            !line.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("```")
+        }
+        let cleaned = cleanedLines.joined(separator: "\n")
+        guard let start = cleaned.firstIndex(of: "{"),
+              let end = cleaned.lastIndex(of: "}"),
+              start <= end
+        else { return nil }
+        return String(cleaned[start...end]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func isEnglishWordQuery(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard trimmed.split(whereSeparator: \.isWhitespace).count == 1 else { return false }
+        let allowedPunctuation = CharacterSet(charactersIn: "'-")
+        var hasAsciiLetter = false
+
+        for scalar in trimmed.unicodeScalars {
+            if scalar.properties.isAlphabetic {
+                if (65...90).contains(scalar.value) || (97...122).contains(scalar.value) {
+                    hasAsciiLetter = true
+                    continue
+                }
+                return false
+            }
+            if allowedPunctuation.contains(scalar) {
+                continue
+            }
+            return false
+        }
+
+        return hasAsciiLetter
     }
 }

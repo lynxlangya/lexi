@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 struct WordExplanationView: View {
     let explanation: WordExplanation
@@ -65,6 +66,23 @@ struct WordExplanationView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+
+                if let webMeaning = normalizedWebMeaning, !hasWebSense {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("web.")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.purple)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.purple.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .fixedSize()
+
+                        Text(webMeaning)
+                            .font(.system(size: 14))
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -76,6 +94,22 @@ struct WordExplanationView: View {
         guard let raw, !raw.isEmpty else { return nil }
         return raw
     }
+
+    private var normalizedWebMeaning: String? {
+        let raw = explanation.web?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let raw, !raw.isEmpty else { return nil }
+        return raw
+    }
+
+    private var hasWebSense: Bool {
+        explanation.senses.contains { sense in
+            let normalized = sense.pos
+                .lowercased()
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            return normalized == "web"
+        }
+    }
 }
 
 #Preview {
@@ -83,9 +117,9 @@ struct WordExplanationView: View {
         explanation: WordExplanation(
             word: "Which",
             phoneticUS: "/wɪtʃ/",
+            web: "哪一个；哪些；哪一类",
             senses: [
                 .init(pos: "pron.", meaning: "哪个；那；哪一个"),
-                .init(pos: "web.", meaning: "哪些；哪一些；那一个"),
             ]
         )
     )

@@ -111,6 +111,7 @@ actor LLMService {
             {
               "word": "<original word>",
               "phoneticUS": "</.../>",
+              "web": "<web meaning in \(targetName) or empty string>",
               "senses": [
                 { "pos": "n./v./adj./adv./pron./prep./conj./interj./abbr.", "meaning": "<concise meaning in \(targetName)>" }
               ]
@@ -120,7 +121,11 @@ actor LLMService {
             - Output ONLY valid JSON (one object). No additional keys.
             - Keep "word" exactly as input (preserve casing).
             - "phoneticUS" should be IPA between slashes, e.g. "/wɪtʃ/". If unknown, use "".
+            - "web" should be a concise web/common usage meaning in \(targetName). If none, use "".
             - Provide 1–4 senses max. Meanings should be concise and learner-friendly; use "；" to separate multiple meanings.
+            - Do NOT include "web." in the senses list; use the "web" field instead.
+            - Output MUST start with "{" and end with "}". No leading/trailing text, no code fences.
+            - Do not echo the word or any explanation outside the JSON.
             - No greetings, no examples, no explanations outside JSON.
             """
         }
