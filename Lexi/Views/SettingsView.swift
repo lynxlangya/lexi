@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("targetLanguage") private var targetLanguage: String = "zh-Hans"
     @AppStorage("hotKeyCode") private var hotKeyCode: Int = Int(HotKey.default.keyCode)
     @AppStorage("hotKeyModifiers") private var hotKeyModifiers: Int = Int(HotKey.default.modifiers)
+    @AppStorage("autoSwapZhEn") private var autoSwapZhEn: Bool = true
 
     // Selected engine/model id (kept for backward compatibility).
     @AppStorage("selectedModel") private var selectedEngineId: String = ModelOptions.defaults.first ?? "gpt-4o"
@@ -57,6 +58,11 @@ struct SettingsView: View {
 
                 Toggle("开机自启动", isOn: launchAtLoginBinding)
 #endif
+
+                Toggle("自动中英互译", isOn: $autoSwapZhEn)
+                Text("开启后会优先按中英自动切换翻译，语种设置仅用于其他语言。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Divider()

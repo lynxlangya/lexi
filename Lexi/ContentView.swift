@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import NaturalLanguage
+#endif
 
 struct ContentView: View {
     @StateObject private var viewModel = TranslationViewModel()
@@ -14,6 +17,7 @@ struct ContentView: View {
     @AppStorage("selectedModel") private var selectedEngineId: String = ModelOptions.defaults.first ?? "gpt-4o"
     @AppStorage("sourceLanguage") private var sourceLanguage: String = "auto"
     @AppStorage("targetLanguage") private var targetLanguage: String = "zh-Hans"
+    @AppStorage("autoSwapZhEn") private var autoSwapZhEn: Bool = true
 
     var body: some View {
         let engines = EngineStore.allEngines()
@@ -89,6 +93,7 @@ struct ContentView: View {
         let text = viewModel.sourceText
         guard !text.isEmpty else { return }
 
+        let resolved = resolveLanguages(for: text)
         let engine = EngineStore.engine(for: engineId)
             ?? TranslationEngine(id: engineId, kind: .openAICompatible, displayName: engineId)
         viewModel.streamTranslate { source in
@@ -96,8 +101,8 @@ struct ContentView: View {
                 engine: engine,
                 globalBaseURLString: baseURLString,
                 globalAPIKey: apiKeyStore.apiKey,
-                sourceLanguage: sourceLanguage,
-                targetLanguage: targetLanguage,
+                sourceLanguage: resolved.source,
+                targetLanguage: resolved.target,
                 text: source
             )
         }
@@ -111,6 +116,75 @@ struct ContentView: View {
         }
         guard EngineStore.engine(for: selectedEngineId) == nil else { return }
         selectedEngineId = ModelOptions.defaults.first ?? "gpt-4o"
+    }
+
+    private func resolveLanguages(for text: String) -> (source: String, target: String) {
+        guard autoSwapZhEn, let detected = detectPrimaryLanguageCode(for: text) else {
+            return (sourceLanguage, targetLanguage)
+        }
+
+        switch detected {
+        case "zh-Hans", "zh-Hant":
+            return (detected, "en")
+        case "en":
+            return ("en", "zh-Hans")
+        default:
+            return (sourceLanguage, targetLanguage)
+        }
+    }
+
+    private func detectPrimaryLanguageCode(for text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        #if os(macOS)
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(trimmed)
+        if let lang = recognizer.dominantLanguage {
+            switch lang {
+            case .simplifiedChinese:
+                return "zh-Hans"
+            case .traditionalChinese:
+                return "zh-Hant"
+            case .english:
+                return "en"
+            default:
+                break
+            }
+        }
+        #endif
+
+        if containsHanCharacters(trimmed) {
+            return "zh-Hans"
+        }
+        if containsASCIILetters(trimmed) {
+            return "en"
+        }
+        return nil
+    }
+
+    private func containsHanCharacters(_ text: String) -> Bool {
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF:
+                return true
+            default:
+                continue
+            }
+        }
+        return false
+    }
+
+    private func containsASCIILetters(_ text: String) -> Bool {
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 65...90, 97...122:
+                return true
+            default:
+                continue
+            }
+        }
+        return false
     }
 }
 
