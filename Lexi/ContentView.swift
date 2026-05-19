@@ -105,7 +105,8 @@ struct ContentView: View {
                 globalAPIKey: apiKeyStore.apiKey,
                 sourceLanguage: resolved.source,
                 targetLanguage: resolved.target,
-                text: source
+                text: source,
+                promptStrategy: WordOrPhrasePromptStrategy()
             )
         }
     }

@@ -117,7 +117,8 @@ actor TranslationService {
         globalAPIKey: String,
         sourceLanguage: String,
         targetLanguage: String,
-        text: String
+        text: String,
+        promptStrategy: any TranslationPromptStrategy
     ) async -> AsyncThrowingStream<String, Error> {
         if engine.kind == .free {
             return AsyncThrowingStream { continuation in
@@ -152,7 +153,8 @@ actor TranslationService {
             apiKey: apiKey,
             model: engine.resolvedModel,
             sourceLanguage: sourceLanguage,
-            targetLanguage: targetLanguage
+            targetLanguage: targetLanguage,
+            promptStrategy: promptStrategy
         )
         let stream = await LLMService.shared.streamTranslate(configuration: config, sourceText: text)
         return mapErrors(from: stream)
