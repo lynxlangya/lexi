@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		C0A3000D2FBC80000000000D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C0A3000C2FBC80000000000C /* GRDB */; };
 		C0A300102FBC800000000010 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C0A3000F2FBC80000000000F /* GRDB */; };
+		C0A400012FBD000000000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = C0A400052FBD000000000005 /* ZIPFoundation */; };
+		C0A400022FBD000000000002 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = C0A400062FBD000000000006 /* SwiftSoup */; };
+		C0A400032FBD000000000003 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = C0A400072FBD000000000007 /* ZIPFoundation */; };
+		C0A400042FBD000000000004 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = C0A400082FBD000000000008 /* SwiftSoup */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,6 +69,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0A3000D2FBC80000000000D /* GRDB in Frameworks */,
+				C0A400012FBD000000000001 /* ZIPFoundation in Frameworks */,
+				C0A400022FBD000000000002 /* SwiftSoup in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -73,6 +79,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0A300102FBC800000000010 /* GRDB in Frameworks */,
+				C0A400032FBD000000000003 /* ZIPFoundation in Frameworks */,
+				C0A400042FBD000000000004 /* SwiftSoup in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +126,8 @@
 			name = lexi;
 			packageProductDependencies = (
 				C0A3000C2FBC80000000000C /* GRDB */,
+				C0A400052FBD000000000005 /* ZIPFoundation */,
+				C0A400062FBD000000000006 /* SwiftSoup */,
 			);
 			productName = lexi;
 			productReference = BD8BAA8B2FBC4A14000A66A1 /* lexi.app */;
@@ -142,6 +152,8 @@
 			name = lexiTests;
 			packageProductDependencies = (
 				C0A3000F2FBC80000000000F /* GRDB */,
+				C0A400072FBD000000000007 /* ZIPFoundation */,
+				C0A400082FBD000000000008 /* SwiftSoup */,
 			);
 			productName = lexiTests;
 			productReference = C0A300012FBC800000000001 /* lexiTests.xctest */;
@@ -177,6 +189,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				C0A3000E2FBC80000000000E /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				C0A400092FBD000000000009 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				C0A4000A2FBD00000000000A /* XCRemoteSwiftPackageReference "SwiftSoup" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BD8BAA8C2FBC4A14000A66A1 /* Products */;
@@ -506,6 +520,22 @@
 				minimumVersion = 6.0.0;
 			};
 		};
+		C0A400092FBD000000000009 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
+		C0A4000A2FBD00000000000A /* XCRemoteSwiftPackageReference "SwiftSoup" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/scinfu/SwiftSoup";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -518,6 +548,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0A3000E2FBC80000000000E /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		C0A400052FBD000000000005 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A400092FBD000000000009 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		C0A400062FBD000000000006 /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A4000A2FBD00000000000A /* XCRemoteSwiftPackageReference "SwiftSoup" */;
+			productName = SwiftSoup;
+		};
+		C0A400072FBD000000000007 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A400092FBD000000000009 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		C0A400082FBD000000000008 /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A4000A2FBD00000000000A /* XCRemoteSwiftPackageReference "SwiftSoup" */;
+			productName = SwiftSoup;
 		};
 /* End XCSwiftPackageProductDependency section */
 		};
