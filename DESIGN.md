@@ -449,22 +449,44 @@ struct EngineConfig {
 - 字体：`.font(.custom("NewYork-Regular", size: 17)).lineSpacing(17 * 0.72)`。不要用 `.body / .system`。
 
 ### 10.2 Reader · Quiet（默认方向）
+
+> ⚠️ **2026-05-19 修订**：原 hint 是 "fullSizeContentView + 自绘 toolbar"，PR 6 验证下来会跟 macOS 系统 title bar 区视觉打架（双层 header，侧栏 padding 也被推开）。**改用 macOS 原生 toolbar API**：
+
 ```swift
-NSWindow with .titled, .fullSizeContentView, .titlebarAppearsTransparent
-// toolbar 自己画到 contentView 顶部
-
-NavigationSplitView {
-  TOCSidebar()        // 232pt, .listStyle(.sidebar)
-} detail: {
-  ReadingColumn()     // 自控宽，max-width 660pt 居中
+WindowGroup("Lexi") {
+    NavigationSplitView(columnVisibility: $columnVisibility) {
+        TOCSidebar(...)
+            .navigationSplitViewColumnWidth(232)
+    } detail: {
+        ReadingColumn(...)                          // max-width 660pt 居中
+    }
+    .toolbar {
+        ToolbarItem(placement: .navigation) {
+            Button { /* toggle sidebar */ } label: {
+                Image(systemName: "sidebar.leading")
+            }
+        }
+        ToolbarItem(placement: .principal) {
+            // 书名 · 章节 · 进度
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            // A- / A+ / 译文模式 / engine / 主题 / 更多
+        }
+    }
 }
-
-// 底栏进度 = 1pt Rectangle hairline
-// 字号 @AppStorage("reader.fontSize")
+.windowStyle(.titleBar)            // 系统标题栏，不要 .hiddenTitleBar
+.windowToolbarStyle(.unified)      // toolbar 与 title bar 同行（紧凑布局）
 ```
 
-### 10.3 Reader · Composed（v1+ 备选）
-进入阅读 1.5s 无鼠标移动 → 顶栏淡出到 alpha 0；任何鼠标 movement 立刻 fade in，`.easeOut(0.2)`。红绿灯一起 fade —— `standardWindowButton(...).isHidden` 在 fullSizeContentView 模式下手控。
+**不要**：
+- `.windowStyle(.hiddenTitleBar)` — 红绿灯会漂浮在内容上
+- `fullSizeContentView` + `titlebarAppearsTransparent` — 双层 header 问题的根源
+- 自绘 `HStack { TrafficLights(); ... }` 当作 toolbar
+
+底栏进度 = 1pt Rectangle hairline；字号 `@AppStorage("reader.fontSize")`。
+
+### 10.3 ~~Reader · Composed（已砍，v1 不做）~~
+按 §0 决议 1，v1 只做 Quiet 方向，Composed 整段路径不实现。
 
 ### 10.4 浮窗 = `NSPanel` (.nonactivatingPanel)
 **关键**：浮窗不能抢焦点，否则阅读器选区会丢。
