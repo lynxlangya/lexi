@@ -7,12 +7,12 @@
 
 import Foundation
 
-enum TranslationEngineKind: String, Codable, Hashable {
+enum TranslationEngineKind: String, Codable, Hashable, Sendable {
     case free
     case openAICompatible
 }
 
-struct TranslationEngine: Identifiable, Codable, Hashable {
+struct TranslationEngine: Identifiable, Codable, Hashable, Sendable {
     let id: String
     var kind: TranslationEngineKind
     var displayName: String
@@ -39,7 +39,7 @@ struct TranslationEngine: Identifiable, Codable, Hashable {
         self.isCustom = isCustom
     }
 
-    var resolvedModel: String {
+    nonisolated var resolvedModel: String {
         model ?? id
     }
 
@@ -51,4 +51,3 @@ struct TranslationEngine: Identifiable, Codable, Hashable {
         TranslationEngine(id: id, kind: .openAICompatible, displayName: displayName)
     }
 }
-

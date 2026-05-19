@@ -16,7 +16,22 @@ protocol SourceAwareTranslationPromptStrategy: TranslationPromptStrategy {
     nonisolated func systemPrompt(source: String, target: String, text: String) -> String
 }
 
-struct WordOrPhrasePromptStrategy: SourceAwareTranslationPromptStrategy {
+protocol TranslationPromptVersionProviding: TranslationPromptStrategy {
+    nonisolated var promptVersion: String { get }
+}
+
+extension TranslationPromptStrategy {
+    nonisolated var cachePromptVersion: String {
+        if let versioned = self as? any TranslationPromptVersionProviding {
+            return versioned.promptVersion
+        }
+        return String(describing: type(of: self))
+    }
+}
+
+struct WordOrPhrasePromptStrategy: SourceAwareTranslationPromptStrategy, TranslationPromptVersionProviding {
+    nonisolated var promptVersion: String { "word-or-phrase-v1" }
+
     nonisolated func systemPrompt(source: String, target: String) -> String {
         translationPrompt(source: source, target: target)
     }
@@ -121,7 +136,9 @@ struct WordOrPhrasePromptStrategy: SourceAwareTranslationPromptStrategy {
     }
 }
 
-struct ParagraphPromptStrategy: TranslationPromptStrategy {
+struct ParagraphPromptStrategy: TranslationPromptStrategy, TranslationPromptVersionProviding {
+    nonisolated var promptVersion: String { "paragraph-v1" }
+
     nonisolated func systemPrompt(source: String, target: String) -> String {
         let sourceName = source == "auto" ? "the detected language" : "\(LanguageOptions.name(for: source)) (\(source))"
         let targetName = "\(LanguageOptions.name(for: target)) (\(target))"

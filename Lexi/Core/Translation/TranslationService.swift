@@ -118,8 +118,22 @@ actor TranslationService {
         sourceLanguage: String,
         targetLanguage: String,
         text: String,
-        promptStrategy: any TranslationPromptStrategy
+        promptStrategy: any TranslationPromptStrategy,
+        cache: (any TranslationCache)? = nil
     ) async -> AsyncThrowingStream<String, Error> {
+        let cacheKey = makeCacheKey(
+            engine: engine,
+            sourceLanguage: sourceLanguage,
+            targetLanguage: targetLanguage,
+            text: text,
+            promptStrategy: promptStrategy,
+            cache: cache
+        )
+
+        if let cache, let cacheKey, let cached = await cache.get(cacheKey) {
+            return singleTokenStream(cached)
+        }
+
         if engine.kind == .free {
             return AsyncThrowingStream { continuation in
                 Task {
@@ -130,6 +144,9 @@ actor TranslationService {
                             targetLanguage: targetLanguage,
                             text: text
                         )
+                        if let cache, let cacheKey {
+                            await cache.set(cacheKey, value: translated)
+                        }
                         continuation.yield(translated)
                         continuation.finish()
                     } catch {
@@ -157,16 +174,51 @@ actor TranslationService {
             promptStrategy: promptStrategy
         )
         let stream = await LLMService.shared.streamTranslate(configuration: config, sourceText: text)
-        return mapErrors(from: stream)
+        return mapErrors(from: stream, cache: cache, cacheKey: cacheKey)
     }
 
-    private func mapErrors(from stream: AsyncThrowingStream<String, Error>) -> AsyncThrowingStream<String, Error> {
+    private func makeCacheKey(
+        engine: TranslationEngine,
+        sourceLanguage: String,
+        targetLanguage: String,
+        text: String,
+        promptStrategy: any TranslationPromptStrategy,
+        cache: (any TranslationCache)?
+    ) -> TranslationCacheKey? {
+        guard cache != nil else { return nil }
+        return TranslationCacheKey(
+            text: text,
+            sourceLanguage: sourceLanguage,
+            targetLanguage: targetLanguage,
+            engineID: engine.id,
+            modelID: engine.resolvedModel,
+            promptVersion: promptStrategy.cachePromptVersion
+        )
+    }
+
+    private func singleTokenStream(_ token: String) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield(token)
+            continuation.finish()
+        }
+    }
+
+    private func mapErrors(
+        from stream: AsyncThrowingStream<String, Error>,
+        cache: (any TranslationCache)?,
+        cacheKey: TranslationCacheKey?
+    ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             Task {
                 do {
+                    var result = ""
                     for try await token in stream {
                         if Task.isCancelled { break }
+                        result += token
                         continuation.yield(token)
+                    }
+                    if let cache, let cacheKey {
+                        await cache.set(cacheKey, value: result)
                     }
                     continuation.finish()
                 } catch {
