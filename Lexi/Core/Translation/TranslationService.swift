@@ -177,6 +177,33 @@ actor TranslationService {
         return mapErrors(from: stream, cache: cache, cacheKey: cacheKey)
     }
 
+    func translateParagraph(
+        engine: TranslationEngine,
+        globalBaseURLString: String,
+        globalAPIKey: String,
+        sourceLanguage: String,
+        targetLanguage: String,
+        text: String,
+        cache: (any TranslationCache)? = nil
+    ) async throws -> String {
+        let stream = await streamTranslate(
+            engine: engine,
+            globalBaseURLString: globalBaseURLString,
+            globalAPIKey: globalAPIKey,
+            sourceLanguage: sourceLanguage,
+            targetLanguage: targetLanguage,
+            text: text,
+            promptStrategy: ParagraphPromptStrategy(),
+            cache: cache
+        )
+
+        var result = ""
+        for try await token in stream {
+            result += token
+        }
+        return result
+    }
+
     private func makeCacheKey(
         engine: TranslationEngine,
         sourceLanguage: String,
