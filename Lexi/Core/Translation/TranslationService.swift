@@ -219,7 +219,7 @@ actor TranslationService {
             targetLanguage: targetLanguage,
             engineID: engine.id,
             modelID: engine.resolvedModel,
-            promptVersion: promptStrategy.cachePromptVersion
+            promptVersion: promptStrategy.promptVersion
         )
     }
 
