@@ -237,6 +237,7 @@ actor TranslationService {
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let cancellationState = StreamCancellationState()
+            let shouldAccumulate = cache != nil && cacheKey != nil
             let producer = Task {
                 do {
                     var result = ""
@@ -245,14 +246,16 @@ actor TranslationService {
                             continuation.finish()
                             return
                         }
-                        result += token
+                        if shouldAccumulate {
+                            result += token
+                        }
                         continuation.yield(token)
                     }
                     if cancellationState.isCancelled || Task.isCancelled {
                         continuation.finish()
                         return
                     }
-                    if let cache, let cacheKey {
+                    if shouldAccumulate, let cache, let cacheKey {
                         await cache.set(cacheKey, value: result)
                     }
                     continuation.finish()
