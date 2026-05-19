@@ -89,20 +89,42 @@ final class SelectionManager {
             sendCopyShortcut()
         }
 
-        try await Task.sleep(nanoseconds: 180_000_000)
+        // Poll changeCount instead of a fixed sleep — fast apps respond in <20ms,
+        // slow ones (Electron, Office) can take 200ms+. Cap at ~400ms.
+        let didCopy = await waitForPasteboardChange(
+            pasteboard,
+            previousChangeCount: previousChangeCount,
+            timeoutNanos: 400_000_000,
+            stepNanos: 20_000_000
+        )
+
+        guard didCopy else { return nil }
 
         let newString = pasteboard.string(forType: .string)
-        let didChange = pasteboard.changeCount != previousChangeCount || newString != previousString
+        restorePasteboard(pasteboard, snapshot: previousSnapshot, fallbackString: previousString)
 
-        if didChange {
-            restorePasteboard(pasteboard, snapshot: previousSnapshot, fallbackString: previousString)
-        }
-
-        if didChange, let newString, !newString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if let newString, !newString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return newString
         }
 
         return nil
+    }
+
+    private func waitForPasteboardChange(
+        _ pasteboard: NSPasteboard,
+        previousChangeCount: Int,
+        timeoutNanos: UInt64,
+        stepNanos: UInt64
+    ) async -> Bool {
+        var elapsed: UInt64 = 0
+        while elapsed < timeoutNanos {
+            if pasteboard.changeCount != previousChangeCount {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: stepNanos)
+            elapsed += stepNanos
+        }
+        return pasteboard.changeCount != previousChangeCount
     }
 
     private func sendCopyShortcut() {
