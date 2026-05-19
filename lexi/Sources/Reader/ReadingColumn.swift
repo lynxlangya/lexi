@@ -15,10 +15,10 @@ struct ReadingColumn: View {
                 }
             }
             .frame(maxWidth: LexiSpacing.contentMax, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .padding(.top, 56)
             .padding(.horizontal, LexiSpacing.windowPad)
             .padding(.bottom, 96)
-            .frame(maxWidth: .infinity, alignment: .center)
         }
         .scrollIndicators(.automatic)
     }

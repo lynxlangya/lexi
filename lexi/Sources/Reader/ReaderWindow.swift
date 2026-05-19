@@ -1,18 +1,20 @@
-import AppKit
 import SwiftUI
+import AppKit
 
 struct ReaderWindow: Scene {
     var body: some Scene {
         WindowGroup("Lexi") {
             ReaderWindowContent()
-                .background(ReaderWindowConfigurator())
         }
         .defaultSize(width: 1200, height: 760)
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified)
     }
 }
 
 private struct ReaderWindowContent: View {
     @State private var selectedChapterIndex = 2
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
     @AppStorage("reader.fontSize") private var fontSize = 17.0
 
     private var selectedChapter: DemoChapter {
@@ -21,26 +23,29 @@ private struct ReaderWindowContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ReaderToolbar(
-                bookTitle: DemoData.bookTitle,
-                chapter: selectedChapter,
-                chapterIndex: selectedChapterIndex,
-                chapterCount: DemoData.chapters.count,
-                fontSize: $fontSize
-            )
-
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
                 TOCSidebar(
                     chapters: DemoData.chapters,
                     selectedChapterIndex: $selectedChapterIndex
                 )
                 .navigationSplitViewColumnWidth(min: 232, ideal: 232, max: 232)
+                .toolbar(removing: .sidebarToggle)
             } detail: {
                 ReadingColumn(chapter: selectedChapter, fontSize: fontSize)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.lexiPaper)
             }
             .navigationSplitViewStyle(.balanced)
+            .toolbar {
+                ReaderToolbar(
+                    columnVisibility: $columnVisibility,
+                    bookTitle: DemoData.bookTitle,
+                    chapter: selectedChapter,
+                    chapterIndex: selectedChapterIndex,
+                    chapterCount: DemoData.chapters.count,
+                    fontSize: $fontSize
+                )
+            }
             .toolbar(removing: .sidebarToggle)
 
             ReaderProgressHairline(progress: 0.34)
@@ -50,6 +55,11 @@ private struct ReaderWindowContent: View {
                 bookProgress: bookProgress
             )
         }
+        .background(
+            ReaderWindowTitleUpdater(
+                title: "\(DemoData.bookTitle) · Chapter \(selectedChapter.n) · \(selectedChapterIndex + 1) / \(DemoData.chapters.count)"
+            )
+        )
         .background(Color.lexiPaper)
         .frame(minWidth: 920, minHeight: 620)
     }
@@ -59,10 +69,8 @@ private struct ReaderWindowContent: View {
     }
 }
 
-private struct ReaderWindowConfigurator: NSViewRepresentable {
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
+private struct ReaderWindowTitleUpdater: NSViewRepresentable {
+    let title: String
 
     func makeNSView(context: Context) -> NSView {
         NSView(frame: .zero)
@@ -70,24 +78,12 @@ private struct ReaderWindowConfigurator: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
-            guard let window = view.window, !context.coordinator.didConfigure else {
+            guard let window = view.window else {
                 return
             }
 
-            window.title = "Lexi"
-            window.styleMask.insert([.titled, .fullSizeContentView])
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.toolbar = nil
-            window.isMovableByWindowBackground = true
-            window.minSize = NSSize(width: 920, height: 620)
-            window.setContentSize(NSSize(width: 1200, height: 760))
-
-            context.coordinator.didConfigure = true
+            window.title = title
+            window.titleVisibility = .visible
         }
-    }
-
-    final class Coordinator {
-        var didConfigure = false
     }
 }
