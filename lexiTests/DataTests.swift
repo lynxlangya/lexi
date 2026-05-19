@@ -85,22 +85,20 @@ final class DataTests: XCTestCase {
     }
 
     func testKeychainRoundTrip() throws {
-        let originalPrefix = Keychain.servicePrefix
-        Keychain.servicePrefix = "com.lexi.tests.\(UUID().uuidString)"
+        let store = KeychainStore(servicePrefix: "com.lexi.tests.\(UUID().uuidString)")
         defer {
-            Keychain.delete(.openai)
-            Keychain.servicePrefix = originalPrefix
+            try? store.delete(.openai)
         }
 
-        XCTAssertNil(Keychain.apiKey(for: .openai))
+        XCTAssertNil(try store.apiKey(for: .openai))
 
-        Keychain.setApiKey("test-key-1", for: .openai)
-        XCTAssertEqual(Keychain.apiKey(for: .openai), "test-key-1")
+        try store.setApiKey("test-key-1", for: .openai)
+        XCTAssertEqual(try store.apiKey(for: .openai), "test-key-1")
 
-        Keychain.setApiKey("test-key-2", for: .openai)
-        XCTAssertEqual(Keychain.apiKey(for: .openai), "test-key-2")
+        try store.setApiKey("test-key-2", for: .openai)
+        XCTAssertEqual(try store.apiKey(for: .openai), "test-key-2")
 
-        Keychain.delete(.openai)
-        XCTAssertNil(Keychain.apiKey(for: .openai))
+        try store.delete(.openai)
+        XCTAssertNil(try store.apiKey(for: .openai))
     }
 }

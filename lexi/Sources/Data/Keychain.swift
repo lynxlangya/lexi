@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 enum Keychain {
-    static var servicePrefix = "com.lexi.engine"
+    private static let store = KeychainStore(servicePrefix: "com.lexi.engine")
 
     static func setApiKey(_ key: String, for engine: EngineID) {
         try? setApiKeyThrowing(key, for: engine)
@@ -17,6 +17,22 @@ enum Keychain {
     }
 
     static func setApiKeyThrowing(_ key: String, for engine: EngineID) throws {
+        try store.setApiKey(key, for: engine)
+    }
+
+    static func apiKeyThrowing(for engine: EngineID) throws -> String? {
+        try store.apiKey(for: engine)
+    }
+
+    static func deleteThrowing(_ engine: EngineID) throws {
+        try store.delete(engine)
+    }
+}
+
+struct KeychainStore: Sendable {
+    let servicePrefix: String
+
+    func setApiKey(_ key: String, for engine: EngineID) throws {
         let data = Data(key.utf8)
         let query = baseQuery(for: engine)
 
@@ -37,7 +53,7 @@ enum Keychain {
         }
     }
 
-    static func apiKeyThrowing(for engine: EngineID) throws -> String? {
+    func apiKey(for engine: EngineID) throws -> String? {
         var query = baseQuery(for: engine)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -56,14 +72,14 @@ enum Keychain {
         }
     }
 
-    static func deleteThrowing(_ engine: EngineID) throws {
+    func delete(_ engine: EngineID) throws {
         let status = SecItemDelete(baseQuery(for: engine) as CFDictionary)
         if status != errSecItemNotFound {
             try check(status)
         }
     }
 
-    private static func baseQuery(for engine: EngineID) -> [String: Any] {
+    private func baseQuery(for engine: EngineID) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "\(servicePrefix).\(engine.rawValue)",
@@ -71,7 +87,7 @@ enum Keychain {
         ]
     }
 
-    private static func check(_ status: OSStatus) throws {
+    private func check(_ status: OSStatus) throws {
         guard status == errSecSuccess else {
             throw KeychainError(status: status)
         }
