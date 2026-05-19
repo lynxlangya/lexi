@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-enum Keychain {
+nonisolated enum Keychain {
     private static let store = KeychainStore(servicePrefix: "com.lexi.engine")
 
     static func setApiKey(_ key: String, for engine: EngineID) {
@@ -29,7 +29,7 @@ enum Keychain {
     }
 }
 
-struct KeychainStore: Sendable {
+nonisolated struct KeychainStore: Sendable {
     let servicePrefix: String
 
     func setApiKey(_ key: String, for engine: EngineID) throws {
