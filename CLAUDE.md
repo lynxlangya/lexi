@@ -46,3 +46,12 @@ Current data-layer files:
 - `Sources/Data/Keychain.swift` — API key storage, service `com.lexi.engine.<id>`
 
 API keys must stay in Keychain, not SQLite.
+
+## Local secrets (`.env.local`)
+
+API keys for OpenAI / Anthropic / DeepSeek used during development live in `.env.local` at the repo root. This file is **gitignored** — do not commit it, do not paste its contents into PR descriptions / issue comments / chat logs.
+
+- `.env.example` (tracked) is the template. After cloning: `cp .env.example .env.local && chmod 600 .env.local`, then fill in your own keys.
+- Format: `KEY=VALUE` per line, no quotes, no spaces around `=`. Empty value means "engine not configured" — runtime will skip that engine.
+- Used **only in DEBUG builds** by the dev-time engine loader (lands in PR 5). Release builds always read keys from Keychain via Settings → 引擎.
+- If a key is ever exposed (committed by accident, shared in a screenshot, etc.), rotate it immediately at the provider's dashboard. Git history is the part that bites.

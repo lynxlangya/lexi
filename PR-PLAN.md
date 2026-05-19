@@ -166,6 +166,8 @@
 **Notes**
 - SSE 解析自己写：按 `data: …\n\n` 分块，特殊处理 `[DONE]`、OpenAI 的 `delta.content` 与 Anthropic 的 `content_block_delta`。
 - 翻译失败按段抛 `EngineError.paragraphFailed(index:reason:)`，上层落到段错误态 UI（[DESIGN.md §5.3](DESIGN.md#53-翻译状态机per-chapter--per-paragraph)）。
+- **DEBUG 模式 secrets 加载**：本 PR 需要在 `Sources/Engines/` 下加一个 `DevSecrets.swift`（or 类似），仅在 `#if DEBUG` 编译路径里读取仓库根目录的 `.env.local`（详见 [CLAUDE.md "Local secrets" 段](CLAUDE.md)），把 `OPENAI_API_KEY` / `OPENAI_MODEL` / `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` / `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` 注入到默认 `EngineRegistry`，方便开发期跑通真实 ping。RELEASE 构建路径里这个 loader **必须被 `#if !DEBUG` 完全排除**（不要走 `if`/runtime check 这种容易漏的方式），keys 一律走 Keychain。空 key → 跳过该引擎，不抛错。
+- `.env.local` 已经在仓库（gitignored），格式见 [`.env.example`](.env.example)。本 PR **不要** commit 任何带真实 key 的文件。
 
 ---
 

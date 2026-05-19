@@ -1,0 +1,62 @@
+# ─── macOS ─────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# ─── Xcode user state (per-developer, never share) ─────
+xcuserdata/
+*.xcuserstate
+*.xcuserstatedata
+*.mode1v3
+*.mode2v3
+*.pbxuser
+*.perspectivev3
+!default.pbxuser
+!default.mode1v3
+!default.mode2v3
+!default.perspectivev3
+
+# ─── Xcode build artifacts ─────────────────────────────
+build/
+DerivedData/
+*.dSYM
+*.dSYM.zip
+*.ipa
+*.hmap
+*.moved-aside
+*.xcscmblueprint
+*.xccheckout
+
+# ─── Swift Package Manager ─────────────────────────────
+.swiftpm/
+.build/
+Packages/
+# Note: we DO track Package.resolved when introduced (PR 3+) for reproducible builds.
+
+# ─── Playgrounds ───────────────────────────────────────
+timeline.xctimeline
+playground.xcworkspace
+
+# ─── Local secrets — NEVER commit ──────────────────────
+.env
+.env.local
+.env.*.local
+*.local.json
+*.local.plist
+Secrets.local.*
+*.pem
+*.p12
+
+# ─── Editor / OS scratch ───────────────────────────────
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ─── Coverage / profiling ──────────────────────────────
+*.gcda
+*.gcno
+*.profraw
+*.profdata
