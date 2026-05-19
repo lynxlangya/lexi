@@ -10,9 +10,29 @@
 		BD8BAA8B2FBC4A14000A66A1 /* lexi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = lexi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BD8BAAA02FBC6300000A66A1 /* Exceptions for "lexi" folder in "lexi" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Sources/App/.gitkeep",
+				"Sources/Data/.gitkeep",
+				"Sources/EPUB/.gitkeep",
+				"Sources/Engines/.gitkeep",
+				"Sources/MenuBar/.gitkeep",
+				"Sources/README.md",
+				"Sources/Reader/.gitkeep",
+				"Sources/UI/.gitkeep",
+			);
+			target = BD8BAA8A2FBC4A14000A66A1 /* lexi */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BD8BAA8D2FBC4A14000A66A1 /* lexi */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BD8BAAA02FBC6300000A66A1 /* Exceptions for "lexi" folder in "lexi" target */,
+			);
 			path = lexi;
 			sourceTree = "<group>";
 		};

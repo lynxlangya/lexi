@@ -6,16 +6,14 @@
 //
 
 import SwiftUI
-import CoreData
 
 @main
-struct lexiApp: App {
-    let persistenceController = PersistenceController.shared
-
+struct LexiApp: App {
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+        WindowGroup("Lexi") {
+            // TODO(PR6): Reader 主窗口骨架接入
+            Text("Lexi · v1 MVP")
+                .frame(minWidth: 400, minHeight: 300)
         }
     }
 }
