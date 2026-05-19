@@ -84,4 +84,28 @@ enum LanguageDetector {
         }
         return false
     }
+
+    nonisolated static func isEnglishWordQuery(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard trimmed.split(whereSeparator: \.isWhitespace).count == 1 else { return false }
+        let allowedPunctuation = CharacterSet(charactersIn: "'-")
+        var hasAsciiLetter = false
+
+        for scalar in trimmed.unicodeScalars {
+            if scalar.properties.isAlphabetic {
+                if (65...90).contains(scalar.value) || (97...122).contains(scalar.value) {
+                    hasAsciiLetter = true
+                    continue
+                }
+                return false
+            }
+            if allowedPunctuation.contains(scalar) {
+                continue
+            }
+            return false
+        }
+
+        return hasAsciiLetter
+    }
 }

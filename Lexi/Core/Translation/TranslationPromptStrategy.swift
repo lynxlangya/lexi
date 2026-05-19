@@ -37,7 +37,7 @@ struct WordOrPhrasePromptStrategy: SourceAwareTranslationPromptStrategy, Transla
     }
 
     nonisolated func systemPrompt(source: String, target: String, text: String) -> String {
-        if Self.isEnglishWordQuery(text) {
+        if LanguageDetector.isEnglishWordQuery(text) {
             return wordPrompt(target: target)
         }
         return translationPrompt(source: source, target: target)
@@ -111,29 +111,6 @@ struct WordOrPhrasePromptStrategy: SourceAwareTranslationPromptStrategy, Transla
         """
     }
 
-    private nonisolated static func isEnglishWordQuery(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        guard trimmed.split(whereSeparator: \.isWhitespace).count == 1 else { return false }
-        let allowedPunctuation = CharacterSet(charactersIn: "'-")
-        var hasAsciiLetter = false
-
-        for scalar in trimmed.unicodeScalars {
-            if scalar.properties.isAlphabetic {
-                if (65...90).contains(scalar.value) || (97...122).contains(scalar.value) {
-                    hasAsciiLetter = true
-                    continue
-                }
-                return false
-            }
-            if allowedPunctuation.contains(scalar) {
-                continue
-            }
-            return false
-        }
-
-        return hasAsciiLetter
-    }
 }
 
 struct ParagraphPromptStrategy: TranslationPromptStrategy, TranslationPromptVersionProviding {

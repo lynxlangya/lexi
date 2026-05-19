@@ -115,7 +115,7 @@ final class TranslationViewModel: ObservableObject {
     }
 
     private func parseWordExplanationIfPossible() {
-        guard isEnglishWordQuery(sourceText) else { return }
+        guard LanguageDetector.isEnglishWordQuery(sourceText) else { return }
         guard let jsonString = extractJSONFragment(from: translatedText),
               let data = jsonString.data(using: .utf8)
         else { return }
@@ -137,29 +137,5 @@ final class TranslationViewModel: ObservableObject {
               start <= end
         else { return nil }
         return String(cleaned[start...end]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func isEnglishWordQuery(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        guard trimmed.split(whereSeparator: \.isWhitespace).count == 1 else { return false }
-        let allowedPunctuation = CharacterSet(charactersIn: "'-")
-        var hasAsciiLetter = false
-
-        for scalar in trimmed.unicodeScalars {
-            if scalar.properties.isAlphabetic {
-                if (65...90).contains(scalar.value) || (97...122).contains(scalar.value) {
-                    hasAsciiLetter = true
-                    continue
-                }
-                return false
-            }
-            if allowedPunctuation.contains(scalar) {
-                continue
-            }
-            return false
-        }
-
-        return hasAsciiLetter
     }
 }
