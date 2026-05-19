@@ -29,7 +29,7 @@ struct TOCSidebar: View {
             }
             .scrollIndicators(.never)
 
-            Spacer(minLength: 0)
+            sidebarFooter
         }
         .padding(.top, 52)
         .padding(.horizontal, 14)
@@ -70,6 +70,34 @@ struct TOCSidebar: View {
                 .foregroundStyle(Color.lexiInk3)
         }
         .padding(.horizontal, 8)
+    }
+
+    private var sidebarFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .background(Color.lexiRule)
+                .padding(.horizontal, 8)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+
+            HStack {
+                Text("全书进度")
+                    .font(LexiFont.sans(11))
+                    .foregroundStyle(Color.lexiInk3)
+
+                Spacer()
+
+                Text("\(overallProgress)%")
+                    .font(LexiFont.mono(11))
+                    .foregroundStyle(Color.lexiInk2)
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 18)
+        }
+    }
+
+    private var overallProgress: Int {
+        Int((Double(selectedChapterIndex) / Double(chapters.count)) * 100)
     }
 }
 
