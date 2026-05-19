@@ -27,8 +27,18 @@ enum EngineStore {
         builtInEngines + loadCustomEngines()
     }
 
+    static func normalizedEngineId(_ id: String) -> String {
+        switch id {
+        case "microsoft":
+            return "google"
+        default:
+            return id
+        }
+    }
+
     static func engine(for id: String) -> TranslationEngine? {
-        allEngines().first { $0.id == id }
+        let normalizedId = normalizedEngineId(id)
+        return allEngines().first { $0.id == normalizedId }
     }
 
     static func loadCustomEngines() -> [TranslationEngine] {

@@ -113,8 +113,9 @@ struct ContentView: View {
 
     @MainActor
     private func normalizeSelectedEngineIfNeeded() {
-        if selectedEngineId == "microsoft" {
-            selectedEngineId = "google"
+        let normalizedId = EngineStore.normalizedEngineId(selectedEngineId)
+        if selectedEngineId != normalizedId {
+            selectedEngineId = normalizedId
             return
         }
         guard EngineStore.engine(for: selectedEngineId) == nil else { return }
