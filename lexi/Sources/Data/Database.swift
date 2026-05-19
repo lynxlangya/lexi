@@ -95,6 +95,77 @@ actor AppDatabase {
         }
     }
 
+    func importBook(_ payload: (book: Book, chapters: [(Chapter, [Paragraph])])) throws {
+        try pool.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO books (
+                    id, title, author, fileURL, addedAt, lastReadAt, progress, coverData, coverBg, coverInk
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id)
+                DO UPDATE SET
+                    title = excluded.title,
+                    author = excluded.author,
+                    fileURL = excluded.fileURL,
+                    addedAt = excluded.addedAt,
+                    lastReadAt = excluded.lastReadAt,
+                    progress = excluded.progress,
+                    coverData = excluded.coverData,
+                    coverBg = excluded.coverBg,
+                    coverInk = excluded.coverInk
+                """,
+                arguments: [
+                    payload.book.id,
+                    payload.book.title,
+                    payload.book.author,
+                    payload.book.fileURL.absoluteString,
+                    payload.book.addedAt.lexiTimestamp,
+                    payload.book.lastReadAt?.lexiTimestamp,
+                    payload.book.progress,
+                    payload.book.coverData,
+                    payload.book.coverBg,
+                    payload.book.coverInk,
+                ]
+            )
+
+            try db.execute(sql: "DELETE FROM chapters WHERE bookId = ?", arguments: [payload.book.id])
+
+            for (chapter, paragraphs) in payload.chapters {
+                try db.execute(
+                    sql: """
+                    INSERT INTO chapters (bookId, idx, n, title)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    arguments: [payload.book.id, chapter.idx, chapter.n, chapter.title]
+                )
+                let chapterId = db.lastInsertedRowID
+
+                for paragraph in paragraphs {
+                    try db.execute(
+                        sql: """
+                        INSERT INTO paragraphs (chapterId, ord, en)
+                        VALUES (?, ?, ?)
+                        """,
+                        arguments: [chapterId, paragraph.ord, paragraph.en]
+                    )
+                }
+            }
+        }
+    }
+
+    func bookCount() throws -> Int {
+        try countRows(in: "books")
+    }
+
+    func chapterCount() throws -> Int {
+        try countRows(in: "chapters")
+    }
+
+    func paragraphCount() throws -> Int {
+        try countRows(in: "paragraphs")
+    }
+
     func upsertTranslation(_ translation: Translation) throws {
         try pool.write { db in
             try db.execute(
@@ -250,6 +321,12 @@ actor AppDatabase {
             create: true
         )
         return directory.appending(path: "Lexi", directoryHint: .isDirectory).appending(path: "lexi.sqlite")
+    }
+
+    private func countRows(in table: String) throws -> Int {
+        try pool.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)") ?? 0
+        }
     }
 }
 
