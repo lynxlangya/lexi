@@ -230,19 +230,27 @@ actor TranslationService {
         }
     }
 
-    private func mapErrors(
+    func mapErrors(
         from stream: AsyncThrowingStream<String, Error>,
         cache: (any TranslationCache)?,
         cacheKey: TranslationCacheKey?
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let cancellationState = StreamCancellationState()
+            let producer = Task {
                 do {
                     var result = ""
                     for try await token in stream {
-                        if Task.isCancelled { break }
+                        if cancellationState.isCancelled || Task.isCancelled {
+                            continuation.finish()
+                            return
+                        }
                         result += token
                         continuation.yield(token)
+                    }
+                    if cancellationState.isCancelled || Task.isCancelled {
+                        continuation.finish()
+                        return
                     }
                     if let cache, let cacheKey {
                         await cache.set(cacheKey, value: result)
@@ -252,6 +260,29 @@ actor TranslationService {
                     continuation.finish(throwing: TranslationError.from(error))
                 }
             }
+            continuation.onTermination = { @Sendable termination in
+                if case .cancelled = termination {
+                    cancellationState.markCancelled()
+                    producer.cancel()
+                }
+            }
         }
+    }
+}
+
+private final class StreamCancellationState: @unchecked Sendable {
+    nonisolated(unsafe) private let lock = NSLock()
+    nonisolated(unsafe) private var cancelled = false
+
+    nonisolated var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    nonisolated func markCancelled() {
+        lock.lock()
+        cancelled = true
+        lock.unlock()
     }
 }
