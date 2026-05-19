@@ -10,6 +10,12 @@ import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 import Foundation
+import os
+
+private let selectionLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Lexi",
+    category: "Selection"
+)
 
 enum SelectionError: LocalizedError {
     case notAuthorized
@@ -22,6 +28,18 @@ enum SelectionError: LocalizedError {
     }
 }
 
+enum ExtractedTextSource: String, Sendable {
+    case axText
+    case axRange
+    case pasteboard
+    case unknown
+}
+
+struct SelectionExtractionResult: Sendable {
+    let text: String
+    let source: ExtractedTextSource
+}
+
 final class SelectionManager {
     static let shared = SelectionManager()
 
@@ -32,6 +50,11 @@ final class SelectionManager {
     }
 
     func getSelectedText() async throws -> String? {
+        let result = try await getSelectedTextResult()
+        return result?.text
+    }
+
+    func getSelectedTextResult() async throws -> SelectionExtractionResult? {
         guard AXIsProcessTrusted() else {
             _ = requestAccessibilityIfNeeded(prompt: true)
             throw SelectionError.notAuthorized
@@ -44,7 +67,7 @@ final class SelectionManager {
             let element = focusedElement as! AXUIElement
 
             if let selected = try copyAttribute(element, kAXSelectedTextAttribute) as? String, !selected.isEmpty {
-                return selected
+                return SelectionExtractionResult(text: selected, source: .axText)
             }
 
             if let rangeObject = try copyAttribute(element, kAXSelectedTextRangeAttribute),
@@ -58,7 +81,7 @@ final class SelectionManager {
                         if let swiftRange = Range(nsRange, in: fullValue) {
                             let slice = fullValue[swiftRange]
                             if !slice.isEmpty {
-                                return String(slice)
+                                return SelectionExtractionResult(text: String(slice), source: .axRange)
                             }
                         }
                     }
@@ -79,7 +102,7 @@ final class SelectionManager {
         return nil
     }
 
-    private func copySelectedTextFromPasteboard() async throws -> String? {
+    private func copySelectedTextFromPasteboard() async throws -> SelectionExtractionResult? {
         let pasteboard = NSPasteboard.general
         let previousChangeCount = pasteboard.changeCount
         let previousSnapshot = snapshotPasteboard(pasteboard)
@@ -98,13 +121,16 @@ final class SelectionManager {
             stepNanos: 20_000_000
         )
 
-        guard didCopy else { return nil }
+        guard didCopy else {
+            selectionLogger.warning("Copy fallback timed out waiting for pasteboard change after CGEvent.post.")
+            return nil
+        }
 
         let newString = pasteboard.string(forType: .string)
         restorePasteboard(pasteboard, snapshot: previousSnapshot, fallbackString: previousString)
 
         if let newString, !newString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return newString
+            return SelectionExtractionResult(text: newString, source: .pasteboard)
         }
 
         return nil
