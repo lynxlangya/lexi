@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ReaderWindow: Scene {
     var body: some Scene {
@@ -54,11 +55,35 @@ private struct ReaderWindowContent: View {
                 bookProgress: bookProgress
             )
         }
+        .background(
+            ReaderWindowTitleUpdater(
+                title: "\(DemoData.bookTitle) · Chapter \(selectedChapter.n) · \(selectedChapterIndex + 1) / \(DemoData.chapters.count)"
+            )
+        )
         .background(Color.lexiPaper)
         .frame(minWidth: 920, minHeight: 620)
     }
 
     private var bookProgress: Int {
         Int((((Double(selectedChapterIndex) + 0.34) / Double(DemoData.chapters.count)) * 100).rounded())
+    }
+}
+
+private struct ReaderWindowTitleUpdater: NSViewRepresentable {
+    let title: String
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = view.window else {
+                return
+            }
+
+            window.title = title
+            window.titleVisibility = .visible
+        }
     }
 }

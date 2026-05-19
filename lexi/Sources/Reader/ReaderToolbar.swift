@@ -21,18 +21,7 @@ struct ReaderToolbar: ToolbarContent {
             .focusable(false)
         }
 
-        ToolbarItem(placement: .principal) {
-            HStack(spacing: 8) {
-                Text(bookTitle)
-                    .foregroundStyle(Color.lexiInk2)
-                Text("·")
-                    .foregroundStyle(Color.lexiInk4)
-                Text("Chapter \(chapter.n) · \(chapterIndex + 1) / \(chapterCount)")
-                    .foregroundStyle(Color.lexiInk3)
-            }
-            .font(LexiFont.sans(12))
-            .lineLimit(1)
-        }
+        ToolbarSpacer(.flexible, placement: .primaryAction)
 
         ToolbarItemGroup(placement: .primaryAction) {
             Button {

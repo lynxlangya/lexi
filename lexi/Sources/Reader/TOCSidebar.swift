@@ -5,35 +5,39 @@ struct TOCSidebar: View {
     @Binding var selectedChapterIndex: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            shelfButton
-            bookHeader
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 18) {
+                shelfButton
+                bookHeader
 
-            Rectangle()
-                .fill(Color.lexiRule)
-                .frame(height: 1)
-                .padding(.horizontal, 8)
+                Rectangle()
+                    .fill(Color.lexiRule)
+                    .frame(height: 1)
+                    .padding(.horizontal, 8)
 
-            ScrollView {
-                VStack(spacing: 1) {
-                    ForEach(Array(chapters.enumerated()), id: \.element.id) { index, chapter in
-                        TOCRow(
-                            chapter: chapter,
-                            isSelected: index == selectedChapterIndex
-                        ) {
-                            selectedChapterIndex = index
+                ScrollView {
+                    VStack(spacing: 1) {
+                        ForEach(Array(chapters.enumerated()), id: \.element.id) { index, chapter in
+                            TOCRow(
+                                chapter: chapter,
+                                isSelected: index == selectedChapterIndex
+                            ) {
+                                selectedChapterIndex = index
+                            }
                         }
                     }
+                    .padding(.vertical, 2)
                 }
-                .padding(.vertical, 2)
+                .scrollIndicators(.never)
             }
-            .scrollIndicators(.never)
+
+            Spacer(minLength: 24)
 
             sidebarFooter
         }
-        .padding(.top, 52)
+        .padding(.top, 16)
         .padding(.horizontal, 14)
-        .padding(.bottom, 24)
+        .padding(.bottom, 0)
         .frame(width: 232)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(Color.lexiRaised)
@@ -92,7 +96,7 @@ struct TOCSidebar: View {
                     .foregroundStyle(Color.lexiInk2)
             }
             .padding(.horizontal, 10)
-            .padding(.bottom, 18)
+            .padding(.bottom, 6)
         }
     }
 
