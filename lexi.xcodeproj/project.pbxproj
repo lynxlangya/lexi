@@ -6,8 +6,24 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C0A3000D2FBC80000000000D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C0A3000C2FBC80000000000C /* GRDB */; };
+		C0A300102FBC800000000010 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C0A3000F2FBC80000000000F /* GRDB */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C0A300072FBC800000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BD8BAA832FBC4A14000A66A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BD8BAA8A2FBC4A14000A66A1;
+			remoteInfo = lexi;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		BD8BAA8B2FBC4A14000A66A1 /* lexi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = lexi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0A300012FBC800000000001 /* lexiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = lexiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -36,6 +52,11 @@
 			path = lexi;
 			sourceTree = "<group>";
 		};
+		C0A300022FBC800000000002 /* lexiTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = lexiTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,6 +64,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0A3000D2FBC80000000000D /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0A300032FBC800000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0A300102FBC800000000010 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,6 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				BD8BAA8D2FBC4A14000A66A1 /* lexi */,
+				C0A300022FBC800000000002 /* lexiTests */,
 				BD8BAA8C2FBC4A14000A66A1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				BD8BAA8B2FBC4A14000A66A1 /* lexi.app */,
+				C0A300012FBC800000000001 /* lexiTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -85,10 +117,35 @@
 			);
 			name = lexi;
 			packageProductDependencies = (
+				C0A3000C2FBC80000000000C /* GRDB */,
 			);
 			productName = lexi;
 			productReference = BD8BAA8B2FBC4A14000A66A1 /* lexi.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C0A300062FBC800000000006 /* lexiTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0A3000B2FBC80000000000B /* Build configuration list for PBXNativeTarget "lexiTests" */;
+			buildPhases = (
+				C0A300052FBC800000000005 /* Sources */,
+				C0A300032FBC800000000003 /* Frameworks */,
+				C0A300042FBC800000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C0A300082FBC800000000008 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C0A300022FBC800000000002 /* lexiTests */,
+			);
+			name = lexiTests;
+			packageProductDependencies = (
+				C0A3000F2FBC80000000000F /* GRDB */,
+			);
+			productName = lexiTests;
+			productReference = C0A300012FBC800000000001 /* lexiTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -103,6 +160,10 @@
 					BD8BAA8A2FBC4A14000A66A1 = {
 						CreatedOnToolsVersion = 26.5;
 					};
+					C0A300062FBC800000000006 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = BD8BAA8A2FBC4A14000A66A1;
+					};
 				};
 			};
 			buildConfigurationList = BD8BAA862FBC4A14000A66A1 /* Build configuration list for PBXProject "lexi" */;
@@ -114,18 +175,29 @@
 			);
 			mainGroup = BD8BAA822FBC4A14000A66A1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C0A3000E2FBC80000000000E /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BD8BAA8C2FBC4A14000A66A1 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				BD8BAA8A2FBC4A14000A66A1 /* lexi */,
+				C0A300062FBC800000000006 /* lexiTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		BD8BAA892FBC4A14000A66A1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0A300042FBC800000000004 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -142,7 +214,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0A300052FBC800000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C0A300082FBC800000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BD8BAA8A2FBC4A14000A66A1 /* lexi */;
+			targetProxy = C0A300072FBC800000000007 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		BD8BAA992FBC4A15000A66A1 /* Debug */ = {
@@ -329,6 +416,55 @@
 			};
 			name = Release;
 		};
+		C0A300092FBC800000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P3X5CXXARL;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.langya.lexiTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/lexi.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/lexi";
+			};
+			name = Debug;
+		};
+		C0A3000A2FBC80000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P3X5CXXARL;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.langya.lexiTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/lexi.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/lexi";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -350,7 +486,40 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C0A3000B2FBC80000000000B /* Build configuration list for PBXNativeTarget "lexiTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0A300092FBC800000000009 /* Debug */,
+				C0A3000A2FBC80000000000A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
-	};
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C0A3000E2FBC80000000000E /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0A3000C2FBC80000000000C /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A3000E2FBC80000000000E /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		C0A3000F2FBC80000000000F /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A3000E2FBC80000000000E /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
+		};
 	rootObject = BD8BAA832FBC4A14000A66A1 /* Project object */;
 }
