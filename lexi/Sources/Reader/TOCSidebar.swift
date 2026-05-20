@@ -25,6 +25,7 @@ struct TOCSidebar: View {
                             TOCRow(
                                 chapter: chapter,
                                 isSelected: index == selectedChapterIndex,
+                                isRead: index < selectedChapterIndex,
                                 state: chapterState(chapter.id),
                                 preferences: preferences
                             ) {
@@ -46,7 +47,10 @@ struct TOCSidebar: View {
         .padding(.bottom, 0)
         .frame(width: 232)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(preferences.theme.raised)
+        .background {
+            OpaqueBackground(color: preferences.theme.raised)
+                .ignoresSafeArea()
+        }
     }
 
     private var shelfButton: some View {
@@ -63,12 +67,6 @@ struct TOCSidebar: View {
 
     private var bookHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Book")
-                .font(LexiFont.sans(10.5))
-                .fontWeight(.semibold)
-                .foregroundStyle(preferences.theme.ink3)
-                .textCase(.uppercase)
-
             Text(book.title)
                 .font(preferences.font.serif(14))
                 .foregroundStyle(preferences.theme.ink)
@@ -114,30 +112,34 @@ struct TOCSidebar: View {
 private struct TOCRow: View {
     let chapter: ReaderChapter
     let isSelected: Bool
+    let isRead: Bool
     let state: ChapterTranslationState
     let preferences: ReaderRuntimePreferences
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(chapter.n)
                     .font(LexiFont.mono(10.5))
-                    .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink3)
+                    .tracking(0.4)
+                    .foregroundStyle(numberColor)
                     .frame(width: 28, alignment: .leading)
 
                 Text(chapter.title)
                     .font(LexiFont.sans(12.5))
                     .fontWeight(isSelected ? .medium : .regular)
-                    .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink)
+                    .foregroundStyle(titleColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 Spacer(minLength: 8)
 
-                statusIndicator
+                if !isSelected {
+                    statusIndicator
+                }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isSelected ? preferences.accent.soft : Color.clear)
@@ -148,23 +150,46 @@ private struct TOCRow: View {
         .focusable(false)
     }
 
+    private var numberColor: Color {
+        if isSelected {
+            preferences.accent.primary
+        } else if isRead {
+            preferences.theme.ink4
+        } else {
+            preferences.theme.ink3
+        }
+    }
+
+    private var titleColor: Color {
+        if isSelected {
+            preferences.accent.primary
+        } else if isRead {
+            preferences.theme.ink3
+        } else {
+            preferences.theme.ink
+        }
+    }
+
     @ViewBuilder
     private var statusIndicator: some View {
-        switch state {
-        case .translating:
-            SpinnerDot(size: 10, accent: preferences.accent.primary)
-        case .cached:
-            Circle()
-                .fill(preferences.theme.ink3)
-                .frame(width: 5, height: 5)
-        case .idle:
-            Circle()
-                .fill(preferences.theme.ink4)
-                .frame(width: 5, height: 5)
-        case .error:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Color.lexiWarn)
+        Group {
+            switch state {
+            case .translating:
+                SpinnerDot(size: 8, accent: preferences.accent.primary)
+            case .cached:
+                Circle()
+                    .fill(preferences.theme.ink3)
+                    .frame(width: 5, height: 5)
+            case .idle:
+                Circle()
+                    .fill(preferences.theme.ink4)
+                    .frame(width: 5, height: 5)
+            case .error:
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(Color.lexiWarn)
+            }
         }
+        .frame(width: 10, alignment: .center)
     }
 }
