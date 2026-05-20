@@ -1,7 +1,7 @@
 import Foundation
 
 enum ReaderFixtureStore {
-    static let bookId = "gatsby"
+    nonisolated static let bookId = "gatsby"
 
     static func seedIfNeeded(into database: AppDatabase) async throws {
         guard try await database.book(id: bookId) == nil else {
@@ -34,37 +34,53 @@ enum ReaderFixtureStore {
         try await seedCachedTranslations(into: database, model: defaultModel(for: .deepseek))
     }
 
-    static func loadBook(from database: AppDatabase) async throws -> (ReaderBook, [ReaderChapter]) {
+    static func loadBook(from database: AppDatabase, bookId: String = Self.bookId) async throws -> (ReaderBook, [ReaderChapter]) {
         try await seedIfNeeded(into: database)
 
         guard let book = try await database.book(id: bookId) else {
             throw ReaderFixtureError.missingBook
         }
 
+        return try await loadBook(book, from: database)
+    }
+
+    static func loadExistingBook(bookId: String, from database: AppDatabase) async throws -> (ReaderBook, [ReaderChapter]) {
+        guard let book = try await database.book(id: bookId) else {
+            throw ReaderFixtureError.missingBook
+        }
+
+        return try await loadBook(book, from: database)
+    }
+
+    static func loadBook(_ book: Book, from database: AppDatabase) async throws -> (ReaderBook, [ReaderChapter]) {
         let chapters = try await database.chapters(bookId: book.id)
         let readerChapters = try await chapters.asyncMap { chapter -> ReaderChapter in
-            guard let chapterId = chapter.id else {
-                throw ReaderFixtureError.missingChapterId
-            }
-            let paragraphs = try await database.paragraphs(chapterId: chapterId)
-            return ReaderChapter(
-                id: chapterId,
-                bookId: chapter.bookId,
-                idx: chapter.idx,
-                n: chapter.n,
-                title: chapter.title,
-                paragraphs: paragraphs.compactMap { paragraph in
-                    guard let paragraphId = paragraph.id else {
-                        return nil
-                    }
-                    return ReaderParagraph(id: paragraphId, ord: paragraph.ord, en: paragraph.en)
-                }
-            )
+            try await readerChapter(from: chapter, database: database)
         }
 
         return (
-            ReaderBook(id: book.id, title: book.title, author: book.author),
+            ReaderBook(book: book),
             readerChapters
+        )
+    }
+
+    private static func readerChapter(from chapter: Chapter, database: AppDatabase) async throws -> ReaderChapter {
+        guard let chapterId = chapter.id else {
+            throw ReaderFixtureError.missingChapterId
+        }
+        let paragraphs = try await database.paragraphs(chapterId: chapterId)
+        return ReaderChapter(
+            id: chapterId,
+            bookId: chapter.bookId,
+            idx: chapter.idx,
+            n: chapter.n,
+            title: chapter.title,
+            paragraphs: paragraphs.compactMap { paragraph in
+                guard let paragraphId = paragraph.id else {
+                    return nil
+                }
+                return ReaderParagraph(id: paragraphId, ord: paragraph.ord, en: paragraph.en)
+            }
         )
     }
 

@@ -4,6 +4,13 @@ struct ReaderBook: Equatable, Identifiable, Sendable {
     let id: String
     let title: String
     let author: String
+    let fileURL: URL
+    let addedAt: Date
+    let lastReadAt: Date?
+    let progress: Double
+    let coverData: Data?
+    let coverBg: String?
+    let coverInk: String?
 }
 
 struct ReaderChapter: Equatable, Identifiable, Sendable {
@@ -19,4 +26,19 @@ struct ReaderParagraph: Equatable, Identifiable, Sendable {
     let id: Int64
     let ord: Int
     let en: String
+}
+
+extension ReaderBook {
+    init(book: Book) {
+        id = book.id
+        title = book.title
+        author = book.author
+        fileURL = book.fileURL
+        addedAt = book.addedAt
+        lastReadAt = book.lastReadAt
+        progress = book.progress
+        coverData = book.coverData
+        coverBg = book.coverBg
+        coverInk = book.coverInk
+    }
 }
