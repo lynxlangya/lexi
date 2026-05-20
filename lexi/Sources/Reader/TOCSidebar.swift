@@ -25,6 +25,7 @@ struct TOCSidebar: View {
                             TOCRow(
                                 chapter: chapter,
                                 isSelected: index == selectedChapterIndex,
+                                isRead: index < selectedChapterIndex,
                                 state: chapterState(chapter.id),
                                 preferences: preferences
                             ) {
@@ -108,6 +109,7 @@ struct TOCSidebar: View {
 private struct TOCRow: View {
     let chapter: ReaderChapter
     let isSelected: Bool
+    let isRead: Bool
     let state: ChapterTranslationState
     let preferences: ReaderRuntimePreferences
     let action: () -> Void
@@ -117,19 +119,21 @@ private struct TOCRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(chapter.n)
                     .font(LexiFont.mono(10.5))
-                    .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink3)
+                    .foregroundStyle(numberColor)
                     .frame(width: 28, alignment: .leading)
 
                 Text(chapter.title)
                     .font(LexiFont.sans(12.5))
                     .fontWeight(isSelected ? .medium : .regular)
-                    .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink)
+                    .foregroundStyle(titleColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 Spacer(minLength: 8)
 
-                statusIndicator
+                if !isSelected {
+                    statusIndicator
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -140,6 +144,26 @@ private struct TOCRow: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
+    }
+
+    private var numberColor: Color {
+        if isSelected {
+            preferences.accent.primary
+        } else if isRead {
+            preferences.theme.ink4
+        } else {
+            preferences.theme.ink3
+        }
+    }
+
+    private var titleColor: Color {
+        if isSelected {
+            preferences.accent.primary
+        } else if isRead {
+            preferences.theme.ink3
+        } else {
+            preferences.theme.ink
+        }
     }
 
     @ViewBuilder
