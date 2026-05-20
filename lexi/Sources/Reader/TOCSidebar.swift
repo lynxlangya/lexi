@@ -47,7 +47,10 @@ struct TOCSidebar: View {
         .padding(.bottom, 0)
         .frame(width: 232)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(preferences.theme.raised)
+        .background {
+            OpaqueBackground(color: preferences.theme.raised)
+                .ignoresSafeArea()
+        }
     }
 
     private var shelfButton: some View {
