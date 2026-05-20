@@ -42,7 +42,7 @@ extension KeyboardShortcuts {
 
         private func normalizeDisplay(_ recorder: RecorderCocoa) {
             let raw = recorder.stringValue
-            guard raw.contains("⇧"), raw.hasSuffix("=") else {
+            guard name == .readerIncreaseFontSize, raw.hasSuffix("=") else {
                 return
             }
             recorder.stringValue = raw
