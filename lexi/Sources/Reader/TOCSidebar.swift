@@ -42,7 +42,7 @@ struct TOCSidebar: View {
 
             sidebarFooter
         }
-        .padding(.top, 16)
+        .padding(.top, 60)
         .padding(.horizontal, 14)
         .padding(.bottom, 0)
         .frame(width: 232)
