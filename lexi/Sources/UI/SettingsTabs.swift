@@ -40,27 +40,29 @@ struct SettingsSection<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 0) {
             if !title.isEmpty {
                 Text(title)
-                    .font(LexiFont.sans(11.5))
+                    .font(LexiFont.sans(10.5))
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.lexiInk3)
-                    .tracking(0.7)
-                    .padding(.horizontal, 20)
+                    .tracking(1.05)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
             }
 
             VStack(spacing: 0) {
                 content
             }
             .background(Color.lexiRaised)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(Color.lexiRule, lineWidth: 1)
             }
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, 18)
     }
 }
 
@@ -72,16 +74,15 @@ struct SettingsRow<Control: View>: View {
     @ViewBuilder var control: Control
 
     var body: some View {
-        HStack(alignment: .center, spacing: 28) {
+        HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
-                    .font(LexiFont.zh(13.5))
-                    .fontWeight(.medium)
+                    .font(LexiFont.zh(12.5))
                     .foregroundStyle(Color.lexiInk)
                 if let hint {
                     Text(hint)
-                        .font(LexiFont.zh(11.5))
-                        .lineSpacing(4)
+                        .font(LexiFont.zh(11))
+                        .lineSpacing(2)
                         .foregroundStyle(Color.lexiInk3)
                 }
             }
@@ -92,9 +93,9 @@ struct SettingsRow<Control: View>: View {
                 .frame(width: controlWidth, alignment: .trailing)
                 .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 17)
-        .frame(minHeight: 72)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(minHeight: 40)
         .overlay(alignment: .bottom) {
             if !isLast {
                 Rectangle()
@@ -116,8 +117,10 @@ struct SettingsSelect: View {
             }
         }
         .labelsHidden()
-        .frame(width: 210)
-        .controlSize(.large)
+        .pickerStyle(.menu)
+        .controlSize(.small)
+        .font(LexiFont.zh(12))
+        .fixedSize()
     }
 }
 

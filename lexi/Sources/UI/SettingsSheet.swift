@@ -357,15 +357,15 @@ struct SettingsSheet: View {
     private var readerTab: some View {
         VStack(spacing: 0) {
             SettingsSection(title: "排版") {
-                SettingsRow(label: "正文字号", hint: "也可在阅读时用 ⌘+ / ⌘- 临时调整", controlWidth: 360) {
-                    HStack(spacing: 18) {
+                SettingsRow(label: "正文字号", hint: "也可在阅读时用 ⌘+ / ⌘- 临时调整", controlWidth: 250) {
+                    HStack(spacing: 10) {
                         Text("\(Int(fontSize))pt")
                             .font(LexiFont.mono(11))
                             .foregroundStyle(Color.lexiInk3)
-                            .frame(width: 44, alignment: .trailing)
+                            .frame(width: 28, alignment: .trailing)
                         Slider(value: $fontSize, in: 14...22, step: 1)
                             .tint(settingsAccent.primary)
-                            .frame(width: 290)
+                            .frame(width: 200)
                     }
                 }
                 SettingsRow(label: "衬线字体") {
