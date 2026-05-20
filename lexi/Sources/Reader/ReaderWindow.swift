@@ -6,7 +6,7 @@ struct ReaderWindow: Scene {
 
     var body: some Scene {
         WindowGroup("Lexi", id: "reader") {
-            ReaderWindowContent()
+            ReaderWindowContent(coordinator: coordinator)
                 .background(LexiMenuBarBootstrap(coordinator: coordinator))
         }
         .defaultSize(width: 1200, height: 760)
@@ -21,6 +21,7 @@ private enum ReaderSurface {
 }
 
 private struct ReaderWindowContent: View {
+    @ObservedObject var coordinator: LexiMenuBarCoordinator
     @State private var selectedChapterIndex = 2
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var surface = ReaderSurface.shelf
@@ -34,6 +35,8 @@ private struct ReaderWindowContent: View {
     @State private var cacheClearCandidate: ReaderBook?
     @State private var cacheClearMB = "0.0"
     @State private var removeCandidate: ReaderBook?
+    @State private var showsSettings = false
+    @State private var showsVocab = false
     @AppStorage("reader.fontSize") private var fontSize = 17.0
     @AppStorage("reader.transMode") private var transModeRaw = ReaderTranslationMode.both.rawValue
     @AppStorage("reader.prefetch") private var prefetchCount = 1
@@ -110,6 +113,30 @@ private struct ReaderWindowContent: View {
         } message: { candidate in
             Text("\(candidate.title) 会从本地书架移除，原 EPUB 文件不会被删除。")
         }
+        .sheet(isPresented: $showsSettings) {
+            SettingsSheet(
+                database: database,
+                close: { showsSettings = false },
+                showToast: showToast
+            )
+        }
+        .sheet(isPresented: $showsVocab) {
+            VocabView(
+                database: database,
+                close: { showsVocab = false },
+                showToast: showToast,
+                onChanged: { coordinator.refreshCounts() }
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .lexiOpenSettings)) { _ in
+            showsSettings = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .lexiOpenVocab)) { _ in
+            showsVocab = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .lexiEngineSettingsChanged)) { _ in
+            applyEngineSettings()
+        }
     }
 
     @ViewBuilder
@@ -170,6 +197,8 @@ private struct ReaderWindowContent: View {
                         transMode: transMode
                     ) { paragraph in
                         controller.retryParagraph(paragraph, in: selectedChapter)
+                    } addVocab: { paragraph in
+                        addVocab(paragraph)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.lexiPaper)
@@ -285,7 +314,7 @@ private struct ReaderWindowContent: View {
     private func loadBook(_ nextBook: ReaderBook, from database: AppDatabase, continueReading: Bool) async {
         do {
             let loaded = try await ReaderFixtureStore.loadExistingBook(bookId: nextBook.id, from: database)
-            let engineConfig = ReaderFixtureStore.defaultConfig()
+            let engineConfig = await EnginePreferences.chapterConfig(database: database)
             let nextController = ChapterTranslationController(database: database, engineConfig: engineConfig)
             book = loaded.0
             chapters = loaded.1
@@ -391,6 +420,30 @@ private struct ReaderWindowContent: View {
         }
     }
 
+    private func addVocab(_ paragraph: ReaderParagraph) {
+        guard let database else {
+            return
+        }
+
+        let word = selectedWordCandidate(from: paragraph.en)
+
+        Task {
+            _ = try? await database.insertVocabEntry(
+                VocabEntry(id: nil, word: word, context: paragraph.en, bookId: book?.id, addedAt: Date())
+            )
+            coordinator.refreshCounts()
+            showToast("已加入生词本")
+        }
+    }
+
+    private func selectedWordCandidate(from text: String) -> String {
+        let pattern = #"[A-Za-z'\u{2019}-]{2,}"#
+        if let range = text.range(of: pattern, options: .regularExpression) {
+            return String(text[range])
+        }
+        return String(text.prefix(40))
+    }
+
     private func translateSelectedChapter() {
         guard surface == .reader, let selectedChapter, let controller else {
             return
@@ -412,6 +465,22 @@ private struct ReaderWindowContent: View {
                 ProgressRecord(bookId: book.id, chapterIdx: selectedChapterIndex, scrollPct: 0, updatedAt: Date())
             )
             try? await reloadShelf(from: database)
+        }
+    }
+
+    private func applyEngineSettings() {
+        guard let database, let selectedChapter, let controller else {
+            return
+        }
+
+        Task {
+            let config = await EnginePreferences.chapterConfig(database: database)
+            controller.switchEngine(
+                config,
+                chapter: selectedChapter,
+                chapters: chapters,
+                prefetchCount: max(0, min(2, prefetchCount))
+            )
         }
     }
 

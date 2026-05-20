@@ -372,8 +372,50 @@ actor AppDatabase {
         }
     }
 
+    func allVocabEntries() throws -> [VocabEntry] {
+        try pool.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM vocab ORDER BY addedAt DESC, id DESC")
+                .map(VocabEntry.init(row:))
+        }
+    }
+
     func vocabCount() throws -> Int {
         try countRows(in: "vocab")
+    }
+
+    func deleteVocabEntries(ids: Set<Int64>) throws {
+        guard !ids.isEmpty else {
+            return
+        }
+
+        try pool.write { db in
+            let placeholders = ids.map { _ in "?" }.joined(separator: ",")
+            try db.execute(
+                sql: "DELETE FROM vocab WHERE id IN (\(placeholders))",
+                arguments: StatementArguments(Array(ids))
+            )
+        }
+    }
+
+    func bookTitlesById() throws -> [String: String] {
+        try pool.read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT id, title FROM books")
+            return Dictionary(uniqueKeysWithValues: rows.map { row in
+                (row["id"] as String, row["title"] as String)
+            })
+        }
+    }
+
+    func translationCacheBytes() throws -> Int64 {
+        try pool.read { db in
+            try Int64.fetchOne(db, sql: "SELECT COALESCE(SUM(LENGTH(zh)), 0) FROM translations") ?? 0
+        }
+    }
+
+    func clearTranslationCache() throws {
+        try pool.write { db in
+            try db.execute(sql: "DELETE FROM translations")
+        }
     }
 
     func upsertProgress(_ record: ProgressRecord) throws {
