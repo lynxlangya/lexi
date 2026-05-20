@@ -6,6 +6,7 @@ struct ParaView: View {
     let state: ParagraphTranslationState
     let transMode: ReaderTranslationMode
     let retry: () -> Void
+    let addVocab: () -> Void
 
     private var enSize: CGFloat {
         CGFloat(fontSize)
@@ -27,6 +28,15 @@ struct ParaView: View {
 
             if transMode != .en {
                 translation
+            }
+
+            if transMode != .zh {
+                Button(action: addVocab) {
+                    Label("生词本", systemImage: "plus")
+                        .font(LexiFont.zh(11.5))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.lexiInk3)
             }
         }
         .padding(.bottom, LexiSpacing.paraGap)

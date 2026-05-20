@@ -6,6 +6,7 @@ struct ReadingColumn: View {
     let snapshot: ChapterTranslationSnapshot
     let transMode: ReaderTranslationMode
     let retryParagraph: (ReaderParagraph) -> Void
+    let addVocab: (ReaderParagraph) -> Void
 
     var body: some View {
         ScrollView {
@@ -21,6 +22,8 @@ struct ReadingColumn: View {
                         transMode: transMode
                     ) {
                         retryParagraph(paragraph)
+                    } addVocab: {
+                        addVocab(paragraph)
                     }
                 }
             }

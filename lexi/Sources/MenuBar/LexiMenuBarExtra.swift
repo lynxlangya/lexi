@@ -84,6 +84,9 @@ final class LexiMenuBarCoordinator: ObservableObject {
         NSApp.setActivationPolicy(.regular)
         ensureDatabase()
         refreshVocabCount()
+        Task {
+            currentEngine = await EnginePreferences.popupConfig(database: database)
+        }
 
         selectionMonitor.onSelection = { [weak self] context in
             self?.showChip(for: context)
@@ -183,9 +186,10 @@ final class LexiMenuBarCoordinator: ObservableObject {
         }
 
         let word = isWord(trimmed)
-        show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
         Task {
             do {
+                currentEngine = await EnginePreferences.popupConfig(database: database)
+                show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
                 let translated = try await translateText(trimmed)
                 todayQueryCount += 1
                 if word {
@@ -310,6 +314,10 @@ final class LexiMenuBarCoordinator: ObservableObject {
         Task {
             vocabCount = (try? await database.vocabCount()) ?? 0
         }
+    }
+
+    func refreshCounts() {
+        refreshVocabCount()
     }
 
     private func showPermissionError() {
