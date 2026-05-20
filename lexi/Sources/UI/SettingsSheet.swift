@@ -152,8 +152,10 @@ struct SettingsSheet: View {
                     .foregroundStyle(selectedTab == tab ? settingsAccent.primary : Color.lexiInk)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(selectedTab == tab ? settingsAccent.soft : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
