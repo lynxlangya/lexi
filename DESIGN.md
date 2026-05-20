@@ -593,11 +593,11 @@ Lexi (单一 .app)
 
 | 我（Claude） | codex |
 |---|---|
-| 架构 / 数据模型 / 翻译流式协议 | SwiftUI 视图、控件 |
+| 架构 / 数据模型 / 翻译流式协议 review | SwiftUI 视图、控件实现 |
 | 设计稿一致性 review | UIKit/AppKit bridge（NSPanel、NSEvent） |
-| 引擎抽象接口设计 | 各引擎 client 实现 |
-| 待决问题决策推动 | EPUB 解析 / Core Data 迁移 |
-| 大型 PR 第二意见（/review、/ultrareview） | 日常实现 PR |
+| 引擎抽象接口 review | 各引擎 client 实现与维护 |
+| 后续范围裁剪 / 产品决策推动 | EPUB / Reader / MenuBar / Settings 日常迭代 |
+| 大型 PR 第二意见（/review、/ultrareview） | 小步实现、验证、文档同步 |
 
 代码风格：codex 走主线，我做架构定义 + 高风险节点二审。
 

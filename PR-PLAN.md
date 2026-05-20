@@ -18,6 +18,32 @@
 
 ---
 
+## 完成状态（2026-05-20）
+
+本文件现在作为 **v1 MVP 历史拆分计划 + 验收索引** 保留；PR 1-10 已全部合并到 `main`，当前实现事实以源码、[DESIGN.md](DESIGN.md)、[CLAUDE.md](CLAUDE.md) 和 [AGENTS.md](AGENTS.md) 为准。
+
+| 计划 PR | GitHub issue | Merged PR | 状态 |
+|---|---:|---:|---|
+| PR 1 · Clean slate + 项目骨架 | #1 | #2 | 已合并 |
+| PR 2 · Design tokens + 字体 | #3 | #12 | 已合并；字体加载后续由 #13 / #20 修正为 system serif |
+| PR 3 · Data layer · GRDB schema + Keychain | #4 | #14 | 已合并 |
+| PR 4 · EPUB 解析 | #5 | #15 | 已合并 |
+| PR 5 · 翻译引擎层 | #6 | #16 | 已合并 |
+| PR 6 · Reader 静态 UI | #7 | #17 | 已合并；Reader toolbar 后续由 #18 / #19 改为原生 macOS toolbar |
+| PR 7 · Reader 翻译流式 + 状态机 | #8 | #21 | 已合并 |
+| PR 8 · Shelf 视图 + EPUB 导入 | #9 | #22 | 已合并 |
+| PR 9 · MenuBar agent + NSPanel | #10 | #23 | 已合并 |
+| PR 10 · Settings sheet + 生词本 | #11 | #24 | 已合并 |
+
+完成后的整体验证入口：
+
+```sh
+xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDataPath /tmp/lexi-derived test
+xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Release build CODE_SIGNING_ALLOWED=NO
+```
+
+---
+
 ## PR 1 · Clean slate + 项目骨架
 
 **Goal**：删除 Xcode 模板自带的 Core Data scaffolding，立 v1 目标的源码目录与基础依赖。

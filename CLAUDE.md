@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Lexi v1 MVP has been initiated. Source code is organized by module under `lexi/Sources/`; see [DESIGN.md](DESIGN.md) and [PR-PLAN.md](PR-PLAN.md) for the locked product decisions and staged PR plan.
+Lexi v1 MVP PR 1-10 have all been merged. Source code is organized by module under `lexi/Sources/`; see [DESIGN.md](DESIGN.md) for locked product decisions and [PR-PLAN.md](PR-PLAN.md) for the completed historical PR breakdown.
 
-The Core Data template has been removed. The project now has shared UI tokens and the initial GRDB + Keychain data layer. There is a unit test target for data-layer coverage. There is no CI or lint config yet.
+The Core Data template has been removed. The app now has the main Reader/Shelf surface, EPUB import, streaming translation, MenuBar selection popup, Settings sheet, and Vocab list. Persistence is GRDB-backed SQLite plus Keychain for API keys. The unit test target covers Data, EPUB parsing, translation engines, and Reader translation controller behavior. There is no CI or lint config yet.
 
 ## Build & run
 
@@ -26,17 +26,17 @@ xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDat
 
 ## Architecture
 
-`lexiApp.swift` is the `@main` entry point and currently displays a placeholder `WindowGroup("Lexi")` scene. Real windows and app lifecycle code will land in later PRs.
+`lexiApp.swift` is the `@main` entry point. It registers the Reader window scene and the MenuBarExtra scene, wires both through `LexiMenuBarCoordinator`, and keeps Lexi resident after the main window closes by switching to accessory activation policy.
 
 `lexi/Sources/` is the v1 source root:
 
 - `App/` — application entry and lifecycle
-- `Reader/` — Reader main window, Shelf, and Settings sheet
-- `MenuBar/` — status-bar agent and panel UI
-- `Engines/` — translation engine integrations
+- `Reader/` — Reader main window, Shelf, EPUB import flow, translation state UI, and Vocab sheet
+- `MenuBar/` — status-bar agent, selection monitoring, NSPanel popup, replacement, speech, and global shortcuts
+- `Engines/` — translation engine integrations, SSE parsing, engine preferences, and DEBUG-only local secret loading
 - `Data/` — local persistence and secure configuration storage
 - `EPUB/` — EPUB parsing
-- `UI/` — shared UI tokens, fonts, and controls
+- `UI/` — shared UI tokens, fonts, Settings sheet, and reusable controls
 
 Current data-layer files:
 
@@ -47,11 +47,18 @@ Current data-layer files:
 
 API keys must stay in Keychain, not SQLite.
 
+Current app surfaces:
+
+- Reader/Shelf: `Sources/Reader/ReaderWindow.swift`, `ShelfView.swift`, `ReadingColumn.swift`, `ChapterTranslationController.swift`
+- MenuBar popup: `Sources/MenuBar/LexiMenuBarExtra.swift`, `PopupPanel.swift`, `PopupContent.swift`
+- Settings/Vocab: `Sources/UI/SettingsSheet.swift`, `Sources/Reader/VocabView.swift`
+- Translation engines: `Sources/Engines/{OpenAIEngine,AnthropicEngine,DeepSeekEngine,EngineRegistry}.swift`
+
 ## Local secrets (`.env.local`)
 
 API keys for OpenAI / Anthropic / DeepSeek used during development live in `.env.local` at the repo root. This file is **gitignored** — do not commit it, do not paste its contents into PR descriptions / issue comments / chat logs.
 
 - `.env.example` (tracked) is the template. After cloning: `cp .env.example .env.local && chmod 600 .env.local`, then fill in your own keys.
 - Format: `KEY=VALUE` per line, no quotes, no spaces around `=`. Empty value means "engine not configured" — runtime will skip that engine.
-- Used **only in DEBUG builds** by the dev-time engine loader (lands in PR 5). Release builds always read keys from Keychain via Settings → 引擎.
+- Used **only in DEBUG builds** by `Sources/Engines/DevSecrets.swift`. Release builds always read keys from Keychain via Settings → 引擎.
 - If a key is ever exposed (committed by accident, shared in a screenshot, etc.), rotate it immediately at the provider's dashboard. Git history is the part that bites.
