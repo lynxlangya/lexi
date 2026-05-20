@@ -212,7 +212,8 @@ private struct ReaderWindowContent: View {
                         chapterIndex: selectedChapterIndex,
                         chapterCount: chapters.count,
                         fontSize: $fontSize,
-                        transMode: transModeBinding
+                        transMode: transModeBinding,
+                        openSettings: { showsSettings = true }
                     )
                 }
                 .toolbar(removing: .sidebarToggle)

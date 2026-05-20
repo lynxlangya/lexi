@@ -8,6 +8,7 @@ struct ReaderToolbar: ToolbarContent {
     let chapterCount: Int
     @Binding var fontSize: Double
     @Binding var transMode: ReaderTranslationMode
+    let openSettings: () -> Void
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
@@ -50,21 +51,15 @@ struct ReaderToolbar: ToolbarContent {
             .focusable(false)
 
             Button(action: {}) {
-                Image(systemName: "gearshape")
-            }
-            .help("翻译引擎")
-            .focusable(false)
-
-            Button(action: {}) {
                 Image(systemName: "moon")
             }
             .help("主题")
             .focusable(false)
 
-            Button(action: {}) {
-                Image(systemName: "ellipsis")
+            Button(action: openSettings) {
+                Image(systemName: "gearshape")
             }
-            .help("更多")
+            .help("设置")
             .focusable(false)
         }
     }
