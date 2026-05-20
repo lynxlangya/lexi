@@ -6,6 +6,7 @@ struct SettingsSheet: View {
     let close: () -> Void
     let showToast: (String) -> Void
 
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var selectedTab: SettingsTab = .general
     @State private var apiKeys: [EngineID: String] = [:]
     @State private var loadedAPIKeys: [EngineID: String] = [:]
@@ -29,13 +30,29 @@ struct SettingsSheet: View {
     @AppStorage("reader.serif") private var serif = "New York"
     @AppStorage("reader.lineHeight") private var lineHeight = "normal"
     @AppStorage("reader.transMode") private var transMode = ReaderTranslationMode.both.rawValue
-    @AppStorage("reader.theme") private var theme = "paper"
+    @AppStorage("reader.theme") private var theme = ReaderThemeMode.system.storageValue
     @AppStorage("reader.accent") private var accent = "copper"
     @AppStorage("reader.prefetch") private var prefetch = 1
     @AppStorage("shortcuts.conflictDetect") private var conflictDetect = true
 
     private var settingsAccent: ReaderAccentChoice {
         ReaderAccentChoice(storageValue: accent)
+    }
+
+    private var settingsTheme: ReaderThemeChoice {
+        ReaderThemeChoice(mode: themeMode, systemColorScheme: systemColorScheme)
+    }
+
+    private var themeMode: ReaderThemeMode {
+        ReaderThemeMode(storageValue: theme)
+    }
+
+    private var themeBinding: Binding<String> {
+        Binding {
+            themeMode.storageValue
+        } set: { next in
+            theme = ReaderThemeMode(storageValue: next).storageValue
+        }
     }
 
     private var contentMaxWidth: CGFloat {
@@ -77,8 +94,9 @@ struct SettingsSheet: View {
                 .padding(.top, 48)
         }
         .frame(width: 720, height: 580)
-        .background(Color.lexiPaper)
+        .background(settingsTheme.paper)
         .tint(settingsAccent.primary)
+        .preferredColorScheme(themeMode.preferredColorScheme)
         .clipShape(RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous)
@@ -422,10 +440,11 @@ struct SettingsSheet: View {
             SettingsSection(title: "主题") {
                 SettingsRow(label: "模式") {
                     SettingsSegmented(
-                        value: $theme,
+                        value: themeBinding,
                         options: [
-                            ("paper", "亮 Paper"),
-                            ("candlelit", "暗 Candlelit"),
+                            (ReaderThemeMode.system.storageValue, "跟随系统"),
+                            (ReaderThemeMode.day.storageValue, "白天"),
+                            (ReaderThemeMode.night.storageValue, "夜间"),
                         ]
                     )
                 }

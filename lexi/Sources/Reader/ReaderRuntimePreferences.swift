@@ -74,6 +74,76 @@ enum ReaderTranslationStyle: String, Equatable {
     }
 }
 
+enum ReaderThemeMode: String, Equatable {
+    case system
+    case day
+    case night
+
+    init(storageValue: String) {
+        switch storageValue {
+        case "paper":
+            self = .day
+        case "candlelit":
+            self = .night
+        default:
+            self = Self(rawValue: storageValue) ?? .system
+        }
+    }
+
+    var storageValue: String {
+        rawValue
+    }
+
+    var next: ReaderThemeMode {
+        switch self {
+        case .system:
+            return .day
+        case .day:
+            return .night
+        case .night:
+            return .system
+        }
+    }
+
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system:
+            return nil
+        case .day:
+            return .light
+        case .night:
+            return .dark
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .system:
+            return "circle.lefthalf.filled"
+        case .day:
+            return "sun.max"
+        case .night:
+            return "moon"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .system:
+            return "跟随系统"
+        case .day:
+            return "白天"
+        case .night:
+            return "夜间"
+        }
+    }
+}
+
+private enum ReaderThemePalette {
+    case day
+    case night
+}
+
 struct ReaderThemeChoice {
     let paper: Color
     let raised: Color
@@ -88,7 +158,21 @@ struct ReaderThemeChoice {
     let shimmer2: Color
 
     init(storageValue: String) {
-        if storageValue == "candlelit" {
+        self.init(mode: ReaderThemeMode(storageValue: storageValue), systemColorScheme: .light)
+    }
+
+    init(mode: ReaderThemeMode, systemColorScheme: ColorScheme) {
+        let palette: ReaderThemePalette
+        switch mode {
+        case .system:
+            palette = systemColorScheme == .dark ? .night : .day
+        case .day:
+            palette = .day
+        case .night:
+            palette = .night
+        }
+
+        if palette == .night {
             paper = Color(red: 0.105, green: 0.092, blue: 0.075)
             raised = Color(red: 0.145, green: 0.125, blue: 0.102)
             chrome = Color(red: 0.128, green: 0.110, blue: 0.090)
@@ -101,17 +185,17 @@ struct ReaderThemeChoice {
             shimmer1 = Color(red: 0.195, green: 0.165, blue: 0.132)
             shimmer2 = Color(red: 0.310, green: 0.250, blue: 0.188)
         } else {
-            paper = .lexiPaper
-            raised = .lexiRaised
-            chrome = .lexiChrome
-            ink = .lexiInk
-            ink2 = .lexiInk2
-            ink3 = .lexiInk3
-            ink4 = .lexiInk4
-            rule = .lexiRule
-            rule2 = .lexiRule2
-            shimmer1 = .lexiShimmer1
-            shimmer2 = .lexiShimmer2
+            paper = Color(red: 0.961, green: 0.945, blue: 0.910)
+            raised = Color(red: 0.984, green: 0.973, blue: 0.945)
+            chrome = Color(red: 0.945, green: 0.929, blue: 0.886)
+            ink = Color(red: 0.122, green: 0.106, blue: 0.082)
+            ink2 = Color(red: 0.478, green: 0.443, blue: 0.388)
+            ink3 = Color(red: 0.647, green: 0.612, blue: 0.537)
+            ink4 = Color(red: 0.784, green: 0.749, blue: 0.675)
+            rule = Color(red: 0.890, green: 0.863, blue: 0.796)
+            rule2 = Color(red: 0.812, green: 0.776, blue: 0.694)
+            shimmer1 = Color(red: 0.655, green: 0.620, blue: 0.549).opacity(0.10)
+            shimmer2 = Color(red: 0.655, green: 0.620, blue: 0.549).opacity(0.22)
         }
     }
 }
@@ -155,11 +239,15 @@ struct ReaderRuntimePreferences {
         lineHeight: String,
         theme: String,
         accent: String,
-        translationStyle: String = ReaderTranslationStyle.demote.rawValue
+        translationStyle: String = ReaderTranslationStyle.demote.rawValue,
+        systemColorScheme: ColorScheme = .light
     ) {
         font = ReaderFontChoice(storageValue: serif)
         self.lineHeight = ReaderLineHeightChoice(storageValue: lineHeight)
-        self.theme = ReaderThemeChoice(storageValue: theme)
+        self.theme = ReaderThemeChoice(
+            mode: ReaderThemeMode(storageValue: theme),
+            systemColorScheme: systemColorScheme
+        )
         self.accent = ReaderAccentChoice(storageValue: accent)
         self.translationStyle = ReaderTranslationStyle(storageValue: translationStyle)
     }

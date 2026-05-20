@@ -10,7 +10,7 @@ struct ToastView: View {
     var preferences: ReaderRuntimePreferences?
 
     private var theme: ReaderThemeChoice {
-        preferences?.theme ?? ReaderThemeChoice(storageValue: "paper")
+        preferences?.theme ?? ReaderThemeChoice(storageValue: ReaderThemeMode.system.storageValue)
     }
 
     var body: some View {

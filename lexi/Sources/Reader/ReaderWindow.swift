@@ -22,6 +22,7 @@ private enum ReaderSurface {
 
 private struct ReaderWindowContent: View {
     @ObservedObject var coordinator: LexiMenuBarCoordinator
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var selectedChapterIndex = 2
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var surface = ReaderSurface.shelf
@@ -42,7 +43,7 @@ private struct ReaderWindowContent: View {
     @AppStorage("reader.prefetch") private var prefetchCount = 1
     @AppStorage("reader.serif") private var serif = "New York"
     @AppStorage("reader.lineHeight") private var lineHeight = "normal"
-    @AppStorage("reader.theme") private var theme = "paper"
+    @AppStorage("reader.theme") private var theme = ReaderThemeMode.system.storageValue
     @AppStorage("reader.accent") private var accent = "copper"
     @AppStorage("reader.translationStyle") private var translationStyle = ReaderTranslationStyle.demote.rawValue
     @AppStorage("general.startup") private var startupBehavior = "last"
@@ -51,10 +52,15 @@ private struct ReaderWindowContent: View {
         ReaderRuntimePreferences(
             serif: serif,
             lineHeight: lineHeight,
-            theme: theme,
+            theme: themeMode.storageValue,
             accent: accent,
-            translationStyle: translationStyle
+            translationStyle: translationStyle,
+            systemColorScheme: systemColorScheme
         )
+    }
+
+    private var themeMode: ReaderThemeMode {
+        ReaderThemeMode(storageValue: theme)
     }
 
     private var transMode: ReaderTranslationMode {
@@ -99,6 +105,7 @@ private struct ReaderWindowContent: View {
         )
         .background(ReaderWindowCloseBehavior())
         .background(preferences.theme.paper)
+        .preferredColorScheme(themeMode.preferredColorScheme)
         .frame(minWidth: 920, minHeight: 620)
         .confirmationDialog(
             "清除翻译缓存？",
@@ -232,7 +239,9 @@ private struct ReaderWindowContent: View {
                         columnVisibility: $columnVisibility,
                         bookTitle: book.title,
                         transMode: transModeBinding,
+                        themeMode: themeMode,
                         preferences: preferences,
+                        cycleThemeMode: cycleThemeMode,
                         openSettings: { showsSettings = true },
                         sidebarVisible: columnVisibility != .detailOnly
                     )
@@ -506,6 +515,10 @@ private struct ReaderWindowContent: View {
         withAnimation {
             columnVisibility = columnVisibility == .all ? .detailOnly : .all
         }
+    }
+
+    private func cycleThemeMode() {
+        theme = themeMode.next.storageValue
     }
 
     private func showToast(_ text: String) {
