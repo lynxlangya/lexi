@@ -135,6 +135,16 @@ final class EngineTests: XCTestCase {
 
         XCTAssertEqual(engine.id, .deepseek)
     }
+
+    func testEngineRegistryWithoutConfiguredKeyFails() throws {
+        let registry = EngineRegistry(client: MockEngineHTTPClient(), apiKeyProvider: { _ in nil })
+
+        XCTAssertThrowsError(
+            try registry.engine(for: EngineConfig(id: .deepseek, model: "deepseek-chat", lastTestedOK: false, lastTestedAt: nil))
+        ) { error in
+            XCTAssertEqual(error as? EngineError, .missingAPIKey(.deepseek))
+        }
+    }
 }
 
 private final class MockEngineHTTPClient: EngineHTTPClient, @unchecked Sendable {

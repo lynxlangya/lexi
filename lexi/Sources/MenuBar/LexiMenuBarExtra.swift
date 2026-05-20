@@ -68,7 +68,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     private var pinned = false
     private var activeKind: PopupKind?
     private var activeAnchor = CGRect(x: 600, y: 480, width: 36, height: 24)
-    private var currentEngine = ReaderFixtureStore.defaultConfig()
+    private var currentEngine = EngineConfig(id: .deepseek, model: ReaderFixtureStore.defaultModel(for: .deepseek), lastTestedOK: false, lastTestedAt: nil)
     private var popupEngineOverride: EngineConfig?
     private var recentWords: [String] = []
     private var openReaderAction: (() -> Void)?
@@ -322,9 +322,12 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func selectEngine(_ engine: EngineID) {
-        currentEngine = EngineConfig(id: engine, model: ReaderFixtureStore.defaultModel(for: engine), lastTestedOK: false, lastTestedAt: nil)
-        popupEngineOverride = currentEngine
-        retryActive()
+        Task {
+            let config = await engineConfig(for: engine)
+            currentEngine = config
+            popupEngineOverride = config
+            retryActive()
+        }
     }
 
     private func popupEngineConfig() async -> EngineConfig {
@@ -332,6 +335,19 @@ final class LexiMenuBarCoordinator: ObservableObject {
             return popupEngineOverride
         }
         return await EnginePreferences.popupConfig(database: database)
+    }
+
+    private func engineConfig(for engine: EngineID) async -> EngineConfig {
+        ensureDatabase()
+        if let stored = try? await database?.engineConfig(for: engine) {
+            return stored
+        }
+        return EngineConfig(
+            id: engine,
+            model: ReaderFixtureStore.defaultModel(for: engine),
+            lastTestedOK: false,
+            lastTestedAt: nil
+        )
     }
 
     private func applyPopupEngineSettings() async {

@@ -33,7 +33,7 @@ xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDat
 - `App/` — application entry and lifecycle
 - `Reader/` — Reader main window, Shelf, EPUB import flow, translation state UI, and Vocab sheet
 - `MenuBar/` — status-bar agent, selection monitoring, NSPanel popup, replacement, speech, and global shortcuts
-- `Engines/` — translation engine integrations, SSE parsing, engine preferences, and DEBUG-only local secret loading
+- `Engines/` — translation engine integrations, SSE parsing, and engine preferences
 - `Data/` — local persistence and secure configuration storage
 - `EPUB/` — EPUB parsing
 - `UI/` — shared UI tokens, fonts, Settings sheet, and reusable controls
@@ -54,11 +54,11 @@ Current app surfaces:
 - Settings/Vocab: `Sources/UI/SettingsSheet.swift`, `Sources/Reader/VocabView.swift`
 - Translation engines: `Sources/Engines/{OpenAIEngine,AnthropicEngine,DeepSeekEngine,EngineRegistry}.swift`
 
-## Local secrets (`.env.local`)
+## Engine configuration
 
-API keys for OpenAI / Anthropic / DeepSeek used during development live in `.env.local` at the repo root. This file is **gitignored** — do not commit it, do not paste its contents into PR descriptions / issue comments / chat logs.
+API keys for OpenAI / Anthropic / DeepSeek are configured in the app through Settings → 引擎. Runtime code must use the persisted engine configuration path:
 
-- `.env.example` (tracked) is the template. After cloning: `cp .env.example .env.local && chmod 600 .env.local`, then fill in your own keys.
-- Format: `KEY=VALUE` per line, no quotes, no spaces around `=`. Empty value means "engine not configured" — runtime will skip that engine.
-- Used **only in DEBUG builds** by `Sources/Engines/DevSecrets.swift`. Release builds always read keys from Keychain via Settings → 引擎.
-- If a key is ever exposed (committed by accident, shared in a screenshot, etc.), rotate it immediately at the provider's dashboard. Git history is the part that bites.
+- API keys live in Keychain via `Sources/Data/Keychain.swift`.
+- Engine model / last test status live in SQLite `EngineConfig`.
+- `EngineRegistry.shared` reads Keychain only. Do not add `.env.local`, `DevSecrets`, build-time secrets, or DEBUG-only key overrides.
+- If a key is ever exposed in logs, screenshots, PRs, or issue comments, rotate it immediately at the provider's dashboard.

@@ -7,7 +7,7 @@ Module ownership:
 - `App/` — reserved for application lifecycle code as the app grows. The current app entry is still `../lexiApp.swift`.
 - `Data/` — GRDB-backed SQLite, migrations, record models, and Keychain API key storage.
 - `EPUB/` — EPUB parsing, OPF/NAV resolution, cover extraction, and import payload construction.
-- `Engines/` — OpenAI, Anthropic, DeepSeek, SSE parsing, engine preferences, and DEBUG-only `.env.local` loading.
+- `Engines/` — OpenAI, Anthropic, DeepSeek, SSE parsing, and engine preferences.
 - `MenuBar/` — MenuBarExtra, selection monitoring, NSPanel popup, global shortcuts, text replacement, toast, and speech.
 - `Reader/` — Reader window, Shelf, import flow, translation controller, reading views, shortcuts, Vocab, and fixture seeding.
 - `UI/` — shared colors, fonts, spacing tokens, Settings sheet, and reusable controls.

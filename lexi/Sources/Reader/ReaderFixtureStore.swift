@@ -85,12 +85,6 @@ enum ReaderFixtureStore {
     }
 
     static func defaultConfig() -> EngineConfig {
-        #if DEBUG
-        if let config = DevSecrets.defaultEngineConfig() {
-            return config
-        }
-        #endif
-
         return EngineConfig(id: .deepseek, model: defaultModel(for: .deepseek), lastTestedOK: false, lastTestedAt: nil)
     }
 

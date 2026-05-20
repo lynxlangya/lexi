@@ -49,7 +49,7 @@ xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDat
 - `lexi/Sources/UI/`: shared color, font, spacing tokens, and token preview.
 - `lexi/Sources/Data/`: GRDB database actor, migrations, record models, and Keychain wrapper.
 - `lexi/Sources/EPUB/`: EPUB parser, OPF/NAV helpers, and cover extraction.
-- `lexi/Sources/Engines/`: OpenAI, Anthropic, DeepSeek, SSE parsing, preferences, and DEBUG-only `.env.local` loader.
+- `lexi/Sources/Engines/`: OpenAI, Anthropic, DeepSeek, SSE parsing, and engine preferences.
 - `lexi/Sources/Reader/`: Reader, Shelf, import flow, translation state controller, shortcuts, and Vocab.
 - `lexi/Sources/MenuBar/`: MenuBarExtra, NSPanel popup, global shortcuts, AX selection/replacement, and speech.
 - `lexiTests/`: Data, EPUB, Engine, and Reader translation controller tests.
@@ -62,7 +62,7 @@ xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDat
 - If adding dependencies, document why the built-in Apple framework is insufficient and how the dependency is integrated.
 - Keep generated Xcode project edits narrow. Avoid unnecessary churn in `project.pbxproj`.
 - Store business data in `AppDatabase`/SQLite and API keys in Keychain. API keys must not be persisted in SQLite.
-- DEBUG-only local keys are read from `.env.local` by `DevSecrets.swift`; never expose real key values in logs, screenshots, docs, issues, or PR bodies.
+- Runtime engine configuration must come from Settings → 引擎: API keys in Keychain, model/status in SQLite `EngineConfig`. Do not add `.env.local`, `DevSecrets`, or DEBUG-only key/model overrides.
 - Reader window chrome uses native `.toolbar`, `.windowStyle(.titleBar)`, and `.windowToolbarStyle(.unified)`. Do not bring back Reader `fullSizeContentView`, `titlebarAppearsTransparent`, hidden title bars, or custom traffic lights.
 - MenuBar translation popup is the exception that intentionally uses `NSPanel` with `.nonactivatingPanel`, `.borderless`, and `.fullSizeContentView` so it does not steal focus.
 - Global shortcuts use `sindresorhus/KeyboardShortcuts`: `⌘⇧L` translate selection, `⌘⇧T` translate and replace selection, `⌘⇧K` show/hide Reader.
