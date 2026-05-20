@@ -10,7 +10,7 @@ struct ReaderWindow: Scene {
                 .background(LexiMenuBarBootstrap(coordinator: coordinator))
         }
         .defaultSize(width: 1200, height: 760)
-        .windowStyle(.titleBar)
+        .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified)
     }
 }
@@ -93,7 +93,8 @@ private struct ReaderWindowContent: View {
         }
         .background(
             ReaderWindowTitleUpdater(
-                title: windowTitle
+                title: windowTitle,
+                isReaderSurface: surface == .reader
             )
         )
         .background(ReaderWindowCloseBehavior())
@@ -195,43 +196,41 @@ private struct ReaderWindowContent: View {
     private var readerContent: some View {
         if let book, let selectedChapter, let controller {
             VStack(spacing: 0) {
-                NavigationSplitView(columnVisibility: $columnVisibility) {
-                    TOCSidebar(
-                        book: book,
-                        chapters: chapters,
-                        selectedChapterIndex: $selectedChapterIndex,
-                        chapterState: { chapterId in
-                            controller.chapterState(for: chapterId)
-                        },
-                        preferences: preferences,
-                        openShelf: { surface = .shelf }
-                    )
-                    .navigationSplitViewColumnWidth(min: 232, ideal: 232, max: 232)
-                    .toolbar(removing: .sidebarToggle)
-                } detail: {
-                    ReadingColumn(
-                        chapter: selectedChapter,
-                        fontSize: fontSize,
-                        snapshot: controller.snapshot(for: selectedChapter.id),
-                        transMode: transMode,
-                        preferences: preferences
-                    ) { paragraph in
-                        controller.retryParagraph(paragraph, in: selectedChapter)
+                ZStack(alignment: .top) {
+                    HStack(spacing: 0) {
+                        if columnVisibility != .detailOnly {
+                            TOCSidebar(
+                                book: book,
+                                chapters: chapters,
+                                selectedChapterIndex: $selectedChapterIndex,
+                                chapterState: { chapterId in
+                                    controller.chapterState(for: chapterId)
+                                },
+                                preferences: preferences,
+                                openShelf: { surface = .shelf }
+                            )
+                        }
+
+                        ReadingColumn(
+                            chapter: selectedChapter,
+                            fontSize: fontSize,
+                            snapshot: controller.snapshot(for: selectedChapter.id),
+                            transMode: transMode,
+                            preferences: preferences
+                        ) { paragraph in
+                            controller.retryParagraph(paragraph, in: selectedChapter)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(preferences.theme.paper)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(preferences.theme.paper)
-                }
-                .navigationSplitViewStyle(.balanced)
-                .toolbar {
-                    ReaderToolbar(
+
+                    ReaderChromeOverlay(
                         columnVisibility: $columnVisibility,
                         bookTitle: book.title,
-                        chapter: selectedChapter,
-                        chapterIndex: selectedChapterIndex,
-                        chapterCount: chapters.count,
-                        fontSize: $fontSize,
                         transMode: transModeBinding,
-                        openSettings: { showsSettings = true }
+                        preferences: preferences,
+                        openSettings: { showsSettings = true },
+                        sidebarVisible: columnVisibility != .detailOnly
                     )
                 }
                 .toolbar(removing: .sidebarToggle)
@@ -525,6 +524,7 @@ private struct ReaderWindowContent: View {
 
 private struct ReaderWindowTitleUpdater: NSViewRepresentable {
     let title: String
+    let isReaderSurface: Bool
 
     func makeNSView(context: Context) -> NSView {
         NSView(frame: .zero)
@@ -537,7 +537,7 @@ private struct ReaderWindowTitleUpdater: NSViewRepresentable {
             }
 
             window.title = title
-            window.titleVisibility = .visible
+            window.titleVisibility = isReaderSurface ? .hidden : .visible
         }
     }
 }
