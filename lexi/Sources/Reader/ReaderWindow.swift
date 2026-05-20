@@ -195,20 +195,20 @@ private struct ReaderWindowContent: View {
     private var readerContent: some View {
         if let book, let selectedChapter, let controller {
             VStack(spacing: 0) {
-                NavigationSplitView(columnVisibility: $columnVisibility) {
-                    TOCSidebar(
-                        book: book,
-                        chapters: chapters,
-                        selectedChapterIndex: $selectedChapterIndex,
-                        chapterState: { chapterId in
-                            controller.chapterState(for: chapterId)
-                        },
-                        preferences: preferences,
-                        openShelf: { surface = .shelf }
-                    )
-                    .navigationSplitViewColumnWidth(min: 232, ideal: 232, max: 232)
-                    .toolbar(removing: .sidebarToggle)
-                } detail: {
+                HStack(spacing: 0) {
+                    if columnVisibility != .detailOnly {
+                        TOCSidebar(
+                            book: book,
+                            chapters: chapters,
+                            selectedChapterIndex: $selectedChapterIndex,
+                            chapterState: { chapterId in
+                                controller.chapterState(for: chapterId)
+                            },
+                            preferences: preferences,
+                            openShelf: { surface = .shelf }
+                        )
+                    }
+
                     ReadingColumn(
                         chapter: selectedChapter,
                         fontSize: fontSize,
@@ -221,7 +221,6 @@ private struct ReaderWindowContent: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(preferences.theme.paper)
                 }
-                .navigationSplitViewStyle(.balanced)
                 .toolbar {
                     ReaderToolbar(
                         columnVisibility: $columnVisibility,

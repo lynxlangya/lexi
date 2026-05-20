@@ -47,6 +47,12 @@ struct TOCSidebar: View {
         .padding(.bottom, 0)
         .frame(width: 232)
         .frame(maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(preferences.theme.rule)
+                .frame(width: 1)
+                .ignoresSafeArea(edges: .vertical)
+        }
         .background {
             OpaqueBackground(color: preferences.theme.raised)
                 .ignoresSafeArea()
