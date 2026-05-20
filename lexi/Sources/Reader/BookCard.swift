@@ -33,7 +33,7 @@ struct BookCard: View {
                                     .frame(width: 5, height: 5)
                             }
                             .shadow(color: .black.opacity(0.22), radius: 6, y: 2)
-                            .offset(x: 4, y: -6)
+                            .offset(x: 0, y: -6)
                     }
                 }
 
