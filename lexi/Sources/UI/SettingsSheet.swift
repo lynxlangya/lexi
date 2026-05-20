@@ -235,12 +235,10 @@ struct SettingsSheet: View {
 
             SettingsSection(title: "关于") {
                 SettingsRow(label: "自动检查更新") {
-                    Toggle("", isOn: $autoUpdate)
-                        .labelsHidden()
+                    LexiToggle(isOn: $autoUpdate, accent: settingsAccent.primary)
                 }
                 SettingsRow(label: "发送匿名崩溃日志", isLast: true) {
-                    Toggle("", isOn: $crashLogs)
-                        .labelsHidden()
+                    LexiToggle(isOn: $crashLogs, accent: settingsAccent.primary)
                 }
             }
         }
@@ -347,8 +345,7 @@ struct SettingsSheet: View {
 
             SettingsSection(title: "") {
                 SettingsRow(label: "冲突检测", hint: "当 Lexi 快捷键与系统或其他 app 冲突时提示", isLast: true) {
-                    Toggle("", isOn: $conflictDetect)
-                        .labelsHidden()
+                    LexiToggle(isOn: $conflictDetect, accent: settingsAccent.primary)
                 }
             }
         }
