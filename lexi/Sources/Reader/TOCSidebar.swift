@@ -116,9 +116,10 @@ private struct TOCRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(chapter.n)
                     .font(LexiFont.mono(10.5))
+                    .tracking(0.4)
                     .foregroundStyle(numberColor)
                     .frame(width: 28, alignment: .leading)
 
@@ -135,7 +136,7 @@ private struct TOCRow: View {
                     statusIndicator
                 }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isSelected ? preferences.accent.soft : Color.clear)
@@ -168,21 +169,24 @@ private struct TOCRow: View {
 
     @ViewBuilder
     private var statusIndicator: some View {
-        switch state {
-        case .translating:
-            SpinnerDot(size: 10, accent: preferences.accent.primary)
-        case .cached:
-            Circle()
-                .fill(preferences.theme.ink3)
-                .frame(width: 5, height: 5)
-        case .idle:
-            Circle()
-                .fill(preferences.theme.ink4)
-                .frame(width: 5, height: 5)
-        case .error:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Color.lexiWarn)
+        Group {
+            switch state {
+            case .translating:
+                SpinnerDot(size: 8, accent: preferences.accent.primary)
+            case .cached:
+                Circle()
+                    .fill(preferences.theme.ink3)
+                    .frame(width: 5, height: 5)
+            case .idle:
+                Circle()
+                    .fill(preferences.theme.ink4)
+                    .frame(width: 5, height: 5)
+            case .error:
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(Color.lexiWarn)
+            }
         }
+        .frame(width: 10, alignment: .center)
     }
 }
