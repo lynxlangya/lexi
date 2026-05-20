@@ -2,9 +2,12 @@ import AppKit
 import SwiftUI
 
 struct ReaderWindow: Scene {
+    @ObservedObject var coordinator: LexiMenuBarCoordinator
+
     var body: some Scene {
-        WindowGroup("Lexi") {
+        WindowGroup("Lexi", id: "reader") {
             ReaderWindowContent()
+                .background(LexiMenuBarBootstrap(coordinator: coordinator))
         }
         .defaultSize(width: 1200, height: 760)
         .windowStyle(.titleBar)

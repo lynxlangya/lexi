@@ -372,6 +372,10 @@ actor AppDatabase {
         }
     }
 
+    func vocabCount() throws -> Int {
+        try countRows(in: "vocab")
+    }
+
     func upsertProgress(_ record: ProgressRecord) throws {
         try pool.write { db in
             try db.execute(
