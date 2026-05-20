@@ -23,6 +23,11 @@ struct ShelfView: View {
     @State private var query = ""
     @State private var sort = ShelfSort.recent
     @State private var isDropTargeted = false
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     private let columns = [
         GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 28)
@@ -77,10 +82,10 @@ struct ShelfView: View {
                     .fontWeight(.medium)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.lexiAccent)
+            .foregroundStyle(accentChoice.primary)
             .padding(.horizontal, 14)
             .frame(height: 28)
-            .background(Color.lexiAccentSoft)
+            .background(accentChoice.soft)
             .clipShape(RoundedRectangle(cornerRadius: LexiRadius.control, style: .continuous))
             .focusable(false)
         }
@@ -136,7 +141,7 @@ struct ShelfView: View {
                         .font(LexiFont.sans(12.5))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.lexiAccent)
+                .foregroundStyle(accentChoice.primary)
                 .focusable(false)
             } else {
                 Button {
@@ -146,7 +151,7 @@ struct ShelfView: View {
                         .font(LexiFont.sans(12.5))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.lexiAccent)
+                .foregroundStyle(accentChoice.primary)
                 .focusable(false)
             }
         }
@@ -156,10 +161,10 @@ struct ShelfView: View {
 
     private var dropOverlay: some View {
         RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous)
-            .fill(Color.lexiAccentSoft)
+            .fill(accentChoice.soft)
             .overlay {
                 RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous)
-                    .stroke(Color.lexiAccent, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
+                    .stroke(accentChoice.primary, style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
             }
             .overlay {
                 Text("松开以加入书架")

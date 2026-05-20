@@ -7,6 +7,7 @@ struct APIKeyField: View {
         SecureField("API Key", text: $value)
             .textFieldStyle(.roundedBorder)
             .font(LexiFont.mono(11.5))
-            .frame(width: 190)
+            .controlSize(.large)
+            .frame(width: 168)
     }
 }

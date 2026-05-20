@@ -8,6 +8,7 @@ struct ModelField: View {
         TextField(placeholder, text: $value)
             .textFieldStyle(.roundedBorder)
             .font(LexiFont.mono(11.5))
-            .frame(width: 142)
+            .controlSize(.large)
+            .frame(width: 136)
     }
 }

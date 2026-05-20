@@ -3,6 +3,11 @@ import SwiftUI
 struct LoadingCard: View {
     let text: String
     let engine: EngineID
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     var body: some View {
         PopupFrame(pinned: false) {
@@ -20,7 +25,7 @@ struct LoadingCard: View {
                         Text(engine.menuLabel)
                             .font(LexiFont.sans(10.5))
                     }
-                    .foregroundStyle(Color.lexiAccent)
+                    .foregroundStyle(accentChoice.primary)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)

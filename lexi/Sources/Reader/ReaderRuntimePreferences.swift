@@ -64,6 +64,16 @@ enum ReaderLineHeightChoice: String, Equatable {
     }
 }
 
+enum ReaderTranslationStyle: String, Equatable {
+    case demote
+    case rule
+    case tint
+
+    init(storageValue: String) {
+        self = Self(rawValue: storageValue) ?? .demote
+    }
+}
+
 struct ReaderThemeChoice {
     let paper: Color
     let raised: Color
@@ -138,16 +148,19 @@ struct ReaderRuntimePreferences {
     let lineHeight: ReaderLineHeightChoice
     let theme: ReaderThemeChoice
     let accent: ReaderAccentChoice
+    let translationStyle: ReaderTranslationStyle
 
     init(
         serif: String,
         lineHeight: String,
         theme: String,
-        accent: String
+        accent: String,
+        translationStyle: String = ReaderTranslationStyle.demote.rawValue
     ) {
         font = ReaderFontChoice(storageValue: serif)
         self.lineHeight = ReaderLineHeightChoice(storageValue: lineHeight)
         self.theme = ReaderThemeChoice(storageValue: theme)
         self.accent = ReaderAccentChoice(storageValue: accent)
+        self.translationStyle = ReaderTranslationStyle(storageValue: translationStyle)
     }
 }

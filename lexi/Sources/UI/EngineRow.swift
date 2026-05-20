@@ -27,27 +27,31 @@ struct EngineRow: View {
     @Binding var apiKey: String
     @Binding var model: String
     let testing: Bool
+    let accent: ReaderAccentChoice
     let test: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(status.color)
-                .frame(width: 7, height: 7)
+        HStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(status.color)
+                    .frame(width: 7, height: 7)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(engine.displayName)
-                    .font(LexiFont.sans(12.5))
-                    .foregroundStyle(Color.lexiInk)
-                Text(subtitle)
-                    .font(LexiFont.sans(11))
-                    .foregroundStyle(Color.lexiInk3)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(engine.displayName)
+                        .font(LexiFont.sans(13))
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.lexiInk)
+                    Text(subtitle)
+                        .font(LexiFont.sans(11))
+                        .foregroundStyle(Color.lexiInk3)
+                        .lineLimit(1)
+                }
             }
-            .frame(width: 92, alignment: .leading)
+            .frame(width: 150, alignment: .leading)
 
             APIKeyField(value: $apiKey)
             ModelField(value: $model, placeholder: ReaderFixtureStore.defaultModel(for: engine))
-
             Button {
                 test()
             } label: {
@@ -59,10 +63,13 @@ struct EngineRow: View {
                 }
             }
             .font(LexiFont.zh(11.5))
+            .fontWeight(.medium)
+            .foregroundStyle(accent.primary)
             .frame(width: 52)
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
     }
 }
 

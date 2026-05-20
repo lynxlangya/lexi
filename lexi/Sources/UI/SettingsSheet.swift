@@ -29,35 +29,58 @@ struct SettingsSheet: View {
     @AppStorage("reader.serif") private var serif = "New York"
     @AppStorage("reader.lineHeight") private var lineHeight = "normal"
     @AppStorage("reader.transMode") private var transMode = ReaderTranslationMode.both.rawValue
+    @AppStorage("reader.translationStyle") private var translationStyle = ReaderTranslationStyle.demote.rawValue
     @AppStorage("reader.theme") private var theme = "paper"
     @AppStorage("reader.accent") private var accent = "copper"
     @AppStorage("reader.prefetch") private var prefetch = 1
     @AppStorage("shortcuts.conflictDetect") private var conflictDetect = true
+
+    private var settingsAccent: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
+
+    private var contentMaxWidth: CGFloat {
+        switch selectedTab {
+        case .engine:
+            return 640
+        default:
+            return 620
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
             VStack(spacing: 0) {
                 titleBar
 
-                NavigationSplitView {
+                HStack(spacing: 0) {
                     sidebar
-                } detail: {
+                        .frame(width: 260)
+
+                    Rectangle()
+                        .fill(Color.lexiRule)
+                        .frame(width: 1)
+
                     ScrollView {
                         tabContent
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 20)
+                            .frame(maxWidth: contentMaxWidth, alignment: .top)
+                            .padding(.horizontal, 30)
+                            .padding(.top, 18)
+                            .padding(.bottom, 34)
+                            .frame(maxWidth: .infinity, alignment: .top)
                     }
                     .background(Color.lexiPaper)
+                    .scrollIndicators(.visible)
                 }
-                .navigationSplitViewColumnWidth(min: 180, ideal: 180, max: 180)
-                .navigationSplitViewStyle(.balanced)
             }
 
             SettingsToast(text: localToast)
                 .padding(.top, 48)
         }
-        .frame(width: 720, height: 580)
+        .frame(width: 940, height: 660)
+        .frame(minWidth: 860, minHeight: 600)
         .background(Color.lexiPaper)
+        .tint(settingsAccent.primary)
         .clipShape(RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous)
@@ -125,11 +148,11 @@ struct SettingsSheet: View {
                             .font(LexiFont.zh(13))
                         Spacer()
                     }
-                    .foregroundStyle(selectedTab == tab ? Color.lexiAccent : Color.lexiInk)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(selectedTab == tab ? Color.lexiAccentSoft : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .foregroundStyle(selectedTab == tab ? settingsAccent.primary : Color.lexiInk)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(selectedTab == tab ? settingsAccent.soft : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -139,7 +162,7 @@ struct SettingsSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Lexi 1.0 (build 412)")
                 Text("检查更新…")
-                    .foregroundStyle(Color.lexiAccent)
+                    .foregroundStyle(settingsAccent.primary)
             }
             .font(LexiFont.sans(10.5))
             .foregroundStyle(Color.lexiInk3)
@@ -150,8 +173,8 @@ struct SettingsSheet: View {
                 Rectangle().fill(Color.lexiRule).frame(height: 1)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 20)
+        .padding(.horizontal, 18)
+        .padding(.top, 56)
         .padding(.bottom, 16)
         .background(Color.lexiRaised)
     }
@@ -199,7 +222,7 @@ struct SettingsSheet: View {
             }
 
             SettingsSection(title: "数据") {
-                SettingsRow(label: "书籍与翻译缓存位置", isLast: true) {
+                SettingsRow(label: "书籍与翻译缓存位置", isLast: true, controlWidth: 340) {
                     HStack(spacing: 8) {
                         Text("~/Library/Application Support/Lexi")
                             .font(LexiFont.mono(11))
@@ -251,7 +274,8 @@ struct SettingsSheet: View {
                         status: statuses[engine] ?? (apiKeys[engine, default: ""].isEmpty ? .unset : .ok),
                         apiKey: binding(for: engine, in: $apiKeys),
                         model: binding(for: engine, in: $models),
-                        testing: testingEngine == engine
+                        testing: testingEngine == engine,
+                        accent: settingsAccent
                     ) {
                         test(engine)
                     }
@@ -271,7 +295,7 @@ struct SettingsSheet: View {
                                 .fill(Color.lexiRule)
                                 .frame(width: 200, height: 4)
                             Capsule()
-                                .fill(Color.lexiAccent)
+                                .fill(settingsAccent.primary)
                                 .frame(width: min(200, CGFloat(cacheBytesMB / 300) * 200), height: 4)
                         }
                         Text("\(Int(cacheBytesMB.rounded())) / 300 MB")
@@ -309,27 +333,18 @@ struct SettingsSheet: View {
     private var shortcutsTab: some View {
         VStack(spacing: 0) {
             SettingsSection(title: "阅读器") {
-                ShortcutRecorder(title: "切换 仅原文/译文/双语", name: .readerToggleTranslationMode)
-                    .settingsShortcutRow(last: false)
-                ShortcutRecorder(title: "上一章", name: .readerPreviousChapter)
-                    .settingsShortcutRow(last: false)
-                ShortcutRecorder(title: "下一章", name: .readerNextChapter)
-                    .settingsShortcutRow(last: false)
-                ShortcutRecorder(title: "增大字号", name: .readerIncreaseFontSize)
-                    .settingsShortcutRow(last: false)
-                ShortcutRecorder(title: "减小字号", name: .readerDecreaseFontSize)
-                    .settingsShortcutRow(last: false)
-                ShortcutRecorder(title: "切换侧栏目录", name: .readerToggleSidebar)
-                    .settingsShortcutRow(last: true)
+                ShortcutSettingsRow(label: "切换 仅原文/译文/双语", hint: "阅读器内生效", name: .readerToggleTranslationMode)
+                ShortcutSettingsRow(label: "上一章", name: .readerPreviousChapter)
+                ShortcutSettingsRow(label: "下一章", name: .readerNextChapter)
+                ShortcutSettingsRow(label: "增大字号", name: .readerIncreaseFontSize)
+                ShortcutSettingsRow(label: "减小字号", name: .readerDecreaseFontSize)
+                ShortcutSettingsRow(label: "切换侧栏目录", name: .readerToggleSidebar, isLast: true)
             }
 
             SettingsSection(title: "导航") {
-                ShortcutRecorder(title: "划词翻译", name: .translateSelection)
-                    .settingsShortcutRow(last: false)
-                ShortcutRecorder(title: "即时翻译选中文字", name: .translateAndReplaceSelection)
-                    .settingsShortcutRow(last: false)
-                ShortcutRecorder(title: "显示 / 隐藏阅读器", name: .toggleReaderWindow)
-                    .settingsShortcutRow(last: true)
+                ShortcutSettingsRow(label: "划词翻译", hint: "全局生效", name: .translateSelection)
+                ShortcutSettingsRow(label: "即时翻译选中文字", hint: "不弹浮窗，替换选区", name: .translateAndReplaceSelection)
+                ShortcutSettingsRow(label: "显示 / 隐藏阅读器", hint: "全局", name: .toggleReaderWindow, isLast: true)
             }
 
             SettingsSection(title: "") {
@@ -344,14 +359,15 @@ struct SettingsSheet: View {
     private var readerTab: some View {
         VStack(spacing: 0) {
             SettingsSection(title: "排版") {
-                SettingsRow(label: "正文字号", hint: "也可在阅读时用 ⌘+ / ⌘- 临时调整") {
-                    HStack(spacing: 10) {
+                SettingsRow(label: "正文字号", hint: "也可在阅读时用 ⌘+ / ⌘- 临时调整", controlWidth: 360) {
+                    HStack(spacing: 18) {
                         Text("\(Int(fontSize))pt")
                             .font(LexiFont.mono(11))
                             .foregroundStyle(Color.lexiInk3)
-                            .frame(width: 42, alignment: .trailing)
+                            .frame(width: 44, alignment: .trailing)
                         Slider(value: $fontSize, in: 14...22, step: 1)
-                            .frame(width: 200)
+                            .tint(settingsAccent.primary)
+                            .frame(width: 290)
                     }
                 }
                 SettingsRow(label: "衬线字体") {
@@ -388,15 +404,25 @@ struct SettingsSheet: View {
                         ]
                     )
                 }
+                SettingsRow(label: "译文视觉强度", hint: "A 纯字号降级 · B 左侧竖线 · C 淡背景块") {
+                    SettingsSegmented(
+                        value: $translationStyle,
+                        options: [
+                            ("demote", "A 字号"),
+                            ("rule", "B 竖线"),
+                            ("tint", "C 底色"),
+                        ]
+                    )
+                }
                 SettingsRow(label: "章节预取", hint: "后台预先翻译相邻章节", isLast: true) {
-                    Picker("", selection: $prefetch) {
-                        Text("0").tag(0)
-                        Text("1 章").tag(1)
-                        Text("2 章").tag(2)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(width: 150)
+                    SettingsIntSegmented(
+                        value: $prefetch,
+                        options: [
+                            (0, "0"),
+                            (1, "1 章"),
+                            (2, "2 章"),
+                        ]
+                    )
                 }
             }
 
@@ -422,6 +448,14 @@ struct SettingsSheet: View {
                                     .overlay {
                                         Circle()
                                             .stroke(accent == option.0 ? Color.lexiInk : Color.clear, lineWidth: 2)
+                                            .padding(-3)
+                                    }
+                                    .overlay {
+                                        if accent == option.0 {
+                                            Circle()
+                                                .stroke(option.1.opacity(0.35), lineWidth: 6)
+                                                .padding(-6)
+                                        }
                                     }
                             }
                             .buttonStyle(.plain)
@@ -592,20 +626,5 @@ struct SettingsSheet: View {
         } set: { value in
             dictionary.wrappedValue[engine] = value
         }
-    }
-}
-
-private extension View {
-    func settingsShortcutRow(last: Bool) -> some View {
-        padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(alignment: .bottom) {
-                if !last {
-                    Rectangle()
-                        .fill(Color.lexiRule)
-                        .frame(height: 1)
-                }
-            }
     }
 }

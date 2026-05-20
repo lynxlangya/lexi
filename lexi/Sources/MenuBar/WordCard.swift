@@ -4,6 +4,11 @@ struct WordCard: View {
     let lookup: WordLookup
     let pinned: Bool
     let actions: PopupActions
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     var body: some View {
         PopupFrame(pinned: pinned) {
@@ -114,7 +119,7 @@ struct WordCard: View {
                     Text(sense.partOfSpeech)
                         .font(LexiFont.serif(12.5))
                         .italic()
-                        .foregroundStyle(Color.lexiAccent)
+                        .foregroundStyle(accentChoice.primary)
                         .frame(width: 36, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 3) {

@@ -44,6 +44,7 @@ private struct ReaderWindowContent: View {
     @AppStorage("reader.lineHeight") private var lineHeight = "normal"
     @AppStorage("reader.theme") private var theme = "paper"
     @AppStorage("reader.accent") private var accent = "copper"
+    @AppStorage("reader.translationStyle") private var translationStyle = ReaderTranslationStyle.demote.rawValue
     @AppStorage("general.startup") private var startupBehavior = "last"
 
     private var preferences: ReaderRuntimePreferences {
@@ -51,7 +52,8 @@ private struct ReaderWindowContent: View {
             serif: serif,
             lineHeight: lineHeight,
             theme: theme,
-            accent: accent
+            accent: accent,
+            translationStyle: translationStyle
         )
     }
 

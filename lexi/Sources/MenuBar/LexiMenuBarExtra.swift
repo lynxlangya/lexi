@@ -4,6 +4,11 @@ import SwiftUI
 
 struct LexiMenuBarExtra: Scene {
     @ObservedObject var coordinator: LexiMenuBarCoordinator
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     var body: some Scene {
         MenuBarExtra {
@@ -19,12 +24,12 @@ struct LexiMenuBarExtra: Scene {
             )
         } label: {
             LexiGlyph(
-                color: coordinator.popupVisible ? .lexiAccent : .primary,
+                color: coordinator.popupVisible ? accentChoice.primary : .primary,
                 size: 14
             )
             .padding(.horizontal, 4)
             .frame(height: 20)
-            .background(coordinator.popupVisible ? Color.lexiAccentSoft : Color.clear)
+            .background(coordinator.popupVisible ? accentChoice.soft : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .help("Lexi · ⌘⇧L")
         }

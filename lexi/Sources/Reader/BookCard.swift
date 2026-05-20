@@ -10,6 +10,11 @@ struct BookCard: View {
     let remove: () -> Void
 
     @State private var isHovering = false
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     var body: some View {
         Button(action: open) {
@@ -20,7 +25,7 @@ struct BookCard: View {
 
                     if isCurrent {
                         Circle()
-                            .fill(Color.lexiAccent)
+                            .fill(accentChoice.primary)
                             .frame(width: 18, height: 18)
                             .overlay {
                                 Circle()
@@ -50,7 +55,7 @@ struct BookCard: View {
                     GeometryReader { proxy in
                         ZStack(alignment: .leading) {
                             Color.lexiRule
-                            (book.progress >= 1 ? Color.lexiInk3 : Color.lexiAccent)
+                            (book.progress >= 1 ? Color.lexiInk3 : accentChoice.primary)
                                 .opacity(book.progress >= 1 ? 1 : 0.8)
                                 .frame(width: max(0, min(1, book.progress)) * proxy.size.width)
                         }

@@ -47,11 +47,7 @@ struct ParaView: View {
     private var translation: some View {
         switch state {
         case .cached(let zh):
-            Text(zh)
-                .font(LexiFont.zh(zhSize))
-                .lineSpacing(zhSize * preferences.lineHeight.chineseSpacingRatio)
-                .foregroundStyle(preferences.theme.ink2)
-                .fixedSize(horizontal: false, vertical: true)
+            translatedText(zh)
         case .translating:
             ShimmerLines(fontSize: zhSize, theme: preferences.theme)
         case .error:
@@ -75,6 +71,35 @@ struct ParaView: View {
                             .stroke(preferences.theme.rule2, lineWidth: 1)
                     }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func translatedText(_ zh: String) -> some View {
+        let text = Text(zh)
+            .font(LexiFont.zh(zhSize))
+            .lineSpacing(zhSize * preferences.lineHeight.chineseSpacingRatio)
+            .foregroundStyle(preferences.theme.ink2)
+
+        switch preferences.translationStyle {
+        case .demote:
+            text
+                .fixedSize(horizontal: false, vertical: true)
+        case .rule:
+            HStack(alignment: .top, spacing: 10) {
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(preferences.accent.primary.opacity(0.45))
+                    .frame(width: 3)
+                text
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .tint:
+            text
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(preferences.accent.faint)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
     }
 }

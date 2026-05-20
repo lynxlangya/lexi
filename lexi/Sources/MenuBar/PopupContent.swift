@@ -71,6 +71,11 @@ struct PopupContent: View {
 struct PopupHeaderActions: View {
     let pinned: Bool
     let actions: PopupActions
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     var body: some View {
         HStack(spacing: 2) {
@@ -78,8 +83,8 @@ struct PopupHeaderActions: View {
                 Image(systemName: "pin")
                     .font(.system(size: 10, weight: .medium))
                     .frame(width: 18, height: 18)
-                    .background(pinned ? Color.lexiAccentSoft : Color.clear)
-                    .foregroundStyle(pinned ? Color.lexiAccent : Color.lexiInk3)
+                    .background(pinned ? accentChoice.soft : Color.clear)
+                    .foregroundStyle(pinned ? accentChoice.primary : Color.lexiInk3)
                     .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -100,13 +105,18 @@ struct PopupHeaderActions: View {
 struct PopupFrame<Content: View>: View {
     let pinned: Bool
     @ViewBuilder var content: Content
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             content
             if pinned {
                 Circle()
-                    .fill(Color.lexiAccent)
+                    .fill(accentChoice.primary)
                     .frame(width: 6, height: 6)
                     .padding(9)
             }
@@ -117,15 +127,20 @@ struct PopupFrame<Content: View>: View {
 
 private struct TriggerChip: View {
     let action: () -> Void
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 2) {
-                LexiGlyph(color: .lexiAccent, size: 12)
+                LexiGlyph(color: accentChoice.primary, size: 12)
                 Text("译")
                     .font(LexiFont.sans(10))
                     .fontWeight(.semibold)
-                    .foregroundStyle(Color.lexiAccent)
+                    .foregroundStyle(accentChoice.primary)
             }
             .frame(width: 32, height: 22)
             .background(Color.lexiRaised)

@@ -9,6 +9,11 @@ struct LexiMenuPanel: View {
     let openVocab: () -> Void
     let openSettings: () -> Void
     let quit: () -> Void
+    @AppStorage("reader.accent") private var accent = "copper"
+
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -120,7 +125,7 @@ struct LexiMenuPanel: View {
             .foregroundStyle(disabled ? Color.lexiInk4 : (danger ? Color.lexiDanger : Color.lexiInk))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(disabled ? Color.lexiAccentSoft.opacity(0.55) : Color.clear)
+            .background(disabled ? accentChoice.soft.opacity(0.55) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         }
         .buttonStyle(.plain)
