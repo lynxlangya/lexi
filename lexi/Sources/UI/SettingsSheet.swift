@@ -29,7 +29,6 @@ struct SettingsSheet: View {
     @AppStorage("reader.serif") private var serif = "New York"
     @AppStorage("reader.lineHeight") private var lineHeight = "normal"
     @AppStorage("reader.transMode") private var transMode = ReaderTranslationMode.both.rawValue
-    @AppStorage("reader.translationStyle") private var translationStyle = ReaderTranslationStyle.demote.rawValue
     @AppStorage("reader.theme") private var theme = "paper"
     @AppStorage("reader.accent") private var accent = "copper"
     @AppStorage("reader.prefetch") private var prefetch = 1
@@ -55,7 +54,7 @@ struct SettingsSheet: View {
 
                 HStack(spacing: 0) {
                     sidebar
-                        .frame(width: 260)
+                        .frame(width: 180)
 
                     Rectangle()
                         .fill(Color.lexiRule)
@@ -64,9 +63,9 @@ struct SettingsSheet: View {
                     ScrollView {
                         tabContent
                             .frame(maxWidth: contentMaxWidth, alignment: .top)
-                            .padding(.horizontal, 30)
-                            .padding(.top, 18)
-                            .padding(.bottom, 34)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 20)
+                            .padding(.bottom, 28)
                             .frame(maxWidth: .infinity, alignment: .top)
                     }
                     .background(Color.lexiPaper)
@@ -77,8 +76,7 @@ struct SettingsSheet: View {
             SettingsToast(text: localToast)
                 .padding(.top, 48)
         }
-        .frame(width: 940, height: 660)
-        .frame(minWidth: 860, minHeight: 600)
+        .frame(width: 720, height: 580)
         .background(Color.lexiPaper)
         .tint(settingsAccent.primary)
         .clipShape(RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous))
@@ -141,18 +139,23 @@ struct SettingsSheet: View {
                     selectedTab = tab
                 } label: {
                     HStack(spacing: 9) {
-                        Image(systemName: tab.symbol)
-                            .font(.system(size: 13, weight: .medium))
-                            .frame(width: 16)
+                        SettingsTabIcon(kind: tab.iconPath)
+                            .stroke(
+                                selectedTab == tab ? settingsAccent.primary : Color.lexiInk2,
+                                style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round)
+                            )
+                            .frame(width: 14, height: 14)
                         Text(tab.title)
                             .font(LexiFont.zh(13))
                         Spacer()
                     }
                     .foregroundStyle(selectedTab == tab ? settingsAccent.primary : Color.lexiInk)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(selectedTab == tab ? settingsAccent.soft : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -173,8 +176,8 @@ struct SettingsSheet: View {
                 Rectangle().fill(Color.lexiRule).frame(height: 1)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 56)
+        .padding(.horizontal, 8)
+        .padding(.top, 20)
         .padding(.bottom, 16)
         .background(Color.lexiRaised)
     }
@@ -227,22 +230,22 @@ struct SettingsSheet: View {
                         Text("~/Library/Application Support/Lexi")
                             .font(LexiFont.mono(11))
                             .foregroundStyle(Color.lexiInk3)
-                        Button("更改…") {
+                        Button {
                             toast("v1 暂不支持更改缓存路径")
+                        } label: {
+                            Text("更改…")
                         }
-                        .font(LexiFont.zh(11.5))
+                        .buttonStyle(SettingsFlatButtonStyle())
                     }
                 }
             }
 
             SettingsSection(title: "关于") {
                 SettingsRow(label: "自动检查更新") {
-                    Toggle("", isOn: $autoUpdate)
-                        .labelsHidden()
+                    LexiToggle(isOn: $autoUpdate, accent: settingsAccent.primary)
                 }
                 SettingsRow(label: "发送匿名崩溃日志", isLast: true) {
-                    Toggle("", isOn: $crashLogs)
-                        .labelsHidden()
+                    LexiToggle(isOn: $crashLogs, accent: settingsAccent.primary)
                 }
             }
         }
@@ -268,20 +271,21 @@ struct SettingsSheet: View {
 
             SettingsSection(title: "API Keys") {
                 ForEach(Array(EngineID.allCases.enumerated()), id: \.element) { index, engine in
-                    EngineRow(
-                        engine: engine,
-                        subtitle: subtitle(for: engine),
-                        status: statuses[engine] ?? (apiKeys[engine, default: ""].isEmpty ? .unset : .ok),
-                        apiKey: binding(for: engine, in: $apiKeys),
-                        model: binding(for: engine, in: $models),
-                        testing: testingEngine == engine,
-                        accent: settingsAccent
+                    SettingsRow(
+                        label: engine.displayName,
+                        hint: subtitle(for: engine),
+                        isLast: index == EngineID.allCases.count - 1,
+                        controlWidth: 290
                     ) {
-                        test(engine)
-                    }
-                    .overlay(alignment: .bottom) {
-                        if index < EngineID.allCases.count - 1 {
-                            Rectangle().fill(Color.lexiRule).frame(height: 1)
+                        EngineRow(
+                            engine: engine,
+                            status: statuses[engine] ?? (apiKeys[engine, default: ""].isEmpty ? .unset : .ok),
+                            apiKey: binding(for: engine, in: $apiKeys),
+                            model: binding(for: engine, in: $models),
+                            testing: testingEngine == engine,
+                            accent: settingsAccent
+                        ) {
+                            test(engine)
                         }
                     }
                 }
@@ -349,8 +353,7 @@ struct SettingsSheet: View {
 
             SettingsSection(title: "") {
                 SettingsRow(label: "冲突检测", hint: "当 Lexi 快捷键与系统或其他 app 冲突时提示", isLast: true) {
-                    Toggle("", isOn: $conflictDetect)
-                        .labelsHidden()
+                    LexiToggle(isOn: $conflictDetect, accent: settingsAccent.primary)
                 }
             }
         }
@@ -359,15 +362,15 @@ struct SettingsSheet: View {
     private var readerTab: some View {
         VStack(spacing: 0) {
             SettingsSection(title: "排版") {
-                SettingsRow(label: "正文字号", hint: "也可在阅读时用 ⌘+ / ⌘- 临时调整", controlWidth: 360) {
-                    HStack(spacing: 18) {
+                SettingsRow(label: "正文字号", hint: "也可在阅读时用 ⌘+ / ⌘- 临时调整", controlWidth: 250) {
+                    HStack(spacing: 10) {
                         Text("\(Int(fontSize))pt")
                             .font(LexiFont.mono(11))
                             .foregroundStyle(Color.lexiInk3)
-                            .frame(width: 44, alignment: .trailing)
+                            .frame(width: 28, alignment: .trailing)
                         Slider(value: $fontSize, in: 14...22, step: 1)
                             .tint(settingsAccent.primary)
-                            .frame(width: 290)
+                            .frame(width: 200)
                     }
                 }
                 SettingsRow(label: "衬线字体") {
@@ -401,16 +404,6 @@ struct SettingsSheet: View {
                             ("both", "原文+译文"),
                             ("en", "仅原文"),
                             ("zh", "仅译文"),
-                        ]
-                    )
-                }
-                SettingsRow(label: "译文视觉强度", hint: "A 纯字号降级 · B 左侧竖线 · C 淡背景块") {
-                    SettingsSegmented(
-                        value: $translationStyle,
-                        options: [
-                            ("demote", "A 字号"),
-                            ("rule", "B 竖线"),
-                            ("tint", "C 底色"),
                         ]
                     )
                 }
@@ -448,14 +441,6 @@ struct SettingsSheet: View {
                                     .overlay {
                                         Circle()
                                             .stroke(accent == option.0 ? Color.lexiInk : Color.clear, lineWidth: 2)
-                                            .padding(-3)
-                                    }
-                                    .overlay {
-                                        if accent == option.0 {
-                                            Circle()
-                                                .stroke(option.1.opacity(0.35), lineWidth: 6)
-                                                .padding(-6)
-                                        }
                                     }
                             }
                             .buttonStyle(.plain)
@@ -486,11 +471,11 @@ struct SettingsSheet: View {
     private func subtitle(for engine: EngineID) -> String {
         switch engine {
         case .openai:
-            return "Chat Completions"
+            return "GPT-4 / GPT-4o / GPT-3.5"
         case .anthropic:
-            return "Messages API"
+            return "Claude Sonnet / Haiku"
         case .deepseek:
-            return "OpenAI-compatible"
+            return "DeepSeek Chat / Reasoner"
         }
     }
 
