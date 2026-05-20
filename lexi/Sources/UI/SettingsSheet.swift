@@ -29,7 +29,6 @@ struct SettingsSheet: View {
     @AppStorage("reader.serif") private var serif = "New York"
     @AppStorage("reader.lineHeight") private var lineHeight = "normal"
     @AppStorage("reader.transMode") private var transMode = ReaderTranslationMode.both.rawValue
-    @AppStorage("reader.translationStyle") private var translationStyle = ReaderTranslationStyle.demote.rawValue
     @AppStorage("reader.theme") private var theme = "paper"
     @AppStorage("reader.accent") private var accent = "copper"
     @AppStorage("reader.prefetch") private var prefetch = 1
@@ -401,16 +400,6 @@ struct SettingsSheet: View {
                             ("both", "原文+译文"),
                             ("en", "仅原文"),
                             ("zh", "仅译文"),
-                        ]
-                    )
-                }
-                SettingsRow(label: "译文视觉强度", hint: "A 纯字号降级 · B 左侧竖线 · C 淡背景块") {
-                    SettingsSegmented(
-                        value: $translationStyle,
-                        options: [
-                            ("demote", "A 字号"),
-                            ("rule", "B 竖线"),
-                            ("tint", "C 底色"),
                         ]
                     )
                 }
