@@ -264,20 +264,21 @@ struct SettingsSheet: View {
 
             SettingsSection(title: "API Keys") {
                 ForEach(Array(EngineID.allCases.enumerated()), id: \.element) { index, engine in
-                    EngineRow(
-                        engine: engine,
-                        subtitle: subtitle(for: engine),
-                        status: statuses[engine] ?? (apiKeys[engine, default: ""].isEmpty ? .unset : .ok),
-                        apiKey: binding(for: engine, in: $apiKeys),
-                        model: binding(for: engine, in: $models),
-                        testing: testingEngine == engine,
-                        accent: settingsAccent
+                    SettingsRow(
+                        label: engine.displayName,
+                        hint: subtitle(for: engine),
+                        isLast: index == EngineID.allCases.count - 1,
+                        controlWidth: 290
                     ) {
-                        test(engine)
-                    }
-                    .overlay(alignment: .bottom) {
-                        if index < EngineID.allCases.count - 1 {
-                            Rectangle().fill(Color.lexiRule).frame(height: 1)
+                        EngineRow(
+                            engine: engine,
+                            status: statuses[engine] ?? (apiKeys[engine, default: ""].isEmpty ? .unset : .ok),
+                            apiKey: binding(for: engine, in: $apiKeys),
+                            model: binding(for: engine, in: $models),
+                            testing: testingEngine == engine,
+                            accent: settingsAccent
+                        ) {
+                            test(engine)
                         }
                     }
                 }
