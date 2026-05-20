@@ -40,6 +40,23 @@ final class EPUBTests: XCTestCase {
         XCTAssertNotNil(payload.book.coverInk)
     }
 
+    func testParserUsesContentsTOCWhenSpineIsSplitIntoInternalFiles() async throws {
+        let fixture = try makeSplitSpineEPUBFixture()
+        let parser = EPUBParser(now: { Date(lexiTimestamp: 1_800_000_100) })
+
+        let payload = try await parser.parse(fixture)
+
+        XCTAssertEqual(payload.chapters.map(\.0.title), [
+            "Introduction: THREE SLEEPLESS NIGHTS",
+            "1. CREATING ALIEN MINDS",
+            "2. ALIGNING THE ALIEN",
+        ])
+        XCTAssertEqual(payload.chapters.count, 3)
+        XCTAssertEqual(payload.chapters[0].1.map(\.en), ["Intro paragraph."])
+        XCTAssertEqual(payload.chapters[1].1.map(\.en), ["Chapter one paragraph."])
+        XCTAssertEqual(payload.chapters[2].1.map(\.en), ["Chapter two starts here.", "Chapter two continues in another split file."])
+    }
+
     func testCorruptZipProducesSpecificError() async throws {
         let url = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).epub")
         try Data("not a zip".utf8).write(to: url)
@@ -168,6 +185,83 @@ final class EPUBTests: XCTestCase {
             entries["OPS/cover.png"] = Data([0x89, 0x50, 0x4E, 0x47])
         }
 
+        return try makeArchive(entries: entries)
+    }
+
+    private func makeSplitSpineEPUBFixture() throws -> URL {
+        let opfBody = """
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <dc:title>Split Spine Book</dc:title>
+          <dc:creator>Example Author</dc:creator>
+        </metadata>
+        <manifest>
+          <item id="contents" href="contents.xhtml" media-type="application/xhtml+xml"/>
+          <item id="split1" href="split1.xhtml" media-type="application/xhtml+xml"/>
+          <item id="split2" href="split2.xhtml" media-type="application/xhtml+xml"/>
+          <item id="split3" href="split3.xhtml" media-type="application/xhtml+xml"/>
+          <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+        </manifest>
+        <spine toc="ncx">
+          <itemref idref="contents"/>
+          <itemref idref="split1"/>
+          <itemref idref="split2"/>
+          <itemref idref="split3"/>
+        </spine>
+        """
+        var entries = baseEntries(opfBody: opfBody)
+        entries["OPS/toc.ncx"] = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
+          <navMap>
+            <navPoint id="part" playOrder="1">
+              <navLabel><text>PART I</text></navLabel>
+              <content src="split1.xhtml#intro"/>
+            </navPoint>
+          </navMap>
+        </ncx>
+        """
+        entries["OPS/contents.xhtml"] = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml">
+          <body>
+            <div role="doc-toc">
+              <h1>Contents</h1>
+              <p><a href="split1.xhtml#intro">Introduction:</a> THREE SLEEPLESS NIGHTS</p>
+              <p><a href="split2.xhtml#chapter-one">1.</a> CREATING ALIEN MINDS</p>
+              <p><a href="split2.xhtml#chapter-two">2.</a> ALIGNING THE ALIEN</p>
+            </div>
+          </body>
+        </html>
+        """
+        entries["OPS/split1.xhtml"] = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml">
+          <body>
+            <h1 id="intro">Introduction</h1>
+            <h2>THREE SLEEPLESS NIGHTS</h2>
+            <p>Intro paragraph.</p>
+          </body>
+        </html>
+        """
+        entries["OPS/split2.xhtml"] = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml">
+          <body>
+            <h1 id="chapter-one">1 CREATING ALIEN MINDS</h1>
+            <p>Chapter one paragraph.</p>
+            <h1><span id="chapter-two"></span>2 ALIGNING THE ALIEN</h1>
+            <p>Chapter two starts here.</p>
+          </body>
+        </html>
+        """
+        entries["OPS/split3.xhtml"] = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <html xmlns="http://www.w3.org/1999/xhtml">
+          <body>
+            <p>Chapter two continues in another split file.</p>
+          </body>
+        </html>
+        """
         return try makeArchive(entries: entries)
     }
 
