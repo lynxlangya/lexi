@@ -39,6 +39,8 @@ final class ChapterTranslationController {
     private let registry: EngineRegistry
     private let prefetchWorker: ChapterPrefetchWorker
     private var task: Task<Void, Never>?
+    private var paragraphRetryTasks: [Int64: Task<Void, Never>] = [:]
+    private var paragraphRetryTokens: [Int64: UUID] = [:]
 
     private(set) var selectedChapterId: Int64?
     private(set) var currentEngineConfig: EngineConfig
@@ -55,6 +57,11 @@ final class ChapterTranslationController {
         self.prefetchWorker = ChapterPrefetchWorker(database: database, registry: registry)
     }
 
+    @MainActor deinit {
+        task?.cancel()
+        cancelParagraphRetryTasks()
+    }
+
     var engineLabel: String {
         currentEngineConfig.displayName
     }
@@ -62,19 +69,13 @@ final class ChapterTranslationController {
     func prepare(chapters: [ReaderChapter]) async {
         for chapter in chapters {
             do {
-                var snapshot = try await cachedSnapshot(
+                let snapshot = try await cachedSnapshot(
                     for: chapter,
                     database: database,
                     config: currentEngineConfig
                 )
-                let cachedCount = chapter.paragraphs.filter { paragraph in
-                    if case .cached = snapshot.paragraphStates[paragraph.id] {
-                        return true
-                    }
-                    return false
-                }.count
-                snapshot.chapterState = cachedCount == chapter.paragraphs.count ? .cached : .idle
                 snapshots[chapter.id] = snapshot
+                reconcileChapterState(for: chapter)
             } catch {
                 snapshots[chapter.id] = ChapterTranslationSnapshot(chapterState: .error(error.localizedDescription))
             }
@@ -83,14 +84,14 @@ final class ChapterTranslationController {
 
     func selectChapter(_ chapter: ReaderChapter, chapters: [ReaderChapter], prefetchCount: Int) {
         task?.cancel()
+        cancelParagraphRetryTasks()
         selectedChapterId = chapter.id
         task = Task { [database, registry, currentEngineConfig] in
             await translateChapter(
                 chapter,
                 database: database,
                 registry: registry,
-                config: currentEngineConfig,
-                force: false
+                config: currentEngineConfig
             )
 
             guard !Task.isCancelled, prefetchCount > 0 else {
@@ -107,8 +108,10 @@ final class ChapterTranslationController {
     }
 
     func retryParagraph(_ paragraph: ReaderParagraph, in chapter: ReaderChapter) {
-        task?.cancel()
-        task = Task { [database, registry, currentEngineConfig] in
+        paragraphRetryTasks[paragraph.id]?.cancel()
+        let token = UUID()
+        paragraphRetryTokens[paragraph.id] = token
+        paragraphRetryTasks[paragraph.id] = Task { [database, registry, currentEngineConfig] in
             await translateParagraph(
                 paragraph,
                 in: chapter,
@@ -116,6 +119,10 @@ final class ChapterTranslationController {
                 registry: registry,
                 config: currentEngineConfig
             )
+            if paragraphRetryTokens[paragraph.id] == token {
+                paragraphRetryTasks[paragraph.id] = nil
+                paragraphRetryTokens[paragraph.id] = nil
+            }
         }
     }
 
@@ -140,12 +147,11 @@ final class ChapterTranslationController {
         _ chapter: ReaderChapter,
         database: AppDatabase,
         registry: EngineRegistry,
-        config: EngineConfig,
-        force: Bool
+        config: EngineConfig
     ) async {
         var missing: [ReaderParagraph] = []
         do {
-            var snapshot = try await cachedSnapshot(for: chapter, database: database, config: config)
+            let snapshot = try await cachedSnapshot(for: chapter, database: database, config: config)
             let cachedCount = chapter.paragraphs.filter { paragraph in
                 if case .cached = snapshot.paragraphStates[paragraph.id] {
                     return true
@@ -153,13 +159,12 @@ final class ChapterTranslationController {
                 return false
             }.count
 
-            if cachedCount == chapter.paragraphs.count, !force {
-                snapshot.chapterState = .cached
+            if cachedCount == chapter.paragraphs.count {
                 snapshots[chapter.id] = snapshot
+                reconcileChapterState(for: chapter)
                 return
             }
 
-            snapshot.chapterState = .translating(done: cachedCount)
             snapshots[chapter.id] = snapshot
 
             missing = chapter.paragraphs.filter { paragraph in
@@ -171,6 +176,7 @@ final class ChapterTranslationController {
             missing.forEach { paragraph in
                 snapshots[chapter.id]?.paragraphStates[paragraph.id] = .translating
             }
+            reconcileChapterState(for: chapter)
 
             let engine = try registry.engine(for: config)
             var buffers: [Int: String] = [:]
@@ -193,16 +199,15 @@ final class ChapterTranslationController {
                     )
                 )
                 snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
-                let done = translatedCount(for: chapter.id, total: chapter.paragraphs.count)
-                snapshots[chapter.id]?.chapterState = done == chapter.paragraphs.count
-                    ? .cached
-                    : .translating(done: done)
+                reconcileChapterState(for: chapter)
             }
 
-            let done = translatedCount(for: chapter.id, total: chapter.paragraphs.count)
-            snapshots[chapter.id]?.chapterState = done == chapter.paragraphs.count
-                ? .cached
-                : .translating(done: done)
+            markTranslatingParagraphsAsError(
+                in: chapter,
+                candidates: missing,
+                reason: "翻译流提前结束，本段未译"
+            )
+            reconcileChapterState(for: chapter)
         } catch is CancellationError {
             return
         } catch let error as EngineError {
@@ -221,6 +226,7 @@ final class ChapterTranslationController {
     ) async {
         do {
             snapshots[chapter.id]?.paragraphStates[paragraph.id] = .translating
+            reconcileChapterState(for: chapter)
             let engine = try registry.engine(for: config)
             var zh = ""
             for try await chunk in engine.translate([paragraph.en], model: config.model) {
@@ -237,17 +243,20 @@ final class ChapterTranslationController {
                     )
                 )
                 snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
+                reconcileChapterState(for: chapter)
             }
 
-            let done = translatedCount(for: chapter.id, total: chapter.paragraphs.count)
-            snapshots[chapter.id]?.chapterState = done == chapter.paragraphs.count
-                ? .cached
-                : .translating(done: done)
+            markTranslatingParagraphsAsError(
+                in: chapter,
+                candidates: [paragraph],
+                reason: "翻译流提前结束，本段未译"
+            )
+            reconcileChapterState(for: chapter)
         } catch is CancellationError {
             return
         } catch {
             snapshots[chapter.id]?.paragraphStates[paragraph.id] = .error(error.localizedDescription)
-            snapshots[chapter.id]?.chapterState = .error(error.localizedDescription)
+            reconcileChapterState(for: chapter)
         }
     }
 
@@ -270,26 +279,22 @@ final class ChapterTranslationController {
         return snapshot
     }
 
-    private func translatedCount(for chapterId: Int64, total: Int) -> Int {
-        let count = snapshots[chapterId]?.paragraphStates.values.filter { state in
-            if case .cached = state {
-                return true
-            }
-            return false
-        }.count ?? 0
-        return min(count, total)
-    }
-
     private func apply(error: EngineError, to chapter: ReaderChapter, translating: [ReaderParagraph]) {
         switch error {
         case .paragraphFailed(let index, let reason):
             let paragraphs = paragraphsForError(in: chapter, translating: translating)
             if let paragraph = paragraphs[safe: index] {
                 snapshots[chapter.id]?.paragraphStates[paragraph.id] = .error(reason)
+                markTranslatingParagraphsAsError(
+                    in: chapter,
+                    candidates: paragraphs,
+                    reason: "上游段失败，本段未译",
+                    excluding: paragraph.id
+                )
+                reconcileChapterState(for: chapter)
             } else {
                 apply(reason: reason, to: chapter, translating: translating)
             }
-            snapshots[chapter.id]?.chapterState = .error(reason)
         default:
             apply(reason: error.localizedDescription, to: chapter, translating: translating)
         }
@@ -299,7 +304,7 @@ final class ChapterTranslationController {
         for paragraph in paragraphsForError(in: chapter, translating: translating) {
             snapshots[chapter.id]?.paragraphStates[paragraph.id] = .error(reason)
         }
-        snapshots[chapter.id]?.chapterState = .error(reason)
+        reconcileChapterState(for: chapter)
     }
 
     private func paragraphsForError(in chapter: ReaderChapter, translating: [ReaderParagraph]) -> [ReaderParagraph] {
@@ -313,6 +318,60 @@ final class ChapterTranslationController {
             }
             return true
         }
+    }
+
+    private func reconcileChapterState(for chapter: ReaderChapter) {
+        guard var snapshot = snapshots[chapter.id] else {
+            return
+        }
+
+        var cachedCount = 0
+        var hasTranslating = false
+        var errorReason: String?
+
+        for paragraph in chapter.paragraphs {
+            switch snapshot.paragraphStates[paragraph.id] {
+            case .cached:
+                cachedCount += 1
+            case .translating:
+                hasTranslating = true
+            case .error(let reason):
+                errorReason = errorReason ?? reason
+            case .none:
+                break
+            }
+        }
+
+        if cachedCount == chapter.paragraphs.count {
+            snapshot.chapterState = .cached
+        } else if let errorReason {
+            snapshot.chapterState = .error(errorReason)
+        } else if hasTranslating {
+            snapshot.chapterState = .translating(done: cachedCount)
+        } else {
+            snapshot.chapterState = .idle
+        }
+
+        snapshots[chapter.id] = snapshot
+    }
+
+    private func markTranslatingParagraphsAsError(
+        in chapter: ReaderChapter,
+        candidates: [ReaderParagraph],
+        reason: String,
+        excluding excludedParagraphId: Int64? = nil
+    ) {
+        for paragraph in candidates where paragraph.id != excludedParagraphId {
+            if case .translating = snapshots[chapter.id]?.paragraphStates[paragraph.id] {
+                snapshots[chapter.id]?.paragraphStates[paragraph.id] = .error(reason)
+            }
+        }
+    }
+
+    private func cancelParagraphRetryTasks() {
+        paragraphRetryTasks.values.forEach { $0.cancel() }
+        paragraphRetryTasks.removeAll()
+        paragraphRetryTokens.removeAll()
     }
 }
 

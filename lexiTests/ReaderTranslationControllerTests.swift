@@ -99,7 +99,7 @@ final class ReaderTranslationControllerTests: XCTestCase {
 
     func testParagraphFailureMapsToMissingParagraphIndex() async throws {
         let database = try AppDatabase.makeTransient()
-        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["cached", "missing"])
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["cached", "fails", "blocked"])
         try await database.upsertTranslation(
             Translation(
                 id: nil,
@@ -118,8 +118,9 @@ final class ReaderTranslationControllerTests: XCTestCase {
 
         controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
 
-        await waitUntil("missing paragraph reaches error state") {
-            if case .error = controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id) {
+        await waitUntil("missing paragraphs reach error state") {
+            if case .error = controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id),
+               case .error = controller.paragraphState(for: chapter.paragraphs[2], in: chapter.id) {
                 return true
             }
             return false
@@ -133,6 +134,16 @@ final class ReaderTranslationControllerTests: XCTestCase {
             XCTAssertTrue(true)
         } else {
             XCTFail("Expected second paragraph to be marked as error")
+        }
+        if case .error = controller.paragraphState(for: chapter.paragraphs[2], in: chapter.id) {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected third paragraph to be marked as error")
+        }
+        if case .error = controller.chapterState(for: chapter.id) {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected chapter to stay in error state")
         }
     }
 
@@ -204,7 +215,9 @@ final class ReaderTranslationControllerTests: XCTestCase {
 
         client.yield(#"data: {"choices":[{"delta":{"content":"late zh"}}]}"#)
         client.finish()
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        await waitUntil("old stream observes cancellation") {
+            client.didObserveCancellation
+        }
 
         let staleTranslation = try await database.cachedTranslation(
             paragraphId: first.paragraphs[0].id,
@@ -212,6 +225,113 @@ final class ReaderTranslationControllerTests: XCTestCase {
             model: "deepseek-chat"
         )
         XCTAssertNil(staleTranslation)
+    }
+
+    func testRetryParagraphRecoversFromErrorAndUpdatesChapterState() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["cached", "retry"])
+        try await database.upsertTranslation(
+            Translation(
+                id: nil,
+                paragraphId: chapter.paragraphs[0].id,
+                engine: .deepseek,
+                model: "deepseek-chat",
+                zh: "cached zh",
+                createdAt: Date()
+            )
+        )
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"retry zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+
+        await waitUntil("chapter reaches error state") {
+            if case .error = controller.chapterState(for: chapter.id) {
+                return true
+            }
+            return false
+        }
+
+        controller.retryParagraph(chapter.paragraphs[1], in: chapter)
+
+        await waitUntil("retry recovers chapter") {
+            controller.chapterState(for: chapter.id) == .cached
+        }
+
+        XCTAssertEqual(
+            controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id),
+            .cached("retry zh")
+        )
+        let retryTranslation = try await database.cachedTranslation(
+            paragraphId: chapter.paragraphs[1].id,
+            engine: .deepseek,
+            model: "deepseek-chat"
+        )
+        XCTAssertEqual(retryTranslation, "retry zh")
+    }
+
+    func testRetryDoesNotCancelOngoingChapterStream() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["first", "retry", "still streaming"])
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"first zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"retry zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+
+        await waitUntil("paragraph failure closes remaining missing paragraphs") {
+            if case .cached("first zh") = controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id),
+               case .error = controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id),
+               case .error = controller.paragraphState(for: chapter.paragraphs[2], in: chapter.id) {
+                return true
+            }
+            return false
+        }
+
+        controller.retryParagraph(chapter.paragraphs[1], in: chapter)
+
+        await waitUntil("retry updates only the requested paragraph") {
+            if case .cached("retry zh") = controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id) {
+                return true
+            }
+            return false
+        }
+
+        XCTAssertEqual(
+            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id),
+            .cached("first zh")
+        )
+        XCTAssertEqual(
+            controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id),
+            .cached("retry zh")
+        )
+        if case .error = controller.paragraphState(for: chapter.paragraphs[2], in: chapter.id) {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected non-retried paragraph to remain error")
+        }
+        if case .error = controller.chapterState(for: chapter.id) {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected chapter to stay error while another paragraph is unresolved")
+        }
     }
 
     private func makeController(database: AppDatabase, client: EngineHTTPClient) -> ChapterTranslationController {
@@ -317,11 +437,18 @@ private final class ControlledReaderEngineHTTPClient: EngineHTTPClient, @uncheck
     private let lock = NSLock()
     private var continuation: AsyncThrowingStream<Data, Error>.Continuation?
     private var requests: [URLRequest] = []
+    private var observedCancellation = false
 
     var hasStream: Bool {
         lock.lock()
         defer { lock.unlock() }
         return continuation != nil
+    }
+
+    var didObserveCancellation: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return observedCancellation
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -337,6 +464,15 @@ private final class ControlledReaderEngineHTTPClient: EngineHTTPClient, @uncheck
             self.lock.lock()
             self.continuation = continuation
             self.lock.unlock()
+            continuation.onTermination = { termination in
+                guard case .cancelled = termination else {
+                    return
+                }
+                self.lock.lock()
+                self.observedCancellation = true
+                self.continuation = nil
+                self.lock.unlock()
+            }
         }
         return (stream, readerResponse(status: 200))
     }
