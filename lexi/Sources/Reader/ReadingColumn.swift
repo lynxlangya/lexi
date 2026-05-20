@@ -8,13 +8,15 @@ struct ReadingColumn: View {
     let snapshot: ChapterTranslationSnapshot
     let transMode: ReaderTranslationMode
     let preferences: ReaderRuntimePreferences
+    @Binding var visibleParagraphId: Int64?
     let goToPreviousChapter: () -> Void
     let goToNextChapter: () -> Void
+    let onParagraphChange: (Int64) -> Void
     let retryParagraph: (ReaderParagraph) -> Void
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
                 ChapterHeader(chapter: chapter, preferences: preferences)
                     .padding(.bottom, 32)
 
@@ -28,6 +30,7 @@ struct ReadingColumn: View {
                     ) {
                         retryParagraph(paragraph)
                     }
+                    .id(paragraph.id)
                 }
 
                 EndOfChapterNavigation(
@@ -45,8 +48,17 @@ struct ReadingColumn: View {
             .padding(.horizontal, LexiSpacing.windowPad)
             .padding(.bottom, 96)
         }
+        .id(chapter.id)
+        .scrollPosition(id: $visibleParagraphId, anchor: .top)
         .scrollIndicators(.automatic)
         .background(preferences.theme.paper)
+        .onChange(of: visibleParagraphId) { _, nextId in
+            guard let nextId,
+                  chapter.paragraphs.contains(where: { $0.id == nextId }) else {
+                return
+            }
+            onParagraphChange(nextId)
+        }
     }
 }
 

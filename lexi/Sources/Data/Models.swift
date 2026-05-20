@@ -54,6 +54,7 @@ struct VocabEntry: Codable, Equatable, Identifiable, Sendable {
 struct ProgressRecord: Codable, Equatable, Sendable {
     var bookId: String
     var chapterIdx: Int
+    /// v1 stores the 0-based visible paragraph index in this existing column.
     var scrollPct: Double
     var updatedAt: Date
 }
