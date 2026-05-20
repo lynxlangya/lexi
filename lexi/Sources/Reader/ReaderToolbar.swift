@@ -45,7 +45,7 @@ struct ReaderToolbar: ToolbarContent {
             Button {
                 transMode = transMode.next
             } label: {
-                Image(systemName: "character.bubble")
+                Image(systemName: "translate")
             }
             .help(transModeHelp)
             .focusable(false)
