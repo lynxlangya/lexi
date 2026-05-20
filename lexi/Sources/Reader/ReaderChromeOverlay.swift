@@ -2,14 +2,12 @@ import SwiftUI
 
 struct ReaderChromeOverlay: View {
     private let sidebarWidth: CGFloat = 232
-    private let chromeTop: CGFloat = 4
+    private let chromeTop: CGFloat = 7
+    private let headerHeight: CGFloat = 48
     private let trafficLightTrailing: CGFloat = 82
 
     @Binding var columnVisibility: NavigationSplitViewVisibility
     let bookTitle: String
-    let chapter: ReaderChapter
-    let chapterIndex: Int
-    let chapterCount: Int
     @Binding var fontSize: Double
     @Binding var transMode: ReaderTranslationMode
     let preferences: ReaderRuntimePreferences
@@ -34,20 +32,22 @@ struct ReaderChromeOverlay: View {
                 .padding(.top, chromeTop)
                 .padding(.trailing, 13)
             }
-            .frame(width: proxy.size.width, height: 58, alignment: .topLeading)
+            .frame(width: proxy.size.width, height: headerHeight, alignment: .topLeading)
         }
-        .frame(height: 58)
+        .frame(height: headerHeight)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(preferences.theme.rule.opacity(0.72))
+                .frame(height: 1)
+        }
         .ignoresSafeArea(edges: .top)
         .allowsHitTesting(true)
     }
 
     private func titleLeading(in width: CGFloat) -> CGFloat {
         let sidebarOffset = sidebarVisible ? sidebarWidth : 0
-        let detailWidth = max(0, width - sidebarOffset)
-        let readableWidth = max(0, detailWidth - LexiSpacing.windowPad * 2)
-        let centeredInset = max(0, (readableWidth - LexiSpacing.contentMax) / 2)
-        let leading = sidebarOffset + LexiSpacing.windowPad + centeredInset
+        let leading = sidebarOffset + 18
         return max(leading, trafficLightTrailing + 34)
     }
 
@@ -64,19 +64,11 @@ struct ReaderChromeOverlay: View {
     }
 
     private var contentTitle: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(bookTitle)
-                .font(LexiFont.sans(12.5))
-                .fontWeight(.semibold)
-                .foregroundStyle(preferences.theme.ink)
-                .lineLimit(1)
-
-            Text("Chapter \(chapter.n) · \(chapterIndex + 1) / \(chapterCount)")
-                .font(LexiFont.mono(10.5))
-                .foregroundStyle(preferences.theme.ink3)
-                .lineLimit(1)
-        }
-        .padding(.top, 1)
+        Text(bookTitle)
+            .font(LexiFont.sans(13.5))
+            .fontWeight(.semibold)
+            .foregroundStyle(preferences.theme.ink)
+            .lineLimit(1)
     }
 
     private var controlCluster: some View {
@@ -134,13 +126,13 @@ private struct ChromeIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 12.5, weight: .medium))
                 .symbolRenderingMode(.hierarchical)
-                .frame(width: 22, height: 22)
+                .frame(width: 26, height: 26)
                 .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isHovering ? preferences.theme.ink : preferences.theme.ink2)
+        .foregroundStyle(isHovering ? preferences.accent.primary : preferences.theme.ink)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(isHovering ? preferences.theme.raised : Color.clear)
