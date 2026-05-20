@@ -63,12 +63,6 @@ struct TOCSidebar: View {
 
     private var bookHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Book")
-                .font(LexiFont.sans(10.5))
-                .fontWeight(.semibold)
-                .foregroundStyle(preferences.theme.ink3)
-                .textCase(.uppercase)
-
             Text(book.title)
                 .font(preferences.font.serif(14))
                 .foregroundStyle(preferences.theme.ink)
