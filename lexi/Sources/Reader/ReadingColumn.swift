@@ -7,7 +7,6 @@ struct ReadingColumn: View {
     let transMode: ReaderTranslationMode
     let preferences: ReaderRuntimePreferences
     let retryParagraph: (ReaderParagraph) -> Void
-    let addVocab: (ReaderParagraph) -> Void
 
     var body: some View {
         ScrollView {
@@ -24,8 +23,6 @@ struct ReadingColumn: View {
                         preferences: preferences
                     ) {
                         retryParagraph(paragraph)
-                    } addVocab: {
-                        addVocab(paragraph)
                     }
                 }
             }

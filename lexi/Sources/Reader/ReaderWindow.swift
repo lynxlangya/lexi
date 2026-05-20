@@ -217,8 +217,6 @@ private struct ReaderWindowContent: View {
                         preferences: preferences
                     ) { paragraph in
                         controller.retryParagraph(paragraph, in: selectedChapter)
-                    } addVocab: { paragraph in
-                        addVocab(paragraph)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(preferences.theme.paper)
@@ -444,30 +442,6 @@ private struct ReaderWindowContent: View {
                 showToast(error.localizedDescription)
             }
         }
-    }
-
-    private func addVocab(_ paragraph: ReaderParagraph) {
-        guard let database else {
-            return
-        }
-
-        let word = selectedWordCandidate(from: paragraph.en)
-
-        Task {
-            _ = try? await database.insertVocabEntry(
-                VocabEntry(id: nil, word: word, context: paragraph.en, bookId: book?.id, addedAt: Date())
-            )
-            coordinator.refreshCounts()
-            showToast("已加入生词本")
-        }
-    }
-
-    private func selectedWordCandidate(from text: String) -> String {
-        let pattern = #"[A-Za-z'\u{2019}-]{2,}"#
-        if let range = text.range(of: pattern, options: .regularExpression) {
-            return String(text[range])
-        }
-        return String(text.prefix(40))
     }
 
     private func translateSelectedChapter() {
