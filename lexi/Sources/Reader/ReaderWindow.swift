@@ -178,7 +178,6 @@ private struct ReaderWindowContent: View {
                 )
                 .toolbar {
                     ShelfTitleBar(
-                        bookCount: shelfBooks.count,
                         canReturnToReader: book != nil,
                         returnToReader: { surface = .reader }
                     )
