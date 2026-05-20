@@ -54,7 +54,7 @@ struct SettingsSheet: View {
 
                 HStack(spacing: 0) {
                     sidebar
-                        .frame(width: 260)
+                        .frame(width: 180)
 
                     Rectangle()
                         .fill(Color.lexiRule)
@@ -63,9 +63,9 @@ struct SettingsSheet: View {
                     ScrollView {
                         tabContent
                             .frame(maxWidth: contentMaxWidth, alignment: .top)
-                            .padding(.horizontal, 30)
-                            .padding(.top, 18)
-                            .padding(.bottom, 34)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 20)
+                            .padding(.bottom, 28)
                             .frame(maxWidth: .infinity, alignment: .top)
                     }
                     .background(Color.lexiPaper)
@@ -76,8 +76,7 @@ struct SettingsSheet: View {
             SettingsToast(text: localToast)
                 .padding(.top, 48)
         }
-        .frame(width: 940, height: 660)
-        .frame(minWidth: 860, minHeight: 600)
+        .frame(width: 720, height: 580)
         .background(Color.lexiPaper)
         .tint(settingsAccent.primary)
         .clipShape(RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous))
@@ -148,10 +147,10 @@ struct SettingsSheet: View {
                         Spacer()
                     }
                     .foregroundStyle(selectedTab == tab ? settingsAccent.primary : Color.lexiInk)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
                     .background(selectedTab == tab ? settingsAccent.soft : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -172,8 +171,8 @@ struct SettingsSheet: View {
                 Rectangle().fill(Color.lexiRule).frame(height: 1)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 56)
+        .padding(.horizontal, 8)
+        .padding(.top, 20)
         .padding(.bottom, 16)
         .background(Color.lexiRaised)
     }
