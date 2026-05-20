@@ -69,6 +69,77 @@ actor AppDatabase {
         }
     }
 
+    func chapters(bookId: String) throws -> [Chapter] {
+        try pool.read { db in
+            try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM chapters WHERE bookId = ? ORDER BY idx",
+                arguments: [bookId]
+            ).map(Chapter.init(row:))
+        }
+    }
+
+    func paragraphs(chapterId: Int64) throws -> [Paragraph] {
+        try pool.read { db in
+            try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM paragraphs WHERE chapterId = ? ORDER BY ord",
+                arguments: [chapterId]
+            ).map(Paragraph.init(row:))
+        }
+    }
+
+    func cachedTranslations(chapterId: Int64, engine: EngineID, model: String) throws -> [Int64: String] {
+        try pool.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT p.id AS paragraphId, t.zh AS zh
+                FROM paragraphs p
+                INNER JOIN translations t ON t.paragraphId = p.id
+                WHERE p.chapterId = ? AND t.engine = ? AND t.model = ?
+                ORDER BY p.ord
+                """,
+                arguments: [chapterId, engine.rawValue, model]
+            )
+
+            return Dictionary(uniqueKeysWithValues: rows.map { row in
+                (row["paragraphId"] as Int64, row["zh"] as String)
+            })
+        }
+    }
+
+    func cachedTranslations(chapterId: Int64, preferredEngine: EngineID, preferredModel: String) throws -> [Int64: String] {
+        try pool.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                SELECT
+                    p.id AS paragraphId,
+                    COALESCE(pt.zh, at.zh) AS zh
+                FROM paragraphs p
+                LEFT JOIN translations pt
+                    ON pt.paragraphId = p.id AND pt.engine = ? AND pt.model = ?
+                LEFT JOIN translations at
+                    ON at.id = (
+                        SELECT t.id
+                        FROM translations t
+                        WHERE t.paragraphId = p.id
+                        ORDER BY t.createdAt DESC, t.id DESC
+                        LIMIT 1
+                    )
+                WHERE p.chapterId = ? AND COALESCE(pt.zh, at.zh) IS NOT NULL
+                ORDER BY p.ord
+                """,
+                arguments: [preferredEngine.rawValue, preferredModel, chapterId]
+            )
+
+            return Dictionary(uniqueKeysWithValues: rows.map { row in
+                (row["paragraphId"] as Int64, row["zh"] as String)
+            })
+        }
+    }
+
     func insertChapter(_ chapter: Chapter) throws -> Int64 {
         try pool.write { db in
             try db.execute(
@@ -342,6 +413,25 @@ private extension Book {
         coverData = row["coverData"]
         coverBg = row["coverBg"]
         coverInk = row["coverInk"]
+    }
+}
+
+private extension Chapter {
+    init(row: Row) {
+        id = row["id"]
+        bookId = row["bookId"]
+        idx = row["idx"]
+        n = row["n"]
+        title = row["title"]
+    }
+}
+
+private extension Paragraph {
+    init(row: Row) {
+        id = row["id"]
+        chapterId = row["chapterId"]
+        ord = row["ord"]
+        en = row["en"]
     }
 }
 

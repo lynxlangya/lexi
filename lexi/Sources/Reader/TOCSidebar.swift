@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct TOCSidebar: View {
-    let chapters: [DemoChapter]
+    let book: ReaderBook
+    let chapters: [ReaderChapter]
     @Binding var selectedChapterIndex: Int
+    let chapterState: (Int64) -> ChapterTranslationState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -20,7 +22,8 @@ struct TOCSidebar: View {
                         ForEach(Array(chapters.enumerated()), id: \.element.id) { index, chapter in
                             TOCRow(
                                 chapter: chapter,
-                                isSelected: index == selectedChapterIndex
+                                isSelected: index == selectedChapterIndex,
+                                state: chapterState(chapter.id)
                             ) {
                                 selectedChapterIndex = index
                             }
@@ -63,13 +66,13 @@ struct TOCSidebar: View {
                 .foregroundStyle(Color.lexiInk3)
                 .textCase(.uppercase)
 
-            Text(DemoData.bookTitle)
+            Text(book.title)
                 .font(LexiFont.serif(14))
                 .foregroundStyle(Color.lexiInk)
                 .lineSpacing(14 * 0.3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(DemoData.author)
+            Text(book.author)
                 .font(LexiFont.sans(11.5))
                 .foregroundStyle(Color.lexiInk3)
         }
@@ -106,8 +109,9 @@ struct TOCSidebar: View {
 }
 
 private struct TOCRow: View {
-    let chapter: DemoChapter
+    let chapter: ReaderChapter
     let isSelected: Bool
+    let state: ChapterTranslationState
     let action: () -> Void
 
     var body: some View {
@@ -127,9 +131,7 @@ private struct TOCRow: View {
 
                 Spacer(minLength: 8)
 
-                Circle()
-                    .fill(Color.lexiInk4)
-                    .frame(width: 5, height: 5)
+                statusIndicator
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -140,5 +142,25 @@ private struct TOCRow: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
+    }
+
+    @ViewBuilder
+    private var statusIndicator: some View {
+        switch state {
+        case .translating:
+            SpinnerDot(size: 10)
+        case .cached:
+            Circle()
+                .fill(Color.lexiInk3)
+                .frame(width: 5, height: 5)
+        case .idle:
+            Circle()
+                .fill(Color.lexiInk4)
+                .frame(width: 5, height: 5)
+        case .error:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Color.lexiWarn)
+        }
     }
 }

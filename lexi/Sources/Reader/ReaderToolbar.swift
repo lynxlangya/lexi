@@ -3,10 +3,11 @@ import SwiftUI
 struct ReaderToolbar: ToolbarContent {
     @Binding var columnVisibility: NavigationSplitViewVisibility
     let bookTitle: String
-    let chapter: DemoChapter
+    let chapter: ReaderChapter
     let chapterIndex: Int
     let chapterCount: Int
     @Binding var fontSize: Double
+    @Binding var transMode: ReaderTranslationMode
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
@@ -40,10 +41,12 @@ struct ReaderToolbar: ToolbarContent {
             .help("放大字号")
             .focusable(false)
 
-            Button(action: {}) {
+            Button {
+                transMode = transMode.next
+            } label: {
                 Image(systemName: "character.bubble")
             }
-            .help("译文模式")
+            .help(transModeHelp)
             .focusable(false)
 
             Button(action: {}) {
@@ -63,6 +66,17 @@ struct ReaderToolbar: ToolbarContent {
             }
             .help("更多")
             .focusable(false)
+        }
+    }
+
+    private var transModeHelp: String {
+        switch transMode {
+        case .both:
+            return "原文 + 译文 (⌘B)"
+        case .en:
+            return "仅原文 (⌘B)"
+        case .zh:
+            return "仅译文 (⌘B)"
         }
     }
 }

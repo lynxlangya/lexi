@@ -18,12 +18,21 @@ struct ReaderProgressHairline: View {
 struct ReaderStatusBar: View {
     let chapterProgress: Int
     let bookProgress: Int
+    let state: ChapterTranslationState
+    let engineLabel: String
+    let total: Int
 
     var body: some View {
         HStack {
-            Text("本章已缓存 · GPT-4")
-                .font(LexiFont.sans(11.5))
-                .foregroundStyle(Color.lexiInk3)
+            HStack(spacing: 6) {
+                if case .translating = state {
+                    SpinnerDot(size: 10)
+                }
+
+                Text(statusText)
+                    .font(LexiFont.sans(11.5))
+                    .foregroundStyle(Color.lexiInk3)
+            }
 
             Spacer()
 
@@ -38,6 +47,19 @@ struct ReaderStatusBar: View {
             Rectangle()
                 .fill(Color.lexiRule)
                 .frame(height: 1)
+        }
+    }
+
+    private var statusText: String {
+        switch state {
+        case .idle:
+            return "等待翻译 · \(engineLabel)"
+        case .translating(let done):
+            return "正在翻译 · \(engineLabel) · \(done)/\(total)"
+        case .cached:
+            return "本章已缓存 · \(engineLabel)"
+        case .error:
+            return "翻译失败 · \(engineLabel)"
         }
     }
 }

@@ -6,7 +6,14 @@ nonisolated struct EngineRegistry {
 
     init(
         client: EngineHTTPClient = URLSessionEngineHTTPClient(),
-        apiKeyProvider: @escaping @Sendable (EngineID) -> String? = { Keychain.apiKey(for: $0) }
+        apiKeyProvider: @escaping @Sendable (EngineID) -> String? = { engine in
+            #if DEBUG
+            if let key = DevSecrets.apiKey(for: engine) {
+                return key
+            }
+            #endif
+            return Keychain.apiKey(for: engine)
+        }
     ) {
         self.client = client
         self.apiKeyProvider = apiKeyProvider

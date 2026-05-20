@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		C0A3000D2FBC80000000000D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C0A3000C2FBC80000000000C /* GRDB */; };
 		C0A300102FBC800000000010 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C0A3000F2FBC80000000000F /* GRDB */; };
+		C0A500012FBE000000000001 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = C0A500032FBE000000000003 /* KeyboardShortcuts */; };
+		C0A500022FBE000000000002 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = C0A500042FBE000000000004 /* KeyboardShortcuts */; };
 		C0A400012FBD000000000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = C0A400052FBD000000000005 /* ZIPFoundation */; };
 		C0A400022FBD000000000002 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = C0A400062FBD000000000006 /* SwiftSoup */; };
 		C0A400032FBD000000000003 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = C0A400072FBD000000000007 /* ZIPFoundation */; };
@@ -71,6 +73,7 @@
 				C0A3000D2FBC80000000000D /* GRDB in Frameworks */,
 				C0A400012FBD000000000001 /* ZIPFoundation in Frameworks */,
 				C0A400022FBD000000000002 /* SwiftSoup in Frameworks */,
+				C0A500012FBE000000000001 /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,6 +84,7 @@
 				C0A300102FBC800000000010 /* GRDB in Frameworks */,
 				C0A400032FBD000000000003 /* ZIPFoundation in Frameworks */,
 				C0A400042FBD000000000004 /* SwiftSoup in Frameworks */,
+				C0A500022FBE000000000002 /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -128,6 +132,7 @@
 				C0A3000C2FBC80000000000C /* GRDB */,
 				C0A400052FBD000000000005 /* ZIPFoundation */,
 				C0A400062FBD000000000006 /* SwiftSoup */,
+				C0A500032FBE000000000003 /* KeyboardShortcuts */,
 			);
 			productName = lexi;
 			productReference = BD8BAA8B2FBC4A14000A66A1 /* lexi.app */;
@@ -154,6 +159,7 @@
 				C0A3000F2FBC80000000000F /* GRDB */,
 				C0A400072FBD000000000007 /* ZIPFoundation */,
 				C0A400082FBD000000000008 /* SwiftSoup */,
+				C0A500042FBE000000000004 /* KeyboardShortcuts */,
 			);
 			productName = lexiTests;
 			productReference = C0A300012FBC800000000001 /* lexiTests.xctest */;
@@ -191,6 +197,7 @@
 				C0A3000E2FBC80000000000E /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				C0A400092FBD000000000009 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				C0A4000A2FBD00000000000A /* XCRemoteSwiftPackageReference "SwiftSoup" */,
+				C0A500052FBE000000000005 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BD8BAA8C2FBC4A14000A66A1 /* Products */;
@@ -536,6 +543,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		C0A500052FBE000000000005 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.9.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -568,6 +583,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0A4000A2FBD00000000000A /* XCRemoteSwiftPackageReference "SwiftSoup" */;
 			productName = SwiftSoup;
+		};
+		C0A500032FBE000000000003 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A500052FBE000000000005 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+		C0A500042FBE000000000004 /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A500052FBE000000000005 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
 		};
 /* End XCSwiftPackageProductDependency section */
 		};
