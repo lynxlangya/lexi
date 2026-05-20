@@ -21,17 +21,82 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         }
     }
 
-    var symbol: String {
-        switch self {
-        case .general:
-            return "line.3.horizontal"
-        case .engine:
-            return "sparkles"
-        case .shortcuts:
-            return "keyboard"
-        case .reader:
-            return "book.pages"
+    var iconPath: SettingsTabIcon.PathKind { .init(tab: self) }
+}
+
+struct SettingsTabIcon: Shape {
+    enum PathKind {
+        case general
+        case engine
+        case shortcuts
+        case reader
+
+        init(tab: SettingsTab) {
+            switch tab {
+            case .general:
+                self = .general
+            case .engine:
+                self = .engine
+            case .shortcuts:
+                self = .shortcuts
+            case .reader:
+                self = .reader
+            }
         }
+    }
+
+    let kind: PathKind
+
+    func path(in rect: CGRect) -> Path {
+        let scaleX = rect.width / 16
+        let scaleY = rect.height / 16
+
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * scaleX, y: rect.minY + y * scaleY)
+        }
+
+        func drawLine(_ path: inout Path, _ x1: CGFloat, _ y1: CGFloat, _ x2: CGFloat, _ y2: CGFloat) {
+            path.move(to: point(x1, y1))
+            path.addLine(to: point(x2, y2))
+        }
+
+        func drawRect(_ path: inout Path, _ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) {
+            path.addRect(CGRect(
+                x: rect.minX + x * scaleX,
+                y: rect.minY + y * scaleY,
+                width: width * scaleX,
+                height: height * scaleY
+            ))
+        }
+
+        var path = Path()
+        switch kind {
+        case .general:
+            drawLine(&path, 3, 8, 13, 8)
+            drawLine(&path, 3, 4, 13, 4)
+            drawLine(&path, 3, 12, 13, 12)
+        case .engine:
+            drawLine(&path, 8, 2.5, 8, 5.5)
+            drawLine(&path, 8, 10.5, 8, 13.5)
+            drawLine(&path, 2.5, 8, 5.5, 8)
+            drawLine(&path, 10.5, 8, 13.5, 8)
+            drawLine(&path, 4.4, 4.4, 6.4, 6.4)
+            drawLine(&path, 9.6, 9.6, 11.6, 11.6)
+            drawLine(&path, 4.4, 11.6, 6.4, 9.6)
+            drawLine(&path, 9.6, 6.4, 11.6, 4.4)
+        case .shortcuts:
+            drawRect(&path, 2.5, 4.5, 11, 7)
+            drawLine(&path, 4, 7, 4.1, 7)
+            drawLine(&path, 6, 7, 6.1, 7)
+            drawLine(&path, 8, 7, 8.1, 7)
+            drawLine(&path, 10, 7, 10.1, 7)
+            drawLine(&path, 12, 7, 12.1, 7)
+            drawLine(&path, 4.5, 9.5, 11.5, 9.5)
+        case .reader:
+            drawRect(&path, 3, 3.5, 6, 9)
+            drawRect(&path, 9, 3.5, 4, 9)
+        }
+        return path
     }
 }
 
@@ -221,5 +286,25 @@ struct SettingsToast: View {
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
         }
+    }
+}
+
+struct SettingsFlatButtonStyle: ButtonStyle {
+    var danger = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(LexiFont.sans(11.5))
+            .fontWeight(.medium)
+            .foregroundStyle(danger ? Color.lexiDanger : Color.lexiInk)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 3)
+            .background(Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(danger ? Color.lexiDanger : Color.lexiRule2, lineWidth: 1)
+            }
+            .opacity(configuration.isPressed ? 0.72 : 1)
     }
 }

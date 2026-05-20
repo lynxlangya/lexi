@@ -139,9 +139,12 @@ struct SettingsSheet: View {
                     selectedTab = tab
                 } label: {
                     HStack(spacing: 9) {
-                        Image(systemName: tab.symbol)
-                            .font(.system(size: 13, weight: .medium))
-                            .frame(width: 16)
+                        SettingsTabIcon(kind: tab.iconPath)
+                            .stroke(
+                                selectedTab == tab ? settingsAccent.primary : Color.lexiInk2,
+                                style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round)
+                            )
+                            .frame(width: 14, height: 14)
                         Text(tab.title)
                             .font(LexiFont.zh(13))
                         Spacer()
@@ -225,10 +228,12 @@ struct SettingsSheet: View {
                         Text("~/Library/Application Support/Lexi")
                             .font(LexiFont.mono(11))
                             .foregroundStyle(Color.lexiInk3)
-                        Button("更改…") {
+                        Button {
                             toast("v1 暂不支持更改缓存路径")
+                        } label: {
+                            Text("更改…")
                         }
-                        .font(LexiFont.zh(11.5))
+                        .buttonStyle(SettingsFlatButtonStyle())
                     }
                 }
             }
@@ -434,14 +439,6 @@ struct SettingsSheet: View {
                                     .overlay {
                                         Circle()
                                             .stroke(accent == option.0 ? Color.lexiInk : Color.clear, lineWidth: 2)
-                                            .padding(-3)
-                                    }
-                                    .overlay {
-                                        if accent == option.0 {
-                                            Circle()
-                                                .stroke(option.1.opacity(0.35), lineWidth: 6)
-                                                .padding(-6)
-                                        }
                                     }
                             }
                             .buttonStyle(.plain)
@@ -472,11 +469,11 @@ struct SettingsSheet: View {
     private func subtitle(for engine: EngineID) -> String {
         switch engine {
         case .openai:
-            return "Chat Completions"
+            return "GPT-4 / GPT-4o / GPT-3.5"
         case .anthropic:
-            return "Messages API"
+            return "Claude Sonnet / Haiku"
         case .deepseek:
-            return "OpenAI-compatible"
+            return "DeepSeek Chat / Reasoner"
         }
     }
 
