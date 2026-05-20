@@ -69,6 +69,18 @@ actor AppDatabase {
         }
     }
 
+    func books() throws -> [Book] {
+        try pool.read { db in
+            try Row.fetchAll(
+                db,
+                sql: """
+                SELECT * FROM books
+                ORDER BY COALESCE(lastReadAt, addedAt) DESC, title COLLATE NOCASE ASC
+                """
+            ).map(Book.init(row:))
+        }
+    }
+
     func chapters(bookId: String) throws -> [Chapter] {
         try pool.read { db in
             try Row.fetchAll(
@@ -222,6 +234,67 @@ actor AppDatabase {
                     )
                 }
             }
+        }
+    }
+
+    func touchBook(id: String, at date: Date = Date()) throws {
+        try pool.write { db in
+            try db.execute(
+                sql: "UPDATE books SET lastReadAt = ? WHERE id = ?",
+                arguments: [date.lexiTimestamp, id]
+            )
+        }
+    }
+
+    func updateBookProgress(id: String, progress: Double, at date: Date = Date()) throws {
+        try pool.write { db in
+            try db.execute(
+                sql: """
+                UPDATE books
+                SET progress = ?, lastReadAt = ?
+                WHERE id = ?
+                """,
+                arguments: [max(0, min(1, progress)), date.lexiTimestamp, id]
+            )
+        }
+    }
+
+    func deleteBook(id: String) throws {
+        try pool.write { db in
+            try db.execute(sql: "DELETE FROM books WHERE id = ?", arguments: [id])
+        }
+    }
+
+    func translationCacheBytes(bookId: String) throws -> Int64 {
+        try pool.read { db in
+            try Int64.fetchOne(
+                db,
+                sql: """
+                SELECT COALESCE(SUM(LENGTH(t.zh)), 0)
+                FROM translations t
+                INNER JOIN paragraphs p ON p.id = t.paragraphId
+                INNER JOIN chapters c ON c.id = p.chapterId
+                WHERE c.bookId = ?
+                """,
+                arguments: [bookId]
+            ) ?? 0
+        }
+    }
+
+    func clearTranslationCache(bookId: String) throws {
+        try pool.write { db in
+            try db.execute(
+                sql: """
+                DELETE FROM translations
+                WHERE paragraphId IN (
+                    SELECT p.id
+                    FROM paragraphs p
+                    INNER JOIN chapters c ON c.id = p.chapterId
+                    WHERE c.bookId = ?
+                )
+                """,
+                arguments: [bookId]
+            )
         }
     }
 

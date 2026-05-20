@@ -84,6 +84,89 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(engineConfig?.model, "gpt-4-turbo")
     }
 
+    func testShelfBookListOrdersByRecentActivity() async throws {
+        let database = try AppDatabase.makeTransient()
+        let older = Book(
+            id: "older",
+            title: "Older Book",
+            author: "Author B",
+            fileURL: URL(fileURLWithPath: "/tmp/older.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: Date(lexiTimestamp: 1_800_000_100),
+            progress: 0.2,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+        let newer = Book(
+            id: "newer",
+            title: "Newer Book",
+            author: "Author A",
+            fileURL: URL(fileURLWithPath: "/tmp/newer.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_010),
+            lastReadAt: Date(lexiTimestamp: 1_800_000_200),
+            progress: 0.6,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+
+        try await database.insertBook(older)
+        try await database.insertBook(newer)
+
+        let books = try await database.books()
+        XCTAssertEqual(books.map(\.id), ["newer", "older"])
+    }
+
+    func testShelfCacheClearAndBookDeleteAreScopedToBook() async throws {
+        let database = try AppDatabase.makeTransient()
+        let date = Date(lexiTimestamp: 1_800_000_000)
+        for bookId in ["one", "two"] {
+            try await database.insertBook(
+                Book(
+                    id: bookId,
+                    title: bookId,
+                    author: "Author",
+                    fileURL: URL(fileURLWithPath: "/tmp/\(bookId).epub"),
+                    addedAt: date,
+                    lastReadAt: nil,
+                    progress: 0,
+                    coverData: nil,
+                    coverBg: nil,
+                    coverInk: nil
+                )
+            )
+            let chapterId = try await database.insertChapter(
+                Chapter(id: nil, bookId: bookId, idx: 0, n: "1", title: "Chapter")
+            )
+            let paragraphId = try await database.insertParagraph(
+                Paragraph(id: nil, chapterId: chapterId, ord: 0, en: "Text")
+            )
+            try await database.upsertTranslation(
+                Translation(id: nil, paragraphId: paragraphId, engine: .openai, model: "gpt", zh: "译文", createdAt: date)
+            )
+        }
+
+        let initialOneBytes = try await database.translationCacheBytes(bookId: "one")
+        let initialTwoBytes = try await database.translationCacheBytes(bookId: "two")
+        XCTAssertGreaterThan(initialOneBytes, 0)
+        XCTAssertGreaterThan(initialTwoBytes, 0)
+
+        try await database.clearTranslationCache(bookId: "one")
+
+        let clearedOneBytes = try await database.translationCacheBytes(bookId: "one")
+        let remainingTwoBytes = try await database.translationCacheBytes(bookId: "two")
+        XCTAssertEqual(clearedOneBytes, 0)
+        XCTAssertGreaterThan(remainingTwoBytes, 0)
+
+        try await database.deleteBook(id: "two")
+
+        let deletedBook = try await database.book(id: "two")
+        let deletedTwoBytes = try await database.translationCacheBytes(bookId: "two")
+        XCTAssertNil(deletedBook)
+        XCTAssertEqual(deletedTwoBytes, 0)
+    }
+
     func testKeychainRoundTrip() throws {
         let store = KeychainStore(servicePrefix: "com.lexi.tests.\(UUID().uuidString)")
         defer {

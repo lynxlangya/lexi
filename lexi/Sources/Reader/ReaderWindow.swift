@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 struct ReaderWindow: Scene {
     var body: some Scene {
@@ -12,16 +12,29 @@ struct ReaderWindow: Scene {
     }
 }
 
+private enum ReaderSurface {
+    case shelf
+    case reader
+}
+
 private struct ReaderWindowContent: View {
     @State private var selectedChapterIndex = 2
     @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var surface = ReaderSurface.shelf
+    @State private var database: AppDatabase?
+    @State private var shelfBooks: [ReaderBook] = []
     @State private var book: ReaderBook?
     @State private var chapters: [ReaderChapter] = []
     @State private var controller: ChapterTranslationController?
     @State private var loadError: String?
+    @State private var toast: ToastMessage?
+    @State private var cacheClearCandidate: ReaderBook?
+    @State private var cacheClearMB = "0.0"
+    @State private var removeCandidate: ReaderBook?
     @AppStorage("reader.fontSize") private var fontSize = 17.0
     @AppStorage("reader.transMode") private var transModeRaw = ReaderTranslationMode.both.rawValue
     @AppStorage("reader.prefetch") private var prefetchCount = 1
+    @AppStorage("general.startup") private var startupBehavior = "last"
 
     private var transMode: ReaderTranslationMode {
         ReaderTranslationMode(rawValue: transModeRaw) ?? .both
@@ -40,19 +53,23 @@ private struct ReaderWindowContent: View {
     }
 
     var body: some View {
-        content
-            .task(loadReaderData)
-            .onChange(of: selectedChapterIndex) { _, _ in
-                translateSelectedChapter()
-            }
-            .readerShortcuts(
-                toggleTranslationMode: { transModeRaw = transMode.next.rawValue },
-                previousChapter: previousChapter,
-                nextChapter: nextChapter,
-                increaseFontSize: { fontSize = min(22, fontSize + 1) },
-                decreaseFontSize: { fontSize = max(14, fontSize - 1) },
-                toggleSidebar: toggleSidebar
-            )
+        ZStack(alignment: .top) {
+            content
+                .task(loadInitialData)
+                .onChange(of: selectedChapterIndex) { _, _ in
+                    translateSelectedChapter()
+                }
+                .readerShortcuts(
+                    toggleTranslationMode: { transModeRaw = transMode.next.rawValue },
+                    previousChapter: previousChapter,
+                    nextChapter: nextChapter,
+                    increaseFontSize: { fontSize = min(22, fontSize + 1) },
+                    decreaseFontSize: { fontSize = max(14, fontSize - 1) },
+                    toggleSidebar: toggleSidebar
+                )
+
+            ToastView(message: toast)
+        }
         .background(
             ReaderWindowTitleUpdater(
                 title: windowTitle
@@ -60,6 +77,36 @@ private struct ReaderWindowContent: View {
         )
         .background(Color.lexiPaper)
         .frame(minWidth: 920, minHeight: 620)
+        .confirmationDialog(
+            "清除翻译缓存？",
+            isPresented: Binding(
+                get: { cacheClearCandidate != nil },
+                set: { if !$0 { cacheClearCandidate = nil } }
+            ),
+            presenting: cacheClearCandidate
+        ) { candidate in
+            Button("清除 \(cacheClearMB) MB", role: .destructive) {
+                clearCache(for: candidate)
+            }
+            Button("取消", role: .cancel) {}
+        } message: { candidate in
+            Text("\(candidate.title) 的缓存译文会被删除。")
+        }
+        .confirmationDialog(
+            "从书架移除？",
+            isPresented: Binding(
+                get: { removeCandidate != nil },
+                set: { if !$0 { removeCandidate = nil } }
+            ),
+            presenting: removeCandidate
+        ) { candidate in
+            Button("移除", role: .destructive) {
+                removeBook(candidate)
+            }
+            Button("取消", role: .cancel) {}
+        } message: { candidate in
+            Text("\(candidate.title) 会从本地书架移除，原 EPUB 文件不会被删除。")
+        }
     }
 
     @ViewBuilder
@@ -69,16 +116,47 @@ private struct ReaderWindowContent: View {
                 .font(LexiFont.zh(13))
                 .foregroundStyle(Color.lexiWarn)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let book, let selectedChapter, let controller {
+        } else {
+            switch surface {
+            case .shelf:
+                ShelfView(
+                    books: shelfBooks,
+                    currentBookID: book?.id,
+                    openBook: { openBook($0, continueReading: false) },
+                    continueReading: { openBook($0, continueReading: true) },
+                    revealInFinder: revealInFinder,
+                    requestClearCache: requestClearCache,
+                    requestRemove: { removeCandidate = $0 },
+                    importEPUBs: importEPUBs
+                )
+                .toolbar {
+                    ShelfTitleBar(
+                        bookCount: shelfBooks.count,
+                        canReturnToReader: book != nil,
+                        returnToReader: { surface = .reader }
+                    )
+                }
+
+            case .reader:
+                readerContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var readerContent: some View {
+        if let book, let selectedChapter, let controller {
             VStack(spacing: 0) {
                 NavigationSplitView(columnVisibility: $columnVisibility) {
                     TOCSidebar(
                         book: book,
                         chapters: chapters,
-                        selectedChapterIndex: $selectedChapterIndex
-                    ) { chapterId in
-                        controller.chapterState(for: chapterId)
-                    }
+                        selectedChapterIndex: $selectedChapterIndex,
+                        chapterState: { chapterId in
+                            controller.chapterState(for: chapterId)
+                        },
+                        openShelf: { surface = .shelf }
+                    )
                     .navigationSplitViewColumnWidth(min: 232, ideal: 232, max: 232)
                     .toolbar(removing: .sidebarToggle)
                 } detail: {
@@ -125,10 +203,15 @@ private struct ReaderWindowContent: View {
     }
 
     private var windowTitle: String {
-        guard let book, let selectedChapter else {
-            return "Lexi"
+        switch surface {
+        case .shelf:
+            return "书架"
+        case .reader:
+            guard let book, let selectedChapter else {
+                return "Lexi"
+            }
+            return "\(book.title) · Chapter \(selectedChapter.n) · \(selectedChapterIndex + 1) / \(chapters.count)"
         }
-        return "\(book.title) · Chapter \(selectedChapter.n) · \(selectedChapterIndex + 1) / \(chapters.count)"
     }
 
     private var chapterProgress: Int {
@@ -150,35 +233,163 @@ private struct ReaderWindowContent: View {
         return Int((((Double(selectedChapterIndex) + Double(chapterProgress) / 100) / Double(chapters.count)) * 100).rounded())
     }
 
-    private func loadReaderData() async {
+    private func loadInitialData() async {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
             return
         }
 
-        guard book == nil, chapters.isEmpty else {
+        guard database == nil else {
             return
         }
 
         do {
-            let database = try AppDatabase.makeShared()
-            let loaded = try await ReaderFixtureStore.loadBook(from: database)
-            let engineConfig = ReaderFixtureStore.defaultConfig()
-            let nextController = ChapterTranslationController(database: database, engineConfig: engineConfig)
-            book = loaded.0
-            chapters = loaded.1
-            controller = nextController
-            if selectedChapterIndex >= loaded.1.count {
-                selectedChapterIndex = max(0, loaded.1.count - 1)
+            let sharedDatabase = try AppDatabase.makeShared()
+            database = sharedDatabase
+            try await reloadShelf(from: sharedDatabase)
+
+            switch startupBehavior {
+            case "shelf":
+                surface = .shelf
+            case "none":
+                surface = .shelf
+            default:
+                if let lastBook = shelfBooks.first(where: { $0.lastReadAt != nil }) ?? shelfBooks.first {
+                    await loadBook(lastBook, from: sharedDatabase, continueReading: true)
+                } else {
+                    surface = .shelf
+                }
             }
-            await nextController.prepare(chapters: loaded.1)
-            translateSelectedChapter()
         } catch {
             loadError = error.localizedDescription
         }
     }
 
+    private func reloadShelf(from database: AppDatabase) async throws {
+        let books = try await database.books()
+        shelfBooks = books.map(ReaderBook.init(book:))
+    }
+
+    private func openBook(_ nextBook: ReaderBook, continueReading: Bool) {
+        guard let database else {
+            return
+        }
+
+        Task {
+            await loadBook(nextBook, from: database, continueReading: continueReading)
+        }
+    }
+
+    private func loadBook(_ nextBook: ReaderBook, from database: AppDatabase, continueReading: Bool) async {
+        do {
+            let loaded = try await ReaderFixtureStore.loadExistingBook(bookId: nextBook.id, from: database)
+            let engineConfig = ReaderFixtureStore.defaultConfig()
+            let nextController = ChapterTranslationController(database: database, engineConfig: engineConfig)
+            book = loaded.0
+            chapters = loaded.1
+            controller = nextController
+
+            if !continueReading {
+                selectedChapterIndex = 0
+            } else if continueReading,
+               let progress = try await database.progress(for: nextBook.id),
+               loaded.1.indices.contains(progress.chapterIdx) {
+                selectedChapterIndex = progress.chapterIdx
+            } else if selectedChapterIndex >= loaded.1.count {
+                selectedChapterIndex = max(0, loaded.1.count - 1)
+            }
+
+            try await database.touchBook(id: nextBook.id)
+            await nextController.prepare(chapters: loaded.1)
+            surface = .reader
+            translateSelectedChapter()
+            try await reloadShelf(from: database)
+        } catch {
+            showToast(error.localizedDescription)
+        }
+    }
+
+    private func importEPUBs(_ urls: [URL]) {
+        guard let database else {
+            return
+        }
+
+        guard !urls.isEmpty else {
+            showToast("EPUB 导入失败")
+            return
+        }
+
+        Task {
+            let parser = EPUBParser()
+            for url in urls {
+                do {
+                    let payload = try await parser.parse(url)
+                    try await database.importBook(payload)
+                    try await reloadShelf(from: database)
+                    showToast("已加入书架 · \(payload.book.title)")
+                } catch {
+                    showToast("导入失败 · \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func revealInFinder(_ target: ReaderBook) {
+        NSWorkspace.shared.activateFileViewerSelecting([target.fileURL])
+    }
+
+    private func requestClearCache(_ target: ReaderBook) {
+        guard let database else {
+            return
+        }
+
+        Task {
+            let bytes = (try? await database.translationCacheBytes(bookId: target.id)) ?? 0
+            cacheClearMB = String(format: "%.1f", Double(bytes) / 1024 / 1024)
+            cacheClearCandidate = target
+        }
+    }
+
+    private func clearCache(for target: ReaderBook) {
+        guard let database else {
+            return
+        }
+
+        Task {
+            do {
+                try await database.clearTranslationCache(bookId: target.id)
+                cacheClearCandidate = nil
+                showToast("已清除 · \(target.title)")
+            } catch {
+                showToast(error.localizedDescription)
+            }
+        }
+    }
+
+    private func removeBook(_ target: ReaderBook) {
+        guard let database else {
+            return
+        }
+
+        Task {
+            do {
+                try await database.deleteBook(id: target.id)
+                if target.id == book?.id {
+                    book = nil
+                    chapters = []
+                    controller = nil
+                    surface = .shelf
+                }
+                removeCandidate = nil
+                try await reloadShelf(from: database)
+                showToast("已移除 · \(target.title)")
+            } catch {
+                showToast(error.localizedDescription)
+            }
+        }
+    }
+
     private func translateSelectedChapter() {
-        guard let selectedChapter, let controller else {
+        guard surface == .reader, let selectedChapter, let controller else {
             return
         }
         controller.selectChapter(
@@ -186,19 +397,56 @@ private struct ReaderWindowContent: View {
             chapters: chapters,
             prefetchCount: max(0, min(2, prefetchCount))
         )
+
+        guard let database, let book else {
+            return
+        }
+
+        Task {
+            let progress = chapters.isEmpty ? 0 : (Double(selectedChapterIndex) + Double(chapterProgress) / 100) / Double(chapters.count)
+            try? await database.updateBookProgress(id: book.id, progress: progress)
+            try? await database.upsertProgress(
+                ProgressRecord(bookId: book.id, chapterIdx: selectedChapterIndex, scrollPct: 0, updatedAt: Date())
+            )
+            try? await reloadShelf(from: database)
+        }
     }
 
     private func previousChapter() {
+        guard surface == .reader else {
+            return
+        }
         selectedChapterIndex = max(0, selectedChapterIndex - 1)
     }
 
     private func nextChapter() {
+        guard surface == .reader else {
+            return
+        }
         selectedChapterIndex = min(max(0, chapters.count - 1), selectedChapterIndex + 1)
     }
 
     private func toggleSidebar() {
+        guard surface == .reader else {
+            return
+        }
         withAnimation {
             columnVisibility = columnVisibility == .all ? .detailOnly : .all
+        }
+    }
+
+    private func showToast(_ text: String) {
+        withAnimation(.easeOut(duration: 0.16)) {
+            toast = ToastMessage(text: text)
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            withAnimation(.easeIn(duration: 0.16)) {
+                if toast?.text == text {
+                    toast = nil
+                }
+            }
         }
     }
 }

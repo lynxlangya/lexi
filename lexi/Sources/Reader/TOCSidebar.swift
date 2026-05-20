@@ -5,6 +5,7 @@ struct TOCSidebar: View {
     let chapters: [ReaderChapter]
     @Binding var selectedChapterIndex: Int
     let chapterState: (Int64) -> ChapterTranslationState
+    let openShelf: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -47,7 +48,7 @@ struct TOCSidebar: View {
     }
 
     private var shelfButton: some View {
-        Button(action: {}) {
+        Button(action: openShelf) {
             Label("书架", systemImage: "chevron.left")
                 .font(LexiFont.sans(12))
                 .foregroundStyle(Color.lexiInk3)
