@@ -7,20 +7,25 @@ struct ToastMessage: Equatable, Identifiable {
 
 struct ToastView: View {
     let message: ToastMessage?
+    var preferences: ReaderRuntimePreferences?
+
+    private var theme: ReaderThemeChoice {
+        preferences?.theme ?? ReaderThemeChoice(storageValue: "paper")
+    }
 
     var body: some View {
         if let message {
             Text(message.text)
                 .font(LexiFont.zh(12.5))
-                .foregroundStyle(Color.lexiInk)
+                .foregroundStyle(theme.ink)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
-                .background(Color.lexiRaised)
+                .background(theme.raised)
                 .clipShape(RoundedRectangle(cornerRadius: LexiRadius.control, style: .continuous))
                 .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
                 .overlay {
                     RoundedRectangle(cornerRadius: LexiRadius.control, style: .continuous)
-                        .stroke(Color.lexiRule, lineWidth: 1)
+                        .stroke(theme.rule, lineWidth: 1)
                 }
                 .padding(.top, 18)
                 .transition(.move(edge: .top).combined(with: .opacity))

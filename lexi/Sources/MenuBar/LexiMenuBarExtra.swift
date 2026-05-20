@@ -64,13 +64,21 @@ final class LexiMenuBarCoordinator: ObservableObject {
     private var activeKind: PopupKind?
     private var activeAnchor = CGRect(x: 600, y: 480, width: 36, height: 24)
     private var currentEngine = ReaderFixtureStore.defaultConfig()
+    private var popupEngineOverride: EngineConfig?
     private var recentWords: [String] = []
     private var openReaderAction: (() -> Void)?
+    private var popupEngineSettingsObserver: NSObjectProtocol?
     private var started = false
 
     init() {
         panel.onDismiss = { [weak self] in
             self?.popupVisible = false
+        }
+    }
+
+    deinit {
+        if let popupEngineSettingsObserver {
+            NotificationCenter.default.removeObserver(popupEngineSettingsObserver)
         }
     }
 
@@ -86,6 +94,16 @@ final class LexiMenuBarCoordinator: ObservableObject {
         refreshVocabCount()
         Task {
             currentEngine = await EnginePreferences.popupConfig(database: database)
+        }
+
+        popupEngineSettingsObserver = NotificationCenter.default.addObserver(
+            forName: .lexiPopupEngineSettingsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.applyPopupEngineSettings()
+            }
         }
 
         selectionMonitor.onSelection = { [weak self] context in
@@ -111,6 +129,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
             showPermissionError()
             return
         }
+        popupEngineOverride = nil
         translate(context.text, anchor: context.anchor)
     }
 
@@ -121,9 +140,11 @@ final class LexiMenuBarCoordinator: ObservableObject {
         }
 
         let anchor = context.anchor
-        show(kind: .loading(text: context.text, isWord: false, engine: currentEngine.id), near: anchor)
+        popupEngineOverride = nil
         Task {
             do {
+                currentEngine = await popupEngineConfig()
+                show(kind: .loading(text: context.text, isWord: false, engine: currentEngine.id), near: anchor)
                 let translated = try await translateText(context.text)
                 if TextReplacement.replaceSelection(with: translated) {
                     closePopup()
@@ -169,6 +190,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func showChip(for context: SelectedTextContext) {
+        popupEngineOverride = nil
         guard UserDefaults.standard.string(forKey: "menubar.triggerStyle") != "instant" else {
             translate(context.text, anchor: context.anchor)
             return
@@ -188,7 +210,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
         let word = isWord(trimmed)
         Task {
             do {
-                currentEngine = await EnginePreferences.popupConfig(database: database)
+                currentEngine = await popupEngineConfig()
                 show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
                 let translated = try await translateText(trimmed)
                 todayQueryCount += 1
@@ -296,7 +318,20 @@ final class LexiMenuBarCoordinator: ObservableObject {
 
     private func selectEngine(_ engine: EngineID) {
         currentEngine = EngineConfig(id: engine, model: ReaderFixtureStore.defaultModel(for: engine), lastTestedOK: false, lastTestedAt: nil)
+        popupEngineOverride = currentEngine
         retryActive()
+    }
+
+    private func popupEngineConfig() async -> EngineConfig {
+        if let popupEngineOverride {
+            return popupEngineOverride
+        }
+        return await EnginePreferences.popupConfig(database: database)
+    }
+
+    private func applyPopupEngineSettings() async {
+        popupEngineOverride = nil
+        currentEngine = await EnginePreferences.popupConfig(database: database)
     }
 
     private func ensureDatabase() {

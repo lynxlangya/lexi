@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ShimmerLines: View {
     let fontSize: CGFloat
+    let theme: ReaderThemeChoice
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 60)) { context in
@@ -20,7 +21,7 @@ struct ShimmerLines: View {
             RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [.lexiShimmer1, .lexiShimmer2, .lexiShimmer1],
+                        colors: [theme.shimmer1, theme.shimmer2, theme.shimmer1],
                         startPoint: UnitPoint(x: phase - 1, y: 0.5),
                         endPoint: UnitPoint(x: phase, y: 0.5)
                     )
@@ -33,6 +34,7 @@ struct ShimmerLines: View {
 
 struct SpinnerDot: View {
     var size: CGFloat = 10
+    var accent: Color = .lexiAccent
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 60)) { context in
@@ -41,7 +43,7 @@ struct SpinnerDot: View {
 
             Image(systemName: "progress.indicator")
                 .font(.system(size: size, weight: .medium))
-                .foregroundStyle(Color.lexiAccent)
+                .foregroundStyle(accent)
                 .rotationEffect(.degrees(angle))
         }
         .frame(width: size, height: size)

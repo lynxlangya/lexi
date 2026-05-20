@@ -5,6 +5,7 @@ struct ParaView: View {
     let fontSize: Double
     let state: ParagraphTranslationState
     let transMode: ReaderTranslationMode
+    let preferences: ReaderRuntimePreferences
     let retry: () -> Void
     let addVocab: () -> Void
 
@@ -20,9 +21,9 @@ struct ParaView: View {
         VStack(alignment: .leading, spacing: LexiSpacing.enZhGap) {
             if transMode != .zh {
                 Text(paragraph.en)
-                    .font(LexiFont.serif(enSize))
-                    .lineSpacing(enSize * 0.72)
-                    .foregroundStyle(Color.lexiInk)
+                    .font(preferences.font.serif(enSize))
+                    .lineSpacing(enSize * preferences.lineHeight.englishSpacingRatio)
+                    .foregroundStyle(preferences.theme.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -36,7 +37,7 @@ struct ParaView: View {
                         .font(LexiFont.zh(11.5))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.lexiInk3)
+                .foregroundStyle(preferences.theme.ink3)
             }
         }
         .padding(.bottom, LexiSpacing.paraGap)
@@ -48,11 +49,11 @@ struct ParaView: View {
         case .cached(let zh):
             Text(zh)
                 .font(LexiFont.zh(zhSize))
-                .lineSpacing(zhSize * 0.78)
-                .foregroundStyle(Color.lexiInk2)
+                .lineSpacing(zhSize * preferences.lineHeight.chineseSpacingRatio)
+                .foregroundStyle(preferences.theme.ink2)
                 .fixedSize(horizontal: false, vertical: true)
         case .translating:
-            ShimmerLines(fontSize: zhSize)
+            ShimmerLines(fontSize: zhSize, theme: preferences.theme)
         case .error:
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -61,17 +62,17 @@ struct ParaView: View {
 
                 Text("本段翻译失败")
                     .font(LexiFont.zh(12.5))
-                    .foregroundStyle(Color.lexiInk3)
+                    .foregroundStyle(preferences.theme.ink3)
 
                 Button("重试本段", action: retry)
                     .font(LexiFont.sans(11.5))
-                    .foregroundStyle(Color.lexiInk2)
+                    .foregroundStyle(preferences.theme.ink2)
                     .buttonStyle(.plain)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
                     .overlay {
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(Color.lexiRule2, lineWidth: 1)
+                            .stroke(preferences.theme.rule2, lineWidth: 1)
                     }
             }
         }
