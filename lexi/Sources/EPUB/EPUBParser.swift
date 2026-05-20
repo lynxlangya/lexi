@@ -34,7 +34,7 @@ struct EPUBParser {
         }
 
         let baseURL = opfURL.deletingLastPathComponent()
-        let navTitles = try NavDocument.chapterTitles(opf: opf, baseURL: baseURL, rootURL: workingDirectory)
+        let tocEntries = try NavDocument.chapterEntries(opf: opf, baseURL: baseURL, rootURL: workingDirectory)
         let bookID = stableBookID(title: opf.title, author: opf.author, fileURL: url)
         let cover = try CoverExtractor.cover(for: opf, baseURL: baseURL, rootURL: workingDirectory, bookID: bookID)
         let book = Book(
@@ -50,37 +50,117 @@ struct EPUBParser {
             coverInk: cover.fallback?.ink
         )
 
-        let chapters = try opf.spine.enumerated().map { offset, itemID in
+        let spineDocuments = try loadSpineDocuments(opf: opf, baseURL: baseURL, rootURL: workingDirectory)
+        let chapters = try chapters(from: spineDocuments, tocEntries: tocEntries, bookID: book.id)
+
+        return (book, chapters)
+    }
+
+    private func loadSpineDocuments(opf: OPFDocument, baseURL: URL, rootURL: URL) throws -> [SpineDocument] {
+        try opf.spine.enumerated().map { offset, itemID in
             guard let item = opf.manifest[itemID] else {
                 throw EPUBParserError.missingManifestItem(itemID)
             }
 
-            let chapterURL = try EPUBPath.resolve(item.href, relativeTo: baseURL, root: workingDirectory)
-            let chapterData = try Data(contentsOf: chapterURL)
-            let document = try SwiftSoup.parse(chapterData, chapterURL.absoluteString)
-            let fallbackTitle = try document.select("h1, h2").first()?.text().normalizedWhitespace
-            let title = navTitles[item.href.normalizedEPUBPath]
-                ?? navTitles[itemID]
-                ?? fallbackTitle
-                ?? "Chapter \(offset + 1)"
-            let chapter = Chapter(
-                id: nil,
-                bookId: book.id,
-                idx: offset,
-                n: String(offset + 1),
-                title: title
-            )
-            let paragraphs = try document.select("p").array().enumerated().compactMap { paragraphOffset, element -> Paragraph? in
-                let text = try element.text().normalizedWhitespace
-                guard !text.isEmpty else {
-                    return nil
-                }
-                return Paragraph(id: nil, chapterId: 0, ord: paragraphOffset, en: text)
-            }
-            return (chapter, paragraphs)
+            let url = try EPUBPath.resolve(item.href, relativeTo: baseURL, root: rootURL)
+            let document = try SwiftSoup.parse(try Data(contentsOf: url), url.absoluteString)
+            return try SpineDocument(index: offset, href: item.href.normalizedEPUBPath, document: document)
+        }
+    }
+
+    private func chapters(
+        from spineDocuments: [SpineDocument],
+        tocEntries: [EPUBTOCEntry],
+        bookID: String
+    ) throws -> [(Chapter, [Paragraph])] {
+        let boundaries = resolvedBoundaries(from: tocEntries, spineDocuments: spineDocuments)
+        guard !boundaries.isEmpty else {
+            return try fallbackSpineChapters(from: spineDocuments, bookID: bookID)
         }
 
-        return (book, chapters)
+        return boundaries.enumerated().map { offset, boundary in
+            let next = boundaries[safe: offset + 1]?.position
+            let paragraphTexts = paragraphs(from: spineDocuments, startingAt: boundary.position, endingBefore: next)
+            return (
+                Chapter(id: nil, bookId: bookID, idx: offset, n: String(offset + 1), title: boundary.title),
+                paragraphTexts.enumerated().map { paragraphOffset, text in
+                    Paragraph(id: nil, chapterId: 0, ord: paragraphOffset, en: text)
+                }
+            )
+        }
+    }
+
+    private func fallbackSpineChapters(from spineDocuments: [SpineDocument], bookID: String) throws -> [(Chapter, [Paragraph])] {
+        spineDocuments.enumerated().map { offset, spineDocument in
+            let title = spineDocument.fallbackTitle ?? "Chapter \(offset + 1)"
+            return (
+                Chapter(id: nil, bookId: bookID, idx: offset, n: String(offset + 1), title: title),
+                spineDocument.paragraphs.enumerated().map { paragraphOffset, paragraph in
+                    Paragraph(id: nil, chapterId: 0, ord: paragraphOffset, en: paragraph.text)
+                }
+            )
+        }
+    }
+
+    private func resolvedBoundaries(from entries: [EPUBTOCEntry], spineDocuments: [SpineDocument]) -> [ResolvedChapterBoundary] {
+        let boundaries = entries.compactMap { entry -> ResolvedChapterBoundary? in
+            guard let position = headingPosition(for: entry.title, in: spineDocuments)
+                ?? hrefPosition(for: entry.location, in: spineDocuments) else {
+                return nil
+            }
+            return ResolvedChapterBoundary(title: entry.title, position: position)
+        }
+
+        var seen: Set<ChapterPosition> = []
+        return boundaries
+            .sorted { $0.position < $1.position }
+            .filter { boundary in
+                guard !seen.contains(boundary.position) else {
+                    return false
+                }
+                seen.insert(boundary.position)
+                return true
+            }
+    }
+
+    private func headingPosition(for title: String, in spineDocuments: [SpineDocument]) -> ChapterPosition? {
+        let variants = titleMatchVariants(for: title)
+        for document in spineDocuments {
+            if let heading = document.headings.first(where: { variants.contains($0.matchKey) }) {
+                return heading.position
+            }
+        }
+        return nil
+    }
+
+    private func hrefPosition(for location: EPUBLocation?, in spineDocuments: [SpineDocument]) -> ChapterPosition? {
+        guard let location,
+              let document = spineDocuments.first(where: { $0.href == location.path || ($0.href as NSString).lastPathComponent == location.path }) else {
+            return nil
+        }
+        if let fragment = location.fragment, let ordinal = document.ordinal(forID: fragment) {
+            return ChapterPosition(spineIndex: document.index, ordinal: ordinal)
+        }
+        return ChapterPosition(spineIndex: document.index, ordinal: 0)
+    }
+
+    private func paragraphs(
+        from spineDocuments: [SpineDocument],
+        startingAt start: ChapterPosition,
+        endingBefore end: ChapterPosition?
+    ) -> [String] {
+        spineDocuments.flatMap { document -> [String] in
+            document.paragraphs.compactMap { paragraph in
+                let position = paragraph.position
+                guard position >= start else {
+                    return nil
+                }
+                if let end, position >= end {
+                    return nil
+                }
+                return paragraph.text
+            }
+        }
     }
 
     private func extractArchive(at url: URL, to directory: URL) throws {
@@ -107,6 +187,92 @@ struct EPUBParser {
         }
         return "book-\(String(hash, radix: 16))"
     }
+}
+
+private struct SpineDocument {
+    struct ParagraphUnit {
+        var position: ChapterPosition
+        var text: String
+    }
+
+    struct HeadingUnit {
+        var position: ChapterPosition
+        var matchKey: String
+    }
+
+    var index: Int
+    var href: String
+    var fallbackTitle: String?
+    var paragraphs: [ParagraphUnit]
+    var headings: [HeadingUnit]
+    private var idOrdinals: [String: Int]
+
+    init(index: Int, href: String, document: Document) throws {
+        self.index = index
+        self.href = href
+
+        let elements = try document.select("body *").array()
+        var paragraphs: [ParagraphUnit] = []
+        var headings: [HeadingUnit] = []
+        var idOrdinals: [String: Int] = [:]
+
+        for (ordinal, element) in elements.enumerated() {
+            let id = try element.attr("id")
+            if !id.isEmpty {
+                idOrdinals[id] = ordinal
+            }
+
+            let tag = element.tagName().lowercased()
+            let text = try element.text().normalizedWhitespace
+            guard !text.isEmpty else {
+                continue
+            }
+
+            let position = ChapterPosition(spineIndex: index, ordinal: ordinal)
+            if tag == "p" {
+                try Self.registerBoundaryIDs(in: element, ordinal: ordinal, idOrdinals: &idOrdinals)
+                paragraphs.append(ParagraphUnit(position: position, text: text))
+            } else if tag.range(of: #"^h[1-6]$"#, options: .regularExpression) != nil {
+                try Self.registerBoundaryIDs(in: element, ordinal: ordinal, idOrdinals: &idOrdinals)
+                headings.append(HeadingUnit(position: position, matchKey: text.chapterTitleMatchKey))
+            }
+        }
+
+        self.fallbackTitle = try document.select("h1, h2").first()?.text().normalizedWhitespace
+        self.paragraphs = paragraphs
+        self.headings = headings
+        self.idOrdinals = idOrdinals
+    }
+
+    func ordinal(forID id: String) -> Int? {
+        idOrdinals[id]
+    }
+
+    private static func registerBoundaryIDs(in element: Element, ordinal: Int, idOrdinals: inout [String: Int]) throws {
+        for node in try element.select("[id]").array() {
+            let id = try node.attr("id")
+            if !id.isEmpty, idOrdinals[id] == nil {
+                idOrdinals[id] = ordinal
+            }
+        }
+    }
+}
+
+private struct ChapterPosition: Comparable, Hashable {
+    var spineIndex: Int
+    var ordinal: Int
+
+    static func < (lhs: ChapterPosition, rhs: ChapterPosition) -> Bool {
+        if lhs.spineIndex != rhs.spineIndex {
+            return lhs.spineIndex < rhs.spineIndex
+        }
+        return lhs.ordinal < rhs.ordinal
+    }
+}
+
+private struct ResolvedChapterBoundary {
+    var title: String
+    var position: ChapterPosition
 }
 
 enum EPUBPath {
@@ -155,5 +321,44 @@ extension String {
             .components(separatedBy: "#")[0]
             .replacingOccurrences(of: "\\", with: "/")
             ?? self
+    }
+
+    var epubLocation: EPUBLocation {
+        let normalized = (removingPercentEncoding ?? self)
+            .replacingOccurrences(of: "\\", with: "/")
+        let parts = normalized.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+        let path = parts.first.map(String.init) ?? ""
+        let fragment = parts.count > 1 ? String(parts[1]).nilIfEmpty : nil
+        return EPUBLocation(path: path.normalizedEPUBPath, fragment: fragment)
+    }
+
+    var chapterTitleMatchKey: String {
+        lowercased()
+            .replacingOccurrences(of: #"[^\p{L}\p{N}]+"#, with: " ", options: .regularExpression)
+            .normalizedWhitespace
+    }
+}
+
+private func titleMatchVariants(for title: String) -> Set<String> {
+    let pieces = title
+        .replacingOccurrences(of: "\u{00a0}", with: " ")
+        .components(separatedBy: ":")
+        .map(\.normalizedWhitespace)
+        .filter { !$0.isEmpty }
+    var variants = Set(([title] + pieces).map(\.chapterTitleMatchKey))
+    for piece in pieces {
+        let withoutLeadingNumber = piece.replacingOccurrences(
+            of: #"^\d+\s*[\.\-:]?\s*"#,
+            with: "",
+            options: .regularExpression
+        )
+        variants.insert(withoutLeadingNumber.chapterTitleMatchKey)
+    }
+    return variants.filter { !$0.isEmpty }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
