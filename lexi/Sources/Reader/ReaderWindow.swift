@@ -22,6 +22,7 @@ private enum ReaderSurface {
 
 private struct ReaderWindowContent: View {
     @ObservedObject var coordinator: LexiMenuBarCoordinator
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var selectedChapterIndex = 2
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var surface = ReaderSurface.shelf
@@ -53,7 +54,8 @@ private struct ReaderWindowContent: View {
             lineHeight: lineHeight,
             theme: themeMode.storageValue,
             accent: accent,
-            translationStyle: translationStyle
+            translationStyle: translationStyle,
+            systemColorScheme: systemColorScheme
         )
     }
 

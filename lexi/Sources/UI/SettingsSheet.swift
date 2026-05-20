@@ -6,6 +6,7 @@ struct SettingsSheet: View {
     let close: () -> Void
     let showToast: (String) -> Void
 
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var selectedTab: SettingsTab = .general
     @State private var apiKeys: [EngineID: String] = [:]
     @State private var loadedAPIKeys: [EngineID: String] = [:]
@@ -36,6 +37,10 @@ struct SettingsSheet: View {
 
     private var settingsAccent: ReaderAccentChoice {
         ReaderAccentChoice(storageValue: accent)
+    }
+
+    private var settingsTheme: ReaderThemeChoice {
+        ReaderThemeChoice(mode: themeMode, systemColorScheme: systemColorScheme)
     }
 
     private var themeMode: ReaderThemeMode {
@@ -89,7 +94,7 @@ struct SettingsSheet: View {
                 .padding(.top, 48)
         }
         .frame(width: 720, height: 580)
-        .background(Color.lexiPaper)
+        .background(settingsTheme.paper)
         .tint(settingsAccent.primary)
         .preferredColorScheme(themeMode.preferredColorScheme)
         .clipShape(RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous))
