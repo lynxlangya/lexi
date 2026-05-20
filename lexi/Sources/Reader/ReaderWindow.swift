@@ -213,10 +213,14 @@ private struct ReaderWindowContent: View {
 
                         ReadingColumn(
                             chapter: selectedChapter,
+                            previousChapter: chapters[safe: selectedChapterIndex - 1],
+                            nextChapter: chapters[safe: selectedChapterIndex + 1],
                             fontSize: fontSize,
                             snapshot: controller.snapshot(for: selectedChapter.id),
                             transMode: transMode,
-                            preferences: preferences
+                            preferences: preferences,
+                            goToPreviousChapter: previousChapter,
+                            goToNextChapter: nextChapter
                         ) { paragraph in
                             controller.retryParagraph(paragraph, in: selectedChapter)
                         }
@@ -244,8 +248,6 @@ private struct ReaderWindowContent: View {
                     chapterProgress: chapterProgress,
                     bookProgress: bookProgress,
                     state: controller.chapterState(for: selectedChapter.id),
-                    engineLabel: controller.engineLabel,
-                    total: selectedChapter.paragraphs.count,
                     preferences: preferences
                 )
             }

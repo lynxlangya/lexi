@@ -20,27 +20,17 @@ struct ReaderStatusBar: View {
     let chapterProgress: Int
     let bookProgress: Int
     let state: ChapterTranslationState
-    let engineLabel: String
-    let total: Int
     let preferences: ReaderRuntimePreferences
 
     var body: some View {
         HStack {
-            HStack(spacing: 6) {
-                if case .translating = state {
-                    SpinnerDot(size: 10, accent: preferences.accent.primary)
-                }
-
-                Text(statusText)
-                    .font(LexiFont.sans(11.5))
-                    .foregroundStyle(preferences.theme.ink3)
-            }
+            Text("全书 \(bookProgress)%")
+                .font(LexiFont.mono(11))
+                .foregroundStyle(preferences.theme.ink3)
 
             Spacer()
 
-            Text("\(chapterProgress)% · 全书 \(bookProgress)%")
-                .font(LexiFont.mono(11))
-                .foregroundStyle(preferences.theme.ink3)
+            ChapterCacheDot(state: state, preferences: preferences)
         }
         .padding(.horizontal, 16)
         .frame(height: 28)
@@ -51,17 +41,111 @@ struct ReaderStatusBar: View {
                 .frame(height: 1)
         }
     }
+}
 
-    private var statusText: String {
+private struct ChapterCacheDot: View {
+    let state: ChapterTranslationState
+    let preferences: ReaderRuntimePreferences
+    @State private var isDimmed = false
+    @State private var isHovering = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(dotColor.opacity(dotOpacity))
+                .frame(width: 7, height: 7)
+        }
+        .frame(width: 22, height: 22)
+        .contentShape(Rectangle())
+        .help(helpText)
+        .accessibilityLabel(helpText)
+        .overlay(alignment: .topTrailing) {
+            if isHovering {
+                Text(helpText)
+                    .font(LexiFont.zh(11))
+                    .foregroundStyle(preferences.theme.ink)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(preferences.theme.raised)
+                            .shadow(color: .black.opacity(0.16), radius: 8, x: 0, y: 4)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(preferences.theme.rule, lineWidth: 1)
+                    }
+                    .fixedSize()
+                    .offset(y: -28)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing)))
+            }
+        }
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
+        .onAppear(perform: updateAnimation)
+        .onChange(of: animationKey) { _, _ in
+            updateAnimation()
+        }
+    }
+
+    private var dotColor: Color {
         switch state {
         case .idle:
-            return "等待翻译 · \(engineLabel)"
-        case .translating(let done):
-            return "正在翻译 · \(engineLabel) · \(done)/\(total)"
+            return preferences.theme.ink4
+        case .translating:
+            return Color.green
         case .cached:
-            return "本章已缓存 · \(engineLabel)"
+            return Color.green
         case .error:
-            return "翻译失败 · \(engineLabel)"
+            return Color.red
+        }
+    }
+
+    private var dotOpacity: Double {
+        if case .translating = state {
+            return isDimmed ? 0.35 : 1
+        }
+        return 1
+    }
+
+    private var helpText: String {
+        switch state {
+        case .idle:
+            return "等待翻译"
+        case .translating:
+            return "正在缓存"
+        case .cached:
+            return "本章已缓存"
+        case .error:
+            return "缓存失败"
+        }
+    }
+
+    private var animationKey: String {
+        switch state {
+        case .idle:
+            return "idle"
+        case .translating:
+            return "translating"
+        case .cached:
+            return "cached"
+        case .error:
+            return "error"
+        }
+    }
+
+    private func updateAnimation() {
+        if case .translating = state {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                isDimmed = true
+            }
+        } else {
+            withAnimation(.easeInOut(duration: 0.12)) {
+                isDimmed = false
+            }
         }
     }
 }

@@ -39,10 +39,8 @@ struct TOCSidebar: View {
             }
 
             Spacer(minLength: 24)
-
-            sidebarFooter
         }
-        .padding(.top, 60)
+        .padding(.top, 24)
         .padding(.horizontal, 14)
         .padding(.bottom, 0)
         .frame(width: 232)
@@ -65,10 +63,13 @@ struct TOCSidebar: View {
                 .font(LexiFont.sans(12))
                 .foregroundStyle(preferences.theme.ink3)
                 .labelStyle(.titleAndIcon)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .padding(.horizontal, 8)
     }
 
     private var bookHeader: some View {
@@ -86,33 +87,6 @@ struct TOCSidebar: View {
         .padding(.horizontal, 8)
     }
 
-    private var sidebarFooter: some View {
-        VStack(spacing: 0) {
-            Divider()
-                .background(preferences.theme.rule)
-                .padding(.horizontal, 8)
-                .padding(.top, 12)
-                .padding(.bottom, 10)
-
-            HStack {
-                Text("全书进度")
-                    .font(LexiFont.sans(11))
-                    .foregroundStyle(preferences.theme.ink3)
-
-                Spacer()
-
-                Text("\(overallProgress)%")
-                    .font(LexiFont.mono(11))
-                    .foregroundStyle(preferences.theme.ink2)
-            }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 6)
-        }
-    }
-
-    private var overallProgress: Int {
-        Int((Double(selectedChapterIndex) / Double(chapters.count)) * 100)
-    }
 }
 
 private struct TOCRow: View {

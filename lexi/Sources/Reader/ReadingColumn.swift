@@ -2,10 +2,14 @@ import SwiftUI
 
 struct ReadingColumn: View {
     let chapter: ReaderChapter
+    let previousChapter: ReaderChapter?
+    let nextChapter: ReaderChapter?
     let fontSize: Double
     let snapshot: ChapterTranslationSnapshot
     let transMode: ReaderTranslationMode
     let preferences: ReaderRuntimePreferences
+    let goToPreviousChapter: () -> Void
+    let goToNextChapter: () -> Void
     let retryParagraph: (ReaderParagraph) -> Void
 
     var body: some View {
@@ -25,6 +29,14 @@ struct ReadingColumn: View {
                         retryParagraph(paragraph)
                     }
                 }
+
+                EndOfChapterNavigation(
+                    previousChapter: previousChapter,
+                    nextChapter: nextChapter,
+                    preferences: preferences,
+                    goToPreviousChapter: goToPreviousChapter,
+                    goToNextChapter: goToNextChapter
+                )
             }
             .frame(maxWidth: LexiSpacing.contentMax, alignment: .leading)
             .frame(maxWidth: .infinity)
@@ -35,5 +47,78 @@ struct ReadingColumn: View {
         }
         .scrollIndicators(.automatic)
         .background(preferences.theme.paper)
+    }
+}
+
+private struct EndOfChapterNavigation: View {
+    let previousChapter: ReaderChapter?
+    let nextChapter: ReaderChapter?
+    let preferences: ReaderRuntimePreferences
+    let goToPreviousChapter: () -> Void
+    let goToNextChapter: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center) {
+            Button {
+                goToPreviousChapter()
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("上一章")
+                        .font(LexiFont.zh(12.5))
+                }
+                .foregroundStyle(previousChapter == nil ? preferences.theme.ink4 : preferences.theme.ink2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(previousChapter == nil)
+            .help(previousChapter == nil ? "已经是第一章" : "上一章")
+
+            Spacer(minLength: 24)
+
+            Button {
+                goToNextChapter()
+            } label: {
+                HStack(spacing: 7) {
+                    Text(nextTitle)
+                        .font(LexiFont.zh(12.5))
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(nextChapter == nil ? preferences.theme.ink4 : preferences.accent.primary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(nextChapter == nil)
+            .help(nextChapter == nil ? "已经是最后一章" : "下一章")
+        }
+        .padding(.top, 24)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(preferences.theme.rule)
+                .frame(height: 1)
+        }
+        .padding(.top, 48)
+    }
+
+    private var nextTitle: String {
+        guard let nextChapter else {
+            return "下一章"
+        }
+
+        return "下一章 · \(truncated(nextChapter.title))"
+    }
+
+    private func truncated(_ title: String) -> String {
+        let maxLength = 28
+        guard title.count > maxLength else {
+            return title
+        }
+
+        return "\(title.prefix(maxLength))..."
     }
 }
