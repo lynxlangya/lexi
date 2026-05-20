@@ -63,14 +63,7 @@ struct ShelfView: View {
 
     private var toolbar: some View {
         HStack(spacing: 12) {
-            Picker("排序", selection: $sort) {
-                ForEach(ShelfSort.allCases) { option in
-                    Text(option.rawValue).tag(option)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 174)
-            .focusable(false)
+            ShelfSortControl(selection: $sort, accent: accentChoice)
 
             Spacer()
 
@@ -261,6 +254,73 @@ private struct ShelfSectionHeader: View {
             .fontWeight(.semibold)
             .foregroundStyle(Color.lexiInk3)
             .textCase(.uppercase)
+    }
+}
+
+private struct ShelfSortControl: View {
+    @Binding var selection: ShelfSort
+    let accent: ReaderAccentChoice
+
+    private let options = ShelfSort.allCases
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("排序")
+                .font(LexiFont.zh(13.5))
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.lexiInk)
+
+            HStack(spacing: 0) {
+                ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                    Button {
+                        withAnimation(.easeOut(duration: 0.16)) {
+                            selection = option
+                        }
+                    } label: {
+                        Text(option.rawValue)
+                            .font(LexiFont.zh(12.5))
+                            .fontWeight(selection == option ? .semibold : .medium)
+                            .foregroundStyle(selection == option ? Color.white : Color.lexiInk2)
+                            .lineLimit(1)
+                            .frame(minWidth: 50, minHeight: 26)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .background {
+                        if selection == option {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(accent.primary)
+                                .shadow(color: accent.primary.opacity(0.16), radius: 5, y: 1)
+                        }
+                    }
+                    .focusable(false)
+
+                    if index < options.count - 1 {
+                        Rectangle()
+                            .fill(Color.lexiRule2)
+                            .frame(width: 1, height: 14)
+                            .opacity(dividerOpacity(after: option))
+                    }
+                }
+            }
+            .padding(2)
+            .background(Color.lexiInset)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(Color.lexiRule.opacity(0.9), lineWidth: 1)
+            }
+        }
+        .focusable(false)
+    }
+
+    private func dividerOpacity(after option: ShelfSort) -> Double {
+        guard let index = options.firstIndex(of: option),
+              options.indices.contains(index + 1) else {
+            return 0
+        }
+        let next = options[index + 1]
+        return selection == option || selection == next ? 0 : 1
     }
 }
 
