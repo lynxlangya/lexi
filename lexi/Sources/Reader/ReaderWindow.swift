@@ -227,7 +227,6 @@ private struct ReaderWindowContent: View {
                     ReaderChromeOverlay(
                         columnVisibility: $columnVisibility,
                         bookTitle: book.title,
-                        fontSize: $fontSize,
                         transMode: transModeBinding,
                         preferences: preferences,
                         openSettings: { showsSettings = true },
