@@ -5,13 +5,14 @@ struct ReadingColumn: View {
     let fontSize: Double
     let snapshot: ChapterTranslationSnapshot
     let transMode: ReaderTranslationMode
+    let preferences: ReaderRuntimePreferences
     let retryParagraph: (ReaderParagraph) -> Void
     let addVocab: (ReaderParagraph) -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ChapterHeader(chapter: chapter)
+                ChapterHeader(chapter: chapter, preferences: preferences)
                     .padding(.bottom, 32)
 
                 ForEach(chapter.paragraphs) { paragraph in
@@ -19,7 +20,8 @@ struct ReadingColumn: View {
                         paragraph: paragraph,
                         fontSize: fontSize,
                         state: snapshot.paragraphStates[paragraph.id] ?? .translating,
-                        transMode: transMode
+                        transMode: transMode,
+                        preferences: preferences
                     ) {
                         retryParagraph(paragraph)
                     } addVocab: {
@@ -34,5 +36,6 @@ struct ReadingColumn: View {
             .padding(.bottom, 96)
         }
         .scrollIndicators(.automatic)
+        .background(preferences.theme.paper)
     }
 }

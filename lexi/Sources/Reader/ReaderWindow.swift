@@ -40,7 +40,20 @@ private struct ReaderWindowContent: View {
     @AppStorage("reader.fontSize") private var fontSize = 17.0
     @AppStorage("reader.transMode") private var transModeRaw = ReaderTranslationMode.both.rawValue
     @AppStorage("reader.prefetch") private var prefetchCount = 1
+    @AppStorage("reader.serif") private var serif = "New York"
+    @AppStorage("reader.lineHeight") private var lineHeight = "normal"
+    @AppStorage("reader.theme") private var theme = "paper"
+    @AppStorage("reader.accent") private var accent = "copper"
     @AppStorage("general.startup") private var startupBehavior = "last"
+
+    private var preferences: ReaderRuntimePreferences {
+        ReaderRuntimePreferences(
+            serif: serif,
+            lineHeight: lineHeight,
+            theme: theme,
+            accent: accent
+        )
+    }
 
     private var transMode: ReaderTranslationMode {
         ReaderTranslationMode(rawValue: transModeRaw) ?? .both
@@ -74,14 +87,15 @@ private struct ReaderWindowContent: View {
                     toggleSidebar: toggleSidebar
                 )
 
-            ToastView(message: toast)
+            ToastView(message: toast, preferences: preferences)
         }
         .background(
             ReaderWindowTitleUpdater(
                 title: windowTitle
             )
         )
-        .background(Color.lexiPaper)
+        .background(ReaderWindowCloseBehavior())
+        .background(preferences.theme.paper)
         .frame(minWidth: 920, minHeight: 620)
         .confirmationDialog(
             "清除翻译缓存？",
@@ -137,6 +151,9 @@ private struct ReaderWindowContent: View {
         .onReceive(NotificationCenter.default.publisher(for: .lexiEngineSettingsChanged)) { _ in
             applyEngineSettings()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .lexiChapterEngineSettingsChanged)) { _ in
+            applyEngineSettings()
+        }
     }
 
     @ViewBuilder
@@ -161,7 +178,6 @@ private struct ReaderWindowContent: View {
                 )
                 .toolbar {
                     ShelfTitleBar(
-                        bookCount: shelfBooks.count,
                         canReturnToReader: book != nil,
                         returnToReader: { surface = .reader }
                     )
@@ -185,6 +201,7 @@ private struct ReaderWindowContent: View {
                         chapterState: { chapterId in
                             controller.chapterState(for: chapterId)
                         },
+                        preferences: preferences,
                         openShelf: { surface = .shelf }
                     )
                     .navigationSplitViewColumnWidth(min: 232, ideal: 232, max: 232)
@@ -194,14 +211,15 @@ private struct ReaderWindowContent: View {
                         chapter: selectedChapter,
                         fontSize: fontSize,
                         snapshot: controller.snapshot(for: selectedChapter.id),
-                        transMode: transMode
+                        transMode: transMode,
+                        preferences: preferences
                     ) { paragraph in
                         controller.retryParagraph(paragraph, in: selectedChapter)
                     } addVocab: { paragraph in
                         addVocab(paragraph)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.lexiPaper)
+                    .background(preferences.theme.paper)
                 }
                 .navigationSplitViewStyle(.balanced)
                 .toolbar {
@@ -218,20 +236,25 @@ private struct ReaderWindowContent: View {
                 }
                 .toolbar(removing: .sidebarToggle)
 
-                ReaderProgressHairline(progress: Double(chapterProgress) / 100)
+                ReaderProgressHairline(
+                    progress: Double(chapterProgress) / 100,
+                    preferences: preferences
+                )
 
                 ReaderStatusBar(
                     chapterProgress: chapterProgress,
                     bookProgress: bookProgress,
                     state: controller.chapterState(for: selectedChapter.id),
                     engineLabel: controller.engineLabel,
-                    total: selectedChapter.paragraphs.count
+                    total: selectedChapter.paragraphs.count,
+                    preferences: preferences
                 )
             }
         } else {
             ProgressView()
                 .controlSize(.small)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(preferences.theme.paper)
         }
     }
 
@@ -539,6 +562,38 @@ private struct ReaderWindowTitleUpdater: NSViewRepresentable {
 
             window.title = title
             window.titleVisibility = .visible
+        }
+    }
+}
+
+private struct ReaderWindowCloseBehavior: NSViewRepresentable {
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = view.window,
+                  window.delegate !== context.coordinator else {
+                return
+            }
+            window.delegate = context.coordinator
+        }
+    }
+
+    final class Coordinator: NSObject, NSWindowDelegate {
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            if UserDefaults.standard.string(forKey: "general.onClose") == "quit" {
+                NSApp.terminate(nil)
+                return false
+            }
+
+            NSApp.setActivationPolicy(.accessory)
+            return true
         }
     }
 }

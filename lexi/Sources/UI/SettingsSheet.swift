@@ -8,6 +8,7 @@ struct SettingsSheet: View {
 
     @State private var selectedTab: SettingsTab = .general
     @State private var apiKeys: [EngineID: String] = [:]
+    @State private var loadedAPIKeys: [EngineID: String] = [:]
     @State private var models: [EngineID: String] = Dictionary(
         uniqueKeysWithValues: EngineID.allCases.map { ($0, ReaderFixtureStore.defaultModel(for: $0)) }
     )
@@ -64,6 +65,12 @@ struct SettingsSheet: View {
         }
         .task {
             await loadValues()
+        }
+        .onChange(of: defaultChapterEngine) { _, _ in
+            NotificationCenter.default.post(name: .lexiChapterEngineSettingsChanged, object: nil)
+        }
+        .onChange(of: defaultPopupEngine) { _, _ in
+            NotificationCenter.default.post(name: .lexiPopupEngineSettingsChanged, object: nil)
         }
         .onDisappear {
             saveAPIKeys()
@@ -470,6 +477,7 @@ struct SettingsSheet: View {
         }
 
         apiKeys = nextKeys
+        loadedAPIKeys = nextKeys
         models = nextModels
         statuses = nextStatuses
         cacheBytes = (try? await database?.translationCacheBytes()) ?? 0
@@ -519,17 +527,26 @@ struct SettingsSheet: View {
     }
 
     private func saveAPIKeys(notify: Bool = true) {
+        var changed = false
         for engine in EngineID.allCases {
             let key = apiKeys[engine, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+            if loadedAPIKeys[engine, default: ""] != key {
+                changed = true
+            }
             if key.isEmpty {
                 Keychain.delete(engine)
             } else {
                 Keychain.setApiKey(key, for: engine)
             }
+            loadedAPIKeys[engine] = key
         }
-        if notify {
-            NotificationCenter.default.post(name: .lexiEngineSettingsChanged, object: nil)
+        if notify, changed {
+            notifyEngineSettingsChanged()
         }
+    }
+
+    private func notifyEngineSettingsChanged() {
+        NotificationCenter.default.post(name: .lexiEngineSettingsChanged, object: nil)
     }
 
     private func clearSelectedBookCache() {

@@ -26,4 +26,6 @@ enum EnginePreferences {
 
 extension Notification.Name {
     static let lexiEngineSettingsChanged = Notification.Name("lexi.engineSettingsChanged")
+    static let lexiChapterEngineSettingsChanged = Notification.Name("lexi.chapterEngineSettingsChanged")
+    static let lexiPopupEngineSettingsChanged = Notification.Name("lexi.popupEngineSettingsChanged")
 }

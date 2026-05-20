@@ -5,6 +5,7 @@ struct TOCSidebar: View {
     let chapters: [ReaderChapter]
     @Binding var selectedChapterIndex: Int
     let chapterState: (Int64) -> ChapterTranslationState
+    let preferences: ReaderRuntimePreferences
     let openShelf: () -> Void
 
     var body: some View {
@@ -14,7 +15,7 @@ struct TOCSidebar: View {
                 bookHeader
 
                 Rectangle()
-                    .fill(Color.lexiRule)
+                    .fill(preferences.theme.rule)
                     .frame(height: 1)
                     .padding(.horizontal, 8)
 
@@ -24,7 +25,8 @@ struct TOCSidebar: View {
                             TOCRow(
                                 chapter: chapter,
                                 isSelected: index == selectedChapterIndex,
-                                state: chapterState(chapter.id)
+                                state: chapterState(chapter.id),
+                                preferences: preferences
                             ) {
                                 selectedChapterIndex = index
                             }
@@ -44,14 +46,14 @@ struct TOCSidebar: View {
         .padding(.bottom, 0)
         .frame(width: 232)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color.lexiRaised)
+        .background(preferences.theme.raised)
     }
 
     private var shelfButton: some View {
         Button(action: openShelf) {
             Label("书架", systemImage: "chevron.left")
                 .font(LexiFont.sans(12))
-                .foregroundStyle(Color.lexiInk3)
+                .foregroundStyle(preferences.theme.ink3)
                 .labelStyle(.titleAndIcon)
         }
         .buttonStyle(.plain)
@@ -64,18 +66,18 @@ struct TOCSidebar: View {
             Text("Book")
                 .font(LexiFont.sans(10.5))
                 .fontWeight(.semibold)
-                .foregroundStyle(Color.lexiInk3)
+                .foregroundStyle(preferences.theme.ink3)
                 .textCase(.uppercase)
 
             Text(book.title)
-                .font(LexiFont.serif(14))
-                .foregroundStyle(Color.lexiInk)
+                .font(preferences.font.serif(14))
+                .foregroundStyle(preferences.theme.ink)
                 .lineSpacing(14 * 0.3)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(book.author)
                 .font(LexiFont.sans(11.5))
-                .foregroundStyle(Color.lexiInk3)
+                .foregroundStyle(preferences.theme.ink3)
         }
         .padding(.horizontal, 8)
     }
@@ -83,7 +85,7 @@ struct TOCSidebar: View {
     private var sidebarFooter: some View {
         VStack(spacing: 0) {
             Divider()
-                .background(Color.lexiRule)
+                .background(preferences.theme.rule)
                 .padding(.horizontal, 8)
                 .padding(.top, 12)
                 .padding(.bottom, 10)
@@ -91,13 +93,13 @@ struct TOCSidebar: View {
             HStack {
                 Text("全书进度")
                     .font(LexiFont.sans(11))
-                    .foregroundStyle(Color.lexiInk3)
+                    .foregroundStyle(preferences.theme.ink3)
 
                 Spacer()
 
                 Text("\(overallProgress)%")
                     .font(LexiFont.mono(11))
-                    .foregroundStyle(Color.lexiInk2)
+                    .foregroundStyle(preferences.theme.ink2)
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 6)
@@ -113,6 +115,7 @@ private struct TOCRow: View {
     let chapter: ReaderChapter
     let isSelected: Bool
     let state: ChapterTranslationState
+    let preferences: ReaderRuntimePreferences
     let action: () -> Void
 
     var body: some View {
@@ -120,13 +123,13 @@ private struct TOCRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(chapter.n)
                     .font(LexiFont.mono(10.5))
-                    .foregroundStyle(isSelected ? Color.lexiAccent : Color.lexiInk3)
+                    .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink3)
                     .frame(width: 28, alignment: .leading)
 
                 Text(chapter.title)
                     .font(LexiFont.sans(12.5))
                     .fontWeight(isSelected ? .medium : .regular)
-                    .foregroundStyle(isSelected ? Color.lexiAccent : Color.lexiInk)
+                    .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
@@ -137,7 +140,7 @@ private struct TOCRow: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Color.lexiAccentSoft : Color.clear)
+            .background(isSelected ? preferences.accent.soft : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: LexiRadius.control, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: LexiRadius.control, style: .continuous))
         }
@@ -149,14 +152,14 @@ private struct TOCRow: View {
     private var statusIndicator: some View {
         switch state {
         case .translating:
-            SpinnerDot(size: 10)
+            SpinnerDot(size: 10, accent: preferences.accent.primary)
         case .cached:
             Circle()
-                .fill(Color.lexiInk3)
+                .fill(preferences.theme.ink3)
                 .frame(width: 5, height: 5)
         case .idle:
             Circle()
-                .fill(Color.lexiInk4)
+                .fill(preferences.theme.ink4)
                 .frame(width: 5, height: 5)
         case .error:
             Image(systemName: "exclamationmark.triangle.fill")
