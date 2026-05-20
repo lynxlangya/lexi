@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated protocol TranslationEngine {
+nonisolated protocol TranslationEngine: Sendable {
     var id: EngineID { get }
 
     func translate(_ paragraphs: [String], model: String) -> AsyncThrowingStream<TranslationChunk, Error>

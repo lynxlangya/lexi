@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ChapterHeader: View {
-    let chapter: DemoChapter
+    let chapter: ReaderChapter
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

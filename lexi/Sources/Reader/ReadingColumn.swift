@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct ReadingColumn: View {
-    let chapter: DemoChapter
+    let chapter: ReaderChapter
     let fontSize: Double
+    let snapshot: ChapterTranslationSnapshot
+    let transMode: ReaderTranslationMode
+    let retryParagraph: (ReaderParagraph) -> Void
 
     var body: some View {
         ScrollView {
@@ -10,8 +13,15 @@ struct ReadingColumn: View {
                 ChapterHeader(chapter: chapter)
                     .padding(.bottom, 32)
 
-                ForEach(chapter.paras) { paragraph in
-                    ParaView(paragraph: paragraph, fontSize: fontSize)
+                ForEach(chapter.paragraphs) { paragraph in
+                    ParaView(
+                        paragraph: paragraph,
+                        fontSize: fontSize,
+                        state: snapshot.paragraphStates[paragraph.id] ?? .translating,
+                        transMode: transMode
+                    ) {
+                        retryParagraph(paragraph)
+                    }
                 }
             }
             .frame(maxWidth: LexiSpacing.contentMax, alignment: .leading)
