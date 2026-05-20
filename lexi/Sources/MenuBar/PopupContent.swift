@@ -45,6 +45,7 @@ struct PopupActions {
     var addVocab: () -> Void
     var speak: (String) -> Void
     var selectEngine: (EngineID) -> Void
+    var openSettings: () -> Void
 }
 
 struct PopupContent: View {
@@ -63,7 +64,7 @@ struct PopupContent: View {
         case .sentence(let lookup):
             SentenceCard(lookup: lookup, pinned: pinned, actions: actions)
         case .error(_, let reason):
-            ErrorCard(reason: reason, retry: actions.retry, close: actions.close)
+            ErrorCard(reason: reason, retry: actions.retry, close: actions.close, openSettings: actions.openSettings)
         }
     }
 }

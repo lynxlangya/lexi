@@ -24,12 +24,14 @@ struct ParaView: View {
                     .lineSpacing(enSize * preferences.lineHeight.englishSpacingRatio)
                     .foregroundStyle(preferences.theme.ink)
                     .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
 
             if transMode != .en {
                 translation
             }
         }
+        .tint(preferences.accent.primary)
         .padding(.bottom, LexiSpacing.paraGap)
     }
 
@@ -75,6 +77,7 @@ struct ParaView: View {
         case .demote:
             text
                 .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
         case .rule:
             HStack(alignment: .top, spacing: 10) {
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
@@ -82,10 +85,12 @@ struct ParaView: View {
                     .frame(width: 3)
                 text
                     .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
         case .tint:
             text
                 .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(preferences.accent.faint)

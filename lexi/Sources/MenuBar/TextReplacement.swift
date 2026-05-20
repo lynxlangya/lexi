@@ -4,7 +4,9 @@ import ApplicationServices
 enum TextReplacement {
     @MainActor
     static func replaceSelection(with text: String) -> Bool {
-        guard SelectionMonitor.ensureAccessibilityPermission(prompt: true) else {
+        guard SelectionMonitor.ensureAccessibilityPermission(prompt: true),
+              case .success(let context) = SelectionMonitor.currentSelectionResult(promptForPermission: false),
+              context.source != .reader else {
             return false
         }
 

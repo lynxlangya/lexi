@@ -4,6 +4,7 @@ struct ErrorCard: View {
     let reason: String
     let retry: () -> Void
     let close: () -> Void
+    let openSettings: () -> Void
 
     var body: some View {
         PopupFrame(pinned: false) {
@@ -52,6 +53,8 @@ struct ErrorCard: View {
                 .padding(16)
 
                 HStack {
+                    Button("去设置 →", action: openSettings)
+                        .font(LexiFont.sans(11.5))
                     Spacer()
                     Button("关闭", action: close)
                         .font(LexiFont.sans(11.5))
