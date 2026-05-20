@@ -74,6 +74,71 @@ enum ReaderTranslationStyle: String, Equatable {
     }
 }
 
+enum ReaderThemeMode: String, Equatable {
+    case system
+    case day
+    case night
+
+    init(storageValue: String) {
+        switch storageValue {
+        case "paper":
+            self = .day
+        case "candlelit":
+            self = .night
+        default:
+            self = Self(rawValue: storageValue) ?? .system
+        }
+    }
+
+    var storageValue: String {
+        rawValue
+    }
+
+    var next: ReaderThemeMode {
+        switch self {
+        case .system:
+            return .day
+        case .day:
+            return .night
+        case .night:
+            return .system
+        }
+    }
+
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system:
+            return nil
+        case .day:
+            return .light
+        case .night:
+            return .dark
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .system:
+            return "circle.lefthalf.filled"
+        case .day:
+            return "sun.max"
+        case .night:
+            return "moon"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .system:
+            return "跟随系统"
+        case .day:
+            return "白天"
+        case .night:
+            return "夜间"
+        }
+    }
+}
+
 struct ReaderThemeChoice {
     let paper: Color
     let raised: Color
@@ -88,7 +153,11 @@ struct ReaderThemeChoice {
     let shimmer2: Color
 
     init(storageValue: String) {
-        if storageValue == "candlelit" {
+        self.init(mode: ReaderThemeMode(storageValue: storageValue))
+    }
+
+    init(mode: ReaderThemeMode) {
+        if mode == .night {
             paper = Color(red: 0.105, green: 0.092, blue: 0.075)
             raised = Color(red: 0.145, green: 0.125, blue: 0.102)
             chrome = Color(red: 0.128, green: 0.110, blue: 0.090)

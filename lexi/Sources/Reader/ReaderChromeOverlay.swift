@@ -9,7 +9,9 @@ struct ReaderChromeOverlay: View {
     @Binding var columnVisibility: NavigationSplitViewVisibility
     let bookTitle: String
     @Binding var transMode: ReaderTranslationMode
+    let themeMode: ReaderThemeMode
     let preferences: ReaderRuntimePreferences
+    let cycleThemeMode: () -> Void
     let openSettings: () -> Void
     let sidebarVisible: Bool
 
@@ -88,7 +90,7 @@ struct ReaderChromeOverlay: View {
                 transMode = transMode.next
             }
 
-            chromeButton("moon", help: "主题") {}
+            chromeButton(themeMode.iconName, help: themeModeHelp, action: cycleThemeMode)
 
             chromeButton("gearshape", help: "设置", action: openSettings)
         }
@@ -116,6 +118,10 @@ struct ReaderChromeOverlay: View {
         case .zh:
             return "仅译文 (⌘B)"
         }
+    }
+
+    private var themeModeHelp: String {
+        "主题：\(themeMode.label)，点击切换到 \(themeMode.next.label)"
     }
 }
 
