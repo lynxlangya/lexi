@@ -1,5 +1,10 @@
 import Foundation
 
+nonisolated struct PromptMessage: Equatable, Sendable {
+    var role: String
+    var content: String
+}
+
 nonisolated enum Prompts {
     static let paragraphTranslationSystem = """
     Role:
@@ -70,26 +75,29 @@ nonisolated enum Prompts {
     """
 
     static func systemPrompt(for task: TranslationTask) -> String {
+        let base: String
         switch task {
         case .paragraph:
-            paragraphTranslationSystem
+            base = paragraphTranslationSystem
         case .sentence:
-            sentenceTranslationSystem
+            base = sentenceTranslationSystem
         case .wordLookup:
-            wordLookupSystem
+            base = wordLookupSystem
         case .phraseLookup:
-            phraseLookupSystem
+            base = phraseLookupSystem
         }
+
+        if case .paragraph(_, let context) = task {
+            return paragraphSystemPrompt(base: base, context: context)
+        }
+
+        return base
     }
 
     static func userPrompt(for task: TranslationTask) -> String {
         switch task {
         case .paragraph(let text, _):
-            return """
-            把下面这段英文译成中文：
-
-            \(text)
-            """
+            return paragraphUserPrompt(text)
         case .sentence(let text, let context):
             let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
             return """
@@ -121,6 +129,26 @@ nonisolated enum Prompts {
         }
     }
 
+    static func conversationMessages(for task: TranslationTask) -> [PromptMessage] {
+        guard case .paragraph(let text, let context) = task else {
+            return [PromptMessage(role: "user", content: userPrompt(for: task))]
+        }
+
+        var messages: [PromptMessage] = []
+        if let previousEN = normalizedContextValue(context.previousEN),
+           let previousZH = normalizedContextValue(context.previousZH) {
+            messages.append(
+                PromptMessage(
+                    role: "user",
+                    content: paragraphUserPrompt(truncatedPreviousSource(previousEN))
+                )
+            )
+            messages.append(PromptMessage(role: "assistant", content: previousZH))
+        }
+        messages.append(PromptMessage(role: "user", content: paragraphUserPrompt(text)))
+        return messages
+    }
+
     private static func localDictionaryPrompt(_ entry: LocalDictionaryEntry) -> String {
         [
             entry.ukIPA.map { "UK IPA: \($0)" },
@@ -130,5 +158,45 @@ nonisolated enum Prompts {
         ]
         .compactMap(\.self)
         .joined(separator: "\n")
+    }
+
+    private static func paragraphSystemPrompt(base: String, context: ParagraphContext) -> String {
+        let metadata = [
+            normalizedContextValue(context.bookTitle).map { "Current work: \"\($0)\"" },
+            normalizedContextValue(context.chapterTitle).map { "Chapter: \"\($0)\"" },
+        ].compactMap(\.self)
+
+        guard !metadata.isEmpty else {
+            return base
+        }
+
+        return "\(base)\n\n\(metadata.joined(separator: "\n"))"
+    }
+
+    private static func paragraphUserPrompt(_ text: String) -> String {
+        """
+        把下面这段英文译成中文：
+
+        \(text)
+        """
+    }
+
+    private static func normalizedContextValue(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let normalized = value
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private static func truncatedPreviousSource(_ text: String) -> String {
+        let maxLength = 4_000
+        guard text.count > maxLength else {
+            return text
+        }
+        return String(text.suffix(maxLength))
     }
 }

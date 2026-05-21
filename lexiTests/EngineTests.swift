@@ -53,6 +53,42 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(client.requests.map { $0.url?.path }, ["/v1/chat/completions", "/v1/chat/completions"])
     }
 
+    func testOpenAIParagraphContextAddsSystemMetadataAndPreviousTurns() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([
+                #"data: {"choices":[{"delta":{"content":"当前译文"}}]}"#,
+                "data: [DONE]",
+            ]), response(status: 200))),
+        ])
+        let engine = OpenAIEngine(apiKey: "key", client: client)
+
+        _ = try await collect(engine.translate(
+            [
+                .paragraph(
+                    text: "Current paragraph.",
+                    context: ParagraphContext(
+                        bookTitle: "Co-Intelligence",
+                        chapterTitle: "Chapter 2",
+                        previousEN: "Previous English.",
+                        previousZH: "上一段中文。"
+                    )
+                ),
+            ],
+            model: "gpt-5.4-mini"
+        ))
+
+        let body = try XCTUnwrap(client.requests.first?.httpBody)
+        let payload = try decodedJSONObject(body)
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+
+        XCTAssertEqual(messages.map { $0["role"] as? String }, ["system", "user", "assistant", "user"])
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("Current work: \"Co-Intelligence\"") == true)
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("Chapter: \"Chapter 2\"") == true)
+        XCTAssertTrue((messages[1]["content"] as? String)?.contains("Previous English.") == true)
+        XCTAssertEqual(messages[2]["content"] as? String, "上一段中文。")
+        XCTAssertTrue((messages[3]["content"] as? String)?.contains("Current paragraph.") == true)
+    }
+
     func testAnthropicStreamProducesOrderedChunksWithParagraphIndexes() async throws {
         let client = MockEngineHTTPClient(streamResponses: [
             .success((sseStream([
@@ -79,6 +115,56 @@ final class EngineTests: XCTestCase {
             TranslationChunk(index: 1, text: "丙"),
         ])
         XCTAssertEqual(client.requests.map { $0.url?.path }, ["/v1/messages", "/v1/messages"])
+    }
+
+    func testAnthropicParagraphContextAddsSystemMetadataAndPreviousTurns() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([
+                #"data: {"type":"content_block_delta","delta":{"text":"当前译文"}}"#,
+            ]), response(status: 200))),
+        ])
+        let engine = AnthropicEngine(apiKey: "key", client: client)
+
+        _ = try await collect(engine.translate(
+            [
+                .paragraph(
+                    text: "Current paragraph.",
+                    context: ParagraphContext(
+                        bookTitle: "Co-Intelligence",
+                        chapterTitle: "Chapter 2",
+                        previousEN: "Previous English.",
+                        previousZH: "上一段中文。"
+                    )
+                ),
+            ],
+            model: "claude-sonnet-4-6"
+        ))
+
+        let body = try XCTUnwrap(client.requests.first?.httpBody)
+        let payload = try decodedJSONObject(body)
+        let system = try XCTUnwrap(payload["system"] as? String)
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+
+        XCTAssertTrue(system.contains("Current work: \"Co-Intelligence\""))
+        XCTAssertTrue(system.contains("Chapter: \"Chapter 2\""))
+        XCTAssertEqual(messages.map { $0["role"] as? String }, ["user", "assistant", "user"])
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("Previous English.") == true)
+        XCTAssertEqual(messages[1]["content"] as? String, "上一段中文。")
+        XCTAssertTrue((messages[2]["content"] as? String)?.contains("Current paragraph.") == true)
+    }
+
+    func testParagraphPreviousSourceIsTruncatedFromEnd() {
+        let previous = String(repeating: "a", count: 4_010) + "tail"
+        let messages = Prompts.conversationMessages(
+            for: .paragraph(
+                text: "Current.",
+                context: ParagraphContext(previousEN: previous, previousZH: "上一段。")
+            )
+        )
+
+        XCTAssertEqual(messages.count, 3)
+        XCTAssertFalse(messages[0].content.contains(String(repeating: "a", count: 4_010)))
+        XCTAssertTrue(messages[0].content.contains(String(repeating: "a", count: 3_996) + "tail"))
     }
 
     func testFailedParagraphMapsToParagraphFailed() async throws {
@@ -219,4 +305,8 @@ private func collect(_ stream: AsyncThrowingStream<TranslationChunk, Error>) asy
         chunks.append(chunk)
     }
     return chunks
+}
+
+private func decodedJSONObject(_ data: Data) throws -> [String: Any] {
+    try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }

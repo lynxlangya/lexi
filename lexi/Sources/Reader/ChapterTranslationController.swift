@@ -82,7 +82,12 @@ final class ChapterTranslationController {
         }
     }
 
-    func selectChapter(_ chapter: ReaderChapter, chapters: [ReaderChapter], prefetchCount: Int) {
+    func selectChapter(
+        _ chapter: ReaderChapter,
+        chapters: [ReaderChapter],
+        prefetchCount: Int,
+        bookTitle: String? = nil
+    ) {
         task?.cancel()
         cancelParagraphRetryTasks()
         selectedChapterId = chapter.id
@@ -91,7 +96,8 @@ final class ChapterTranslationController {
                 chapter,
                 database: database,
                 registry: registry,
-                config: currentEngineConfig
+                config: currentEngineConfig,
+                bookTitle: bookTitle
             )
 
             guard !Task.isCancelled, prefetchCount > 0 else {
@@ -102,12 +108,12 @@ final class ChapterTranslationController {
                 .filter { $0.idx > chapter.idx }
                 .prefix(prefetchCount)
             for nextChapter in nextChapters {
-                await prefetchWorker.prefetch(chapter: nextChapter, config: currentEngineConfig)
+                await prefetchWorker.prefetch(chapter: nextChapter, config: currentEngineConfig, bookTitle: bookTitle)
             }
         }
     }
 
-    func retryParagraph(_ paragraph: ReaderParagraph, in chapter: ReaderChapter) {
+    func retryParagraph(_ paragraph: ReaderParagraph, in chapter: ReaderChapter, bookTitle: String? = nil) {
         paragraphRetryTasks[paragraph.id]?.cancel()
         let token = UUID()
         paragraphRetryTokens[paragraph.id] = token
@@ -117,7 +123,8 @@ final class ChapterTranslationController {
                 in: chapter,
                 database: database,
                 registry: registry,
-                config: currentEngineConfig
+                config: currentEngineConfig,
+                bookTitle: bookTitle
             )
             if paragraphRetryTokens[paragraph.id] == token {
                 paragraphRetryTasks[paragraph.id] = nil
@@ -126,9 +133,15 @@ final class ChapterTranslationController {
         }
     }
 
-    func switchEngine(_ config: EngineConfig, chapter: ReaderChapter, chapters: [ReaderChapter], prefetchCount: Int) {
+    func switchEngine(
+        _ config: EngineConfig,
+        chapter: ReaderChapter,
+        chapters: [ReaderChapter],
+        prefetchCount: Int,
+        bookTitle: String? = nil
+    ) {
         currentEngineConfig = config
-        selectChapter(chapter, chapters: chapters, prefetchCount: prefetchCount)
+        selectChapter(chapter, chapters: chapters, prefetchCount: prefetchCount, bookTitle: bookTitle)
     }
 
     func snapshot(for chapterId: Int64) -> ChapterTranslationSnapshot {
@@ -147,11 +160,17 @@ final class ChapterTranslationController {
         _ chapter: ReaderChapter,
         database: AppDatabase,
         registry: EngineRegistry,
-        config: EngineConfig
+        config: EngineConfig,
+        bookTitle: String?
     ) async {
         var missing: [ReaderParagraph] = []
         do {
             let snapshot = try await cachedSnapshot(for: chapter, database: database, config: config)
+            var exactCached = try await database.cachedTranslations(
+                chapterId: chapter.id,
+                engine: config.id,
+                model: config.model
+            )
             let cachedCount = chapter.paragraphs.filter { paragraph in
                 if case .cached = snapshot.paragraphStates[paragraph.id] {
                     return true
@@ -179,33 +198,56 @@ final class ChapterTranslationController {
             reconcileChapterState(for: chapter)
 
             let engine = try registry.engine(for: config)
-            var buffers: [Int: String] = [:]
-            let tasks = missing.map { paragraph in
-                TranslationTask.paragraph(
-                    text: paragraph.en,
-                    context: ParagraphContext(chapterTitle: chapter.title)
-                )
-            }
-            for try await chunk in engine.translate(tasks, model: config.model) {
-                try Task.checkCancellation()
-                guard let paragraph = missing[safe: chunk.index] else {
-                    continue
-                }
-
-                buffers[chunk.index, default: ""] += chunk.text
-                let zh = buffers[chunk.index, default: ""]
-                try await database.upsertTranslation(
-                    Translation(
-                        id: nil,
-                        paragraphId: paragraph.id,
-                        engine: config.id,
-                        model: config.model,
-                        zh: zh,
-                        createdAt: Date()
+            for (missingIndex, paragraph) in missing.enumerated() {
+                do {
+                    snapshots[chapter.id]?.paragraphStates[paragraph.id] = .translating
+                    reconcileChapterState(for: chapter)
+                    let task = TranslationTask.paragraph(
+                        text: paragraph.en,
+                        context: paragraphContext(
+                            for: paragraph,
+                            in: chapter,
+                            exactCached: exactCached,
+                            bookTitle: bookTitle
+                        )
                     )
-                )
-                snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
-                reconcileChapterState(for: chapter)
+                    var zh = ""
+                    for try await chunk in engine.translate([task], model: config.model) {
+                        try Task.checkCancellation()
+                        zh += chunk.text
+                        try await database.upsertTranslation(
+                            Translation(
+                                id: nil,
+                                paragraphId: paragraph.id,
+                                engine: config.id,
+                                model: config.model,
+                                zh: zh,
+                                createdAt: Date()
+                            )
+                        )
+                        snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
+                        reconcileChapterState(for: chapter)
+                    }
+
+                    if case .translating = snapshots[chapter.id]?.paragraphStates[paragraph.id] {
+                        markTranslatingParagraphsAsError(
+                            in: chapter,
+                            candidates: Array(missing[missingIndex...]),
+                            reason: "翻译流提前结束，本段未译"
+                        )
+                        reconcileChapterState(for: chapter)
+                        return
+                    }
+                    exactCached[paragraph.id] = zh
+                } catch is CancellationError {
+                    return
+                } catch let error as EngineError {
+                    apply(error: error, to: chapter, translating: Array(missing[missingIndex...]))
+                    return
+                } catch {
+                    apply(reason: error.localizedDescription, to: chapter, translating: Array(missing[missingIndex...]))
+                    return
+                }
             }
 
             markTranslatingParagraphsAsError(
@@ -228,16 +270,27 @@ final class ChapterTranslationController {
         in chapter: ReaderChapter,
         database: AppDatabase,
         registry: EngineRegistry,
-        config: EngineConfig
+        config: EngineConfig,
+        bookTitle: String?
     ) async {
         do {
             snapshots[chapter.id]?.paragraphStates[paragraph.id] = .translating
             reconcileChapterState(for: chapter)
             let engine = try registry.engine(for: config)
             var zh = ""
+            let exactCached = try await database.cachedTranslations(
+                chapterId: chapter.id,
+                engine: config.id,
+                model: config.model
+            )
             let task = TranslationTask.paragraph(
                 text: paragraph.en,
-                context: ParagraphContext(chapterTitle: chapter.title)
+                context: paragraphContext(
+                    for: paragraph,
+                    in: chapter,
+                    exactCached: exactCached,
+                    bookTitle: bookTitle
+                )
             )
             for try await chunk in engine.translate([task], model: config.model) {
                 try Task.checkCancellation()
@@ -264,9 +317,10 @@ final class ChapterTranslationController {
             reconcileChapterState(for: chapter)
         } catch is CancellationError {
             return
+        } catch let error as EngineError {
+            apply(error: error, to: chapter, translating: [paragraph])
         } catch {
-            snapshots[chapter.id]?.paragraphStates[paragraph.id] = .error(error.localizedDescription)
-            reconcileChapterState(for: chapter)
+            apply(reason: error.localizedDescription, to: chapter, translating: [paragraph])
         }
     }
 
@@ -383,6 +437,21 @@ final class ChapterTranslationController {
         paragraphRetryTasks.removeAll()
         paragraphRetryTokens.removeAll()
     }
+
+    private func paragraphContext(
+        for paragraph: ReaderParagraph,
+        in chapter: ReaderChapter,
+        exactCached: [Int64: String],
+        bookTitle: String?
+    ) -> ParagraphContext {
+        let previousParagraph = chapter.paragraphs.first { $0.ord == paragraph.ord - 1 }
+        return ParagraphContext(
+            bookTitle: bookTitle,
+            chapterTitle: chapter.title,
+            previousEN: previousParagraph?.en,
+            previousZH: previousParagraph.flatMap { exactCached[$0.id] }
+        )
+    }
 }
 
 actor ChapterPrefetchWorker {
@@ -394,12 +463,17 @@ actor ChapterPrefetchWorker {
         self.registry = registry
     }
 
-    func prefetch(chapter: ReaderChapter, config: EngineConfig) async {
+    func prefetch(chapter: ReaderChapter, config: EngineConfig, bookTitle: String? = nil) async {
         do {
             let cached = try await database.cachedTranslations(
                 chapterId: chapter.id,
                 preferredEngine: config.id,
                 preferredModel: config.model
+            )
+            var exactCached = try await database.cachedTranslations(
+                chapterId: chapter.id,
+                engine: config.id,
+                model: config.model
             )
             let missing = chapter.paragraphs.filter { cached[$0.id] == nil }
             guard !missing.isEmpty else {
@@ -407,33 +481,53 @@ actor ChapterPrefetchWorker {
             }
 
             let engine = try registry.engine(for: config)
-            var buffers: [Int: String] = [:]
-            let tasks = missing.map { paragraph in
-                TranslationTask.paragraph(
+            for paragraph in missing {
+                let task = TranslationTask.paragraph(
                     text: paragraph.en,
-                    context: ParagraphContext(chapterTitle: chapter.title)
-                )
-            }
-            for try await chunk in engine.translate(tasks, model: config.model) {
-                try Task.checkCancellation()
-                guard let paragraph = missing[safe: chunk.index] else {
-                    continue
-                }
-                buffers[chunk.index, default: ""] += chunk.text
-                try await database.upsertTranslation(
-                    Translation(
-                        id: nil,
-                        paragraphId: paragraph.id,
-                        engine: config.id,
-                        model: config.model,
-                        zh: buffers[chunk.index, default: ""],
-                        createdAt: Date()
+                    context: paragraphContext(
+                        for: paragraph,
+                        in: chapter,
+                        exactCached: exactCached,
+                        bookTitle: bookTitle
                     )
                 )
+                var zh = ""
+                for try await chunk in engine.translate([task], model: config.model) {
+                    try Task.checkCancellation()
+                    zh += chunk.text
+                    try await database.upsertTranslation(
+                        Translation(
+                            id: nil,
+                            paragraphId: paragraph.id,
+                            engine: config.id,
+                            model: config.model,
+                            zh: zh,
+                            createdAt: Date()
+                        )
+                    )
+                }
+                if !zh.isEmpty {
+                    exactCached[paragraph.id] = zh
+                }
             }
         } catch {
             return
         }
+    }
+
+    private func paragraphContext(
+        for paragraph: ReaderParagraph,
+        in chapter: ReaderChapter,
+        exactCached: [Int64: String],
+        bookTitle: String?
+    ) -> ParagraphContext {
+        let previousParagraph = chapter.paragraphs.first { $0.ord == paragraph.ord - 1 }
+        return ParagraphContext(
+            bookTitle: bookTitle,
+            chapterTitle: chapter.title,
+            previousEN: previousParagraph?.en,
+            previousZH: previousParagraph.flatMap { exactCached[$0.id] }
+        )
     }
 }
 

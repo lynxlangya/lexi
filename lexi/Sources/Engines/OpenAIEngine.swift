@@ -109,10 +109,7 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         request.httpBody = try JSONEncoder().encode(
             OpenAIChatRequest(
                 model: model,
-                messages: [
-                    .init(role: "system", content: Prompts.systemPrompt(for: task)),
-                    .init(role: "user", content: Prompts.userPrompt(for: task)),
-                ],
+                messages: openAIMessages(for: task),
                 stream: true
             )
         )
@@ -127,15 +124,19 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         request.httpBody = try JSONEncoder().encode(
             OpenAIChatRequest(
                 model: model,
-                messages: [
-                    .init(role: "system", content: Prompts.systemPrompt(for: task)),
-                    .init(role: "user", content: Prompts.userPrompt(for: task)),
-                ],
+                messages: openAIMessages(for: task),
                 stream: false,
                 responseFormat: strict ? .jsonSchema(name: LookupSchema.name, schema: LookupSchema.schema) : nil
             )
         )
         return request
+    }
+
+    private func openAIMessages(for task: TranslationTask) -> [OpenAIChatRequest.Message] {
+        [.init(role: "system", content: Prompts.systemPrompt(for: task))]
+            + Prompts.conversationMessages(for: task).map {
+                .init(role: $0.role, content: $0.content)
+            }
     }
 }
 

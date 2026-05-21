@@ -123,9 +123,7 @@ nonisolated struct AnthropicEngine: TranslationEngine {
                 model: model,
                 maxTokens: maxTokens,
                 system: Prompts.systemPrompt(for: task),
-                messages: [
-                    .init(role: "user", content: Prompts.userPrompt(for: task)),
-                ],
+                messages: anthropicMessages(for: task),
                 stream: stream
             )
         )
@@ -143,15 +141,19 @@ nonisolated struct AnthropicEngine: TranslationEngine {
                 model: model,
                 maxTokens: 1024,
                 system: Prompts.systemPrompt(for: task),
-                messages: [
-                    .init(role: "user", content: Prompts.userPrompt(for: task)),
-                ],
+                messages: anthropicMessages(for: task),
                 stream: false,
                 tools: [AnthropicLookupTool.tool],
                 toolChoice: AnthropicToolChoice(type: "tool", name: AnthropicLookupTool.name)
             )
         )
         return request
+    }
+
+    private func anthropicMessages(for task: TranslationTask) -> [AnthropicMessageRequest.Message] {
+        Prompts.conversationMessages(for: task).map {
+            .init(role: $0.role, content: $0.content)
+        }
     }
 }
 
