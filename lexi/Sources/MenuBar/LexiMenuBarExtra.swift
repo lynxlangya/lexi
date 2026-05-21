@@ -281,7 +281,8 @@ final class LexiMenuBarCoordinator: ObservableObject {
             addVocab: { [weak self] in self?.addActiveWordToVocab() },
             speak: { [weak self] text in self?.speech.speak(text) },
             selectEngine: { [weak self] engine in self?.selectEngine(engine) },
-            openSettings: { [weak self] in self?.openSettings() }
+            openSettings: { [weak self] in self?.openSettings() },
+            openAccessibilitySettings: { [weak self] in self?.openAccessibilitySettings() }
         )
     }
 
@@ -392,7 +393,13 @@ final class LexiMenuBarCoordinator: ObservableObject {
 
     private func showPermissionError() {
         let reason = "需要在系统设置 → 隐私与安全 → 辅助功能中允许 Lexi。"
-        show(kind: .error(text: "", reason: reason), near: activeAnchor)
+        show(kind: .permissionError(reason: reason), near: activeAnchor)
+    }
+
+    private func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func showEmptySelection() {
