@@ -116,15 +116,23 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         return request
     }
 
-    func makeLookupRequest(task: TranslationTask, model: String, strict: Bool) throws -> URLRequest {
+    func makeLookupRequest(
+        task: TranslationTask,
+        model: String,
+        strict: Bool,
+        extraUserMessages: [String] = []
+    ) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appending(path: "v1/chat/completions"))
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let messages = openAIMessages(for: task) + extraUserMessages.map {
+            OpenAIChatRequest.Message(role: "user", content: $0)
+        }
         request.httpBody = try JSONEncoder().encode(
             OpenAIChatRequest(
                 model: model,
-                messages: openAIMessages(for: task),
+                messages: messages,
                 stream: false,
                 responseFormat: strict ? .jsonSchema(name: LookupSchema.name, schema: LookupSchema.schema) : nil
             )

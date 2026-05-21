@@ -92,6 +92,7 @@ nonisolated enum PingResult: Equatable, Sendable {
 nonisolated enum EngineError: Error, Equatable, LocalizedError, Sendable {
     case missingAPIKey(EngineID)
     case invalidResponse
+    case invalidResponseWithReason(String)
     case httpStatus(Int, String)
     case taskFailed(index: Int, reason: String)
 
@@ -101,6 +102,8 @@ nonisolated enum EngineError: Error, Equatable, LocalizedError, Sendable {
             return "Missing API key for \(engine.rawValue)."
         case .invalidResponse:
             return "Invalid engine response."
+        case .invalidResponseWithReason(let reason):
+            return "Invalid engine response: \(reason)"
         case .httpStatus(let status, let reason):
             return "HTTP \(status): \(reason)"
         case .taskFailed(let index, let reason):

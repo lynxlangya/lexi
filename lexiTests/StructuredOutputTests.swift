@@ -55,6 +55,46 @@ final class StructuredOutputTests: XCTestCase {
 
         XCTAssertEqual(result.senses, [LookupSense(pos: .v, zh: "\"观察\"")])
     }
+
+    func testDeepSeekLookupRetryAddsJSONOnlyInstruction() async throws {
+        let client = MockLookupHTTPClient(dataResponses: [
+            .success((Data(#"{"choices":[{"message":{"content":"not json"}}]}"#.utf8), lookupResponse(status: 200))),
+            .success((Data(#"{"choices":[{"message":{"content":"{\"senses\":[{\"pos\":\"v\",\"zh\":\"观察\"}],\"contextualMeaning\":null,\"synonyms\":null,\"example\":null}"}}]}"#.utf8), lookupResponse(status: 200))),
+        ])
+        let engine = DeepSeekEngine(apiKey: "key", client: client)
+
+        let result = try await engine.lookup(.wordLookup(word: "observe", context: nil), model: "deepseek-chat")
+
+        XCTAssertEqual(result.senses, [LookupSense(pos: .v, zh: "观察")])
+        XCTAssertEqual(client.requests.count, 2)
+        let retryBody = try XCTUnwrap(client.requests.last?.httpBody)
+        let retryObject = try XCTUnwrap(JSONSerialization.jsonObject(with: retryBody) as? [String: Any])
+        let messages = try XCTUnwrap(retryObject["messages"] as? [[String: Any]])
+        XCTAssertTrue(messages.contains { message in
+            (message["role"] as? String) == "user"
+                && ((message["content"] as? String)?.contains("ONLY a valid JSON object") == true)
+        })
+    }
+
+    func testDeepSeekLookupRetryErrorKeepsFirstFailureReason() async throws {
+        let client = MockLookupHTTPClient(dataResponses: [
+            .success((Data(#"{"choices":[{"message":{"content":"not json"}}]}"#.utf8), lookupResponse(status: 200))),
+            .success((Data(#"{"choices":[{"message":{"content":"still not json"}}]}"#.utf8), lookupResponse(status: 200))),
+        ])
+        let engine = DeepSeekEngine(apiKey: "key", client: client)
+
+        do {
+            _ = try await engine.lookup(.wordLookup(word: "observe", context: nil), model: "deepseek-chat")
+            XCTFail("Expected retry failure")
+        } catch let error as EngineError {
+            guard case .invalidResponseWithReason(let reason) = error else {
+                return XCTFail("Expected invalidResponseWithReason, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("First error:"))
+            XCTAssertTrue(reason.contains("Retry error:"))
+            XCTAssertEqual(client.requests.count, 2)
+        }
+    }
 }
 
 private final class MockLookupHTTPClient: EngineHTTPClient, @unchecked Sendable {
