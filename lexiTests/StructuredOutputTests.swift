@@ -39,6 +39,22 @@ final class StructuredOutputTests: XCTestCase {
         let firstTool = try XCTUnwrap(tools.first)
         XCTAssertEqual(firstTool["name"] as? String, "emit_lookup")
     }
+
+    func testLookupDecoderExtractsJSONObjectWithBraceInsideString() throws {
+        let result = try LookupSchema.decode(
+            #"prefix {"senses":[{"pos":"v","zh":"好的}"}],"contextualMeaning":null,"synonyms":null,"example":null} suffix"#
+        )
+
+        XCTAssertEqual(result.senses, [LookupSense(pos: .v, zh: "好的}")])
+    }
+
+    func testLookupDecoderExtractsJSONObjectWithEscapedQuotesInsideString() throws {
+        let result = try LookupSchema.decode(
+            #"prefix {"senses":[{"pos":"v","zh":"\"观察\""}],"contextualMeaning":null,"synonyms":null,"example":null} suffix"#
+        )
+
+        XCTAssertEqual(result.senses, [LookupSense(pos: .v, zh: "\"观察\"")])
+    }
 }
 
 private final class MockLookupHTTPClient: EngineHTTPClient, @unchecked Sendable {

@@ -76,13 +76,35 @@ nonisolated enum LookupSchema {
 
     private static func extractJSONObject(from text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.hasPrefix("{"),
-              let start = trimmed.firstIndex(of: "{"),
-              let end = trimmed.lastIndex(of: "}"),
-              start < end else {
+        guard let start = trimmed.firstIndex(of: "{") else {
             return trimmed
         }
-        return String(trimmed[start...end])
+
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var cursor = start
+        while cursor < trimmed.endIndex {
+            let character = trimmed[cursor]
+            if escaped {
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "\"" {
+                inString.toggle()
+            } else if !inString {
+                if character == "{" {
+                    depth += 1
+                } else if character == "}" {
+                    depth -= 1
+                    if depth == 0 {
+                        return String(trimmed[start...cursor])
+                    }
+                }
+            }
+            cursor = trimmed.index(after: cursor)
+        }
+        return trimmed
     }
 }
 
