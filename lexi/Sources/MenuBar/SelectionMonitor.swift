@@ -83,15 +83,15 @@ final class SelectionMonitor {
         } else {
             systemWide
         }
+        let source = selectionSource(from: focusedApp)
         AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
         guard let focusedElement else {
-            return .failure(.emptySelection)
+            return fallbackSelectionContext(source: source, anchor: fallbackAnchor())
         }
         let element = focusedElement as! AXUIElement
 
         var selectedText: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedText)
-        let source = selectionSource(from: focusedApp)
         let anchor = selectionFrame(from: element)
 
         if let rawText = selectedText as? String,
@@ -99,6 +99,10 @@ final class SelectionMonitor {
             return .success(context)
         }
 
+        return fallbackSelectionContext(source: source, anchor: anchor)
+    }
+
+    private static func fallbackSelectionContext(source: SelectionSource, anchor: CGRect) -> Result<SelectedTextContext, SelectionReadFailure> {
         guard source != .reader,
               let copiedText = selectedTextFromCopyShortcut(),
               let context = context(rawText: copiedText, anchor: anchor, source: source) else {
@@ -136,7 +140,7 @@ final class SelectionMonitor {
         }
 
         sendCopyShortcut()
-        let deadline = Date().addingTimeInterval(0.35)
+        let deadline = Date().addingTimeInterval(0.70)
         while pasteboard.changeCount == previousChangeCount, Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
         }
@@ -161,6 +165,7 @@ final class SelectionMonitor {
     }
 
     private static func sendCopyShortcut() {
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.08))
         let source = CGEventSource(stateID: .combinedSessionState)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 8, keyDown: true)
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 8, keyDown: false)
@@ -195,6 +200,10 @@ final class SelectionMonitor {
             }
         }
 
+        return fallbackAnchor()
+    }
+
+    private static func fallbackAnchor() -> CGRect {
         if let mouse = NSEvent.mouseLocationOnMainScreen {
             return CGRect(x: mouse.x - 18, y: mouse.y - 12, width: 36, height: 24)
         }
