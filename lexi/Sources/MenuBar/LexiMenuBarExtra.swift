@@ -230,7 +230,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
                     remember(word: trimmed)
                     show(kind: .word(lookup), near: anchor)
                 } else {
-                    let translated = try await translateTask(.sentence(text: trimmed, context: sentenceContext))
+                    let translated = try await translateTask(.sentence(text: trimmed, context: enrichedContext))
                     show(
                         kind: .sentence(SentenceLookup(text: trimmed, zh: translated, engine: currentEngine.id, model: currentEngine.model)),
                         near: anchor
