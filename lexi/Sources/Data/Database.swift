@@ -428,6 +428,41 @@ actor AppDatabase {
         }
     }
 
+    func refreshVocabSnapshot(
+        id: Int64,
+        context: String?,
+        snapshot: VocabSnapshot,
+        now: Date = .init()
+    ) throws {
+        try pool.write { db in
+            try db.execute(
+                sql: """
+                UPDATE vocab
+                SET context = ?,
+                    primaryZh = ?,
+                    sensesJSON = ?,
+                    ukIPA = ?,
+                    usIPA = ?,
+                    exampleEN = ?,
+                    exampleZH = ?,
+                    updatedAt = ?
+                WHERE id = ?
+                """,
+                arguments: [
+                    context,
+                    snapshot.primaryZh,
+                    snapshot.sensesJSON,
+                    snapshot.ukIPA,
+                    snapshot.usIPA,
+                    snapshot.exampleEN,
+                    snapshot.exampleZH,
+                    now.lexiTimestamp,
+                    id,
+                ]
+            )
+        }
+    }
+
     func vocabEntries(bookId: String?) throws -> [VocabEntry] {
         try pool.read { db in
             let entries = try Row.fetchAll(db, sql: "SELECT * FROM vocab ORDER BY updatedAt DESC, id DESC")

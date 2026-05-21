@@ -158,7 +158,7 @@ private struct LegacyVocabRow {
     let bookId: String?
     let addedAt: Int64
 
-    init?(row: Row) {
+    nonisolated init?(row: Row) {
         let rawWord: String = row["word"]
         let normalized = VocabEntry.normalized(rawWord)
         guard !normalized.isEmpty else {

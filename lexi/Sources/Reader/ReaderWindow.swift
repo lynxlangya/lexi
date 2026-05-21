@@ -80,6 +80,7 @@ private struct ReaderWindowContent: View {
     @State private var removeCandidate: ReaderBook?
     @State private var showsSettings = false
     @State private var showsVocab = false
+    @State private var vocabBookFilter = VocabBookFilter.all
     @State private var visibleParagraphId: Int64?
     @State private var pendingScrollParagraphIdx: Int?
     @State private var scrollWriteTask: Task<Void, Never>?
@@ -201,6 +202,7 @@ private struct ReaderWindowContent: View {
         .sheet(isPresented: $showsVocab) {
             VocabView(
                 database: database,
+                initialBookFilter: vocabBookFilter,
                 close: { showsVocab = false },
                 showToast: showToast,
                 onChanged: { coordinator.refreshCounts() }
@@ -210,6 +212,7 @@ private struct ReaderWindowContent: View {
             showsSettings = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .lexiOpenVocab)) { _ in
+            vocabBookFilter = .all
             showsVocab = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .lexiEngineSettingsChanged)) { _ in
@@ -244,6 +247,7 @@ private struct ReaderWindowContent: View {
                     currentBookID: book?.id,
                     openBook: { openBook($0, continueReading: false) },
                     continueReading: { openBook($0, continueReading: true) },
+                    openVocab: openVocab,
                     revealInFinder: revealInFinder,
                     requestClearCache: requestClearCache,
                     requestRemove: { removeCandidate = $0 },
@@ -468,6 +472,11 @@ private struct ReaderWindowContent: View {
 
     private func revealInFinder(_ target: ReaderBook) {
         NSWorkspace.shared.activateFileViewerSelecting([target.fileURL])
+    }
+
+    private func openVocab(for target: ReaderBook) {
+        vocabBookFilter = .specific(target.id)
+        showsVocab = true
     }
 
     private func requestClearCache(_ target: ReaderBook) {

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct VocabView: View {
     let database: AppDatabase?
+    var initialBookFilter: VocabBookFilter = .all
     let close: () -> Void
     let showToast: (String) -> Void
     let onChanged: () -> Void
@@ -11,6 +12,22 @@ struct VocabView: View {
     @State private var bookTitles: [String: String] = [:]
     @State private var search = ""
     @State private var selection = Set<Int64>()
+    @State private var bookFilter: VocabBookFilter
+
+    init(
+        database: AppDatabase?,
+        initialBookFilter: VocabBookFilter = .all,
+        close: @escaping () -> Void,
+        showToast: @escaping (String) -> Void,
+        onChanged: @escaping () -> Void
+    ) {
+        self.database = database
+        self.initialBookFilter = initialBookFilter
+        self.close = close
+        self.showToast = showToast
+        self.onChanged = onChanged
+        _bookFilter = State(initialValue: initialBookFilter)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,7 +47,11 @@ struct VocabView: View {
                 .background(Color.lexiPaper)
             } else {
                 List(filteredEntries, selection: $selection) { entry in
-                    VocabRow(entry: entry, source: source(for: entry))
+                    VocabRow(
+                        entry: entry,
+                        source: source(for: entry),
+                        requery: { requery(entry) }
+                    )
                         .tag(entry.id ?? -1)
                         .listRowBackground(Color.lexiPaper)
                 }
@@ -88,6 +109,15 @@ struct VocabView: View {
             TextField("搜索 word / context", text: $search)
                 .textFieldStyle(.plain)
                 .font(LexiFont.zh(12.5))
+            Picker("来源", selection: $bookFilter) {
+                Text("全部书").tag(VocabBookFilter.all)
+                Text("MenuBar").tag(VocabBookFilter.menuBarOnly)
+                ForEach(bookFilterOptions, id: \.id) { option in
+                    Text(option.title).tag(VocabBookFilter.specific(option.id))
+                }
+            }
+            .labelsHidden()
+            .frame(width: 150)
             Spacer()
             Button(role: .destructive) {
                 deleteSelected()
@@ -107,14 +137,22 @@ struct VocabView: View {
 
     private var filteredEntries: [VocabEntry] {
         let needle = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let scoped = entries.filter(matchesBookFilter)
         guard !needle.isEmpty else {
-            return entries
+            return scoped
         }
-        return entries.filter { entry in
+        return scoped.filter { entry in
             entry.word.lowercased().contains(needle)
+                || entry.primaryZh.lowercased().contains(needle)
                 || (entry.context?.lowercased().contains(needle) ?? false)
                 || source(for: entry).lowercased().contains(needle)
         }
+    }
+
+    private var bookFilterOptions: [(id: String, title: String)] {
+        bookTitles
+            .map { (id: $0.key, title: $0.value) }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
     private func load() async {
@@ -129,6 +167,17 @@ struct VocabView: View {
         return bookTitles[bookId] ?? bookId
     }
 
+    private func matchesBookFilter(_ entry: VocabEntry) -> Bool {
+        switch bookFilter {
+        case .all:
+            return true
+        case .menuBarOnly:
+            return entry.seenInBookIds.isEmpty
+        case .specific(let bookId):
+            return entry.seenInBookIds.contains(bookId)
+        }
+    }
+
     private func deleteSelected() {
         let ids = selection
         guard ids.count < 3 || confirmBulkDelete(count: ids.count) else {
@@ -140,6 +189,36 @@ struct VocabView: View {
             await load()
             onChanged()
             showToast("已删除选中生词")
+        }
+    }
+
+    private func requery(_ entry: VocabEntry) {
+        guard let id = entry.id, let database else {
+            return
+        }
+
+        Task {
+            do {
+                let config = await EnginePreferences.popupConfig(database: database)
+                let engine = try EngineRegistry.shared.engine(for: config)
+                let localEntry = LocalDictionary.lookup(entry.word)
+                let context = SentenceContext(
+                    fullSentence: entry.context,
+                    localDictionary: localEntry
+                )
+                let result = try await engine.lookup(.wordLookup(word: entry.word, context: context), model: config.model)
+                let snapshot = VocabSnapshot.make(word: entry.word, lookup: result, localEntry: localEntry)
+                try await database.refreshVocabSnapshot(
+                    id: id,
+                    context: entry.context,
+                    snapshot: snapshot
+                )
+                await load()
+                onChanged()
+                showToast("已重查 · \(entry.word)")
+            } catch {
+                showToast("重查失败 · \(error.localizedDescription)")
+            }
         }
     }
 
@@ -157,10 +236,11 @@ struct VocabView: View {
 private struct VocabRow: View {
     let entry: VocabEntry
     let source: String
+    let requery: () -> Void
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(entry.word)
                         .font(LexiFont.serif(18))
@@ -172,18 +252,16 @@ private struct VocabRow: View {
                     }
                 }
 
-                if entry.primaryZh.isEmpty {
-                    Text("（需重查）")
-                        .font(LexiFont.zh(12.5))
-                        .foregroundStyle(Color.lexiInk4)
-                }
+                Text(entry.primaryZh.isEmpty ? "（需重查）" : entry.primaryZh)
+                    .font(LexiFont.zh(13.5))
+                    .foregroundStyle(entry.primaryZh.isEmpty ? Color.lexiInk4 : Color.lexiInk2)
 
-                if let context = entry.context, !context.isEmpty {
-                    Text(context)
+                if let example = exampleLine {
+                    Text(example)
                         .font(LexiFont.serif(12.5))
                         .italic()
                         .lineLimit(1)
-                        .foregroundStyle(Color.lexiInk2)
+                        .foregroundStyle(Color.lexiInk3)
                 }
             }
 
@@ -196,8 +274,31 @@ private struct VocabRow: View {
                 Text(entry.addedAt.formatted(date: .abbreviated, time: .omitted))
                     .font(LexiFont.mono(10.5))
                     .foregroundStyle(Color.lexiInk3)
+                Button(action: requery) {
+                    Label("重查", systemImage: "arrow.clockwise")
+                        .font(LexiFont.zh(11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(entry.primaryZh.isEmpty ? Color.lexiAccent : Color.lexiInk3)
+                .padding(.top, 3)
             }
         }
         .padding(.vertical, 8)
     }
+
+    private var exampleLine: String? {
+        if let exampleEN = entry.exampleEN, !exampleEN.isEmpty {
+            return "\"\(exampleEN)\""
+        }
+        if let context = entry.context, !context.isEmpty {
+            return "\"\(context)\""
+        }
+        return nil
+    }
+}
+
+enum VocabBookFilter: Equatable, Hashable {
+    case all
+    case specific(String)
+    case menuBarOnly
 }

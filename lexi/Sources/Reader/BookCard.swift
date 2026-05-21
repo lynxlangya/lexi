@@ -5,6 +5,7 @@ struct BookCard: View {
     let isCurrent: Bool
     let openFromBeginning: () -> Void
     let continueReading: () -> Void
+    let openVocab: () -> Void
     let revealInFinder: () -> Void
     let clearCache: () -> Void
     let remove: () -> Void
@@ -86,6 +87,7 @@ struct BookCard: View {
             ShelfContextMenu(
                 openFromBeginning: openFromBeginning,
                 continueReading: continueReading,
+                openVocab: openVocab,
                 revealInFinder: revealInFinder,
                 clearCache: clearCache,
                 remove: remove

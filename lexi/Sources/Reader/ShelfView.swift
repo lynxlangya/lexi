@@ -15,6 +15,7 @@ struct ShelfView: View {
     let currentBookID: String?
     let openBook: (ReaderBook) -> Void
     let continueReading: (ReaderBook) -> Void
+    let openVocab: (ReaderBook) -> Void
     let revealInFinder: (ReaderBook) -> Void
     let requestClearCache: (ReaderBook) -> Void
     let requestRemove: (ReaderBook) -> Void
@@ -111,6 +112,7 @@ struct ShelfView: View {
                     isCurrent: book.id == currentBookID,
                     openFromBeginning: { openBook(book) },
                     continueReading: { continueReading(book) },
+                    openVocab: { openVocab(book) },
                     revealInFinder: { revealInFinder(book) },
                     clearCache: { requestClearCache(book) },
                     remove: { requestRemove(book) }
