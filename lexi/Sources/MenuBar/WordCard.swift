@@ -58,6 +58,17 @@ struct WordCard: View {
             .buttonStyle(.plain)
             .help("朗读")
 
+            if lookup.masteredStatus == .mastered {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(theme.accent.primary)
+                        .frame(width: 6, height: 6)
+                    Text("已掌握")
+                        .font(LexiFont.zh(10.5))
+                        .foregroundStyle(theme.accent.primary)
+                }
+            }
+
             Spacer(minLength: 0)
         }
     }

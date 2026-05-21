@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LexiMenuPanel: View {
     let vocabCount: Int
+    let unmasteredCount: Int
     let todayCount: Int
     let translateSelection: () -> Void
     let translateAndReplace: () -> Void
@@ -88,7 +89,7 @@ struct LexiMenuPanel: View {
             menuButton("打开阅读器…", shortcut: "⌘⇧K", action: toggleReader)
             divider
             menuButton("生词本…", shortcut: "", action: openVocab)
-            menuButton("今日复习 (5)", shortcut: "", disabled: true, action: {})
+            menuButton("未掌握 \(unmasteredCount) 词", shortcut: "", action: openVocab)
             divider
             menuButton("设置…", shortcut: "⌘,", action: openSettings)
             menuButton("退出 Lexi", shortcut: "⌘Q", danger: true, action: quit)

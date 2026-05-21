@@ -14,6 +14,7 @@ struct LexiMenuBarExtra: Scene {
         MenuBarExtra {
             LexiMenuPanel(
                 vocabCount: coordinator.vocabCount,
+                unmasteredCount: coordinator.unmasteredCount,
                 todayCount: coordinator.todayQueryCount,
                 translateSelection: coordinator.translateCurrentSelection,
                 translateAndReplace: coordinator.translateAndReplaceSelection,
@@ -56,6 +57,7 @@ struct LexiMenuBarBootstrap: View {
 @MainActor
 final class LexiMenuBarCoordinator: ObservableObject {
     @Published var vocabCount = 0
+    @Published var unmasteredCount = 0
     @Published var todayQueryCount = 0
     @Published var popupVisible = false
 
@@ -228,7 +230,13 @@ final class LexiMenuBarCoordinator: ObservableObject {
                 todayQueryCount += 1
                 if word {
                     let result = try await lookupTask(.wordLookup(word: trimmed, context: enrichedContext))
-                    let lookup = makeWordLookup(word: trimmed, result: result, localEntry: localEntry)
+                    let masteredStatus = await vocabStatus(for: trimmed)
+                    let lookup = makeWordLookup(
+                        word: trimmed,
+                        result: result,
+                        localEntry: localEntry,
+                        masteredStatus: masteredStatus
+                    )
                     remember(word: trimmed)
                     show(kind: .word(lookup), near: anchor)
                 } else {
@@ -262,7 +270,12 @@ final class LexiMenuBarCoordinator: ObservableObject {
         return try await engine.lookup(task, model: currentEngine.model)
     }
 
-    private func makeWordLookup(word: String, result: LookupResult, localEntry: LocalDictionaryEntry?) -> WordLookup {
+    private func makeWordLookup(
+        word: String,
+        result: LookupResult,
+        localEntry: LocalDictionaryEntry?,
+        masteredStatus: MasteredStatus
+    ) -> WordLookup {
         let senses = result.senses.map { sense in
             WordSense(partOfSpeech: sense.pos.displayLabel, en: word, zh: sense.zh)
         }
@@ -280,7 +293,8 @@ final class LexiMenuBarCoordinator: ObservableObject {
             related: relatedWords(for: word),
             engine: currentEngine.id,
             model: currentEngine.model,
-            history: recentWords
+            history: recentWords,
+            masteredStatus: masteredStatus
         )
     }
 
@@ -364,8 +378,13 @@ final class LexiMenuBarCoordinator: ObservableObject {
             refreshVocabCount()
             switch result {
             case .inserted:
+                updateActiveWordMasteredStatus(.inVocabUnmastered)
                 showToast("已加入生词本")
             case .updated:
+                let status = (try? await database.vocabEntry(normalizedWord: lookup.word))?.mastered == true
+                    ? MasteredStatus.mastered
+                    : .inVocabUnmastered
+                updateActiveWordMasteredStatus(status)
                 showToast("已在生词本，更新来源")
             case nil:
                 showToast("加入生词本失败")
@@ -421,6 +440,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
         }
         Task {
             vocabCount = (try? await database.vocabCount()) ?? 0
+            unmasteredCount = (try? await database.unmasteredVocabCount()) ?? 0
         }
     }
 
@@ -446,6 +466,23 @@ final class LexiMenuBarCoordinator: ObservableObject {
     private func showToast(_ message: String) {
         toast.show(message)
         NotificationCenter.default.post(name: .lexiMenuBarToast, object: message)
+    }
+
+    private func vocabStatus(for word: String) async -> MasteredStatus {
+        ensureDatabase()
+        guard let database,
+              let entry = try? await database.vocabEntry(normalizedWord: word) else {
+            return .notInVocab
+        }
+        return entry.mastered ? .mastered : .inVocabUnmastered
+    }
+
+    private func updateActiveWordMasteredStatus(_ status: MasteredStatus) {
+        guard case .word(var lookup) = activeKind else {
+            return
+        }
+        lookup.masteredStatus = status
+        show(kind: .word(lookup), near: activeAnchor)
     }
 
     private func relatedWords(for word: String) -> [String] {

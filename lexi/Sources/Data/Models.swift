@@ -61,6 +61,12 @@ struct VocabEntry: Codable, Equatable, Identifiable, Sendable {
     var masteredAt: Date?
 }
 
+struct VocabStats: Equatable, Sendable {
+    var total: Int
+    var addedToday: Int
+    var unmastered: Int
+}
+
 enum VocabUpsertResult: Equatable, Sendable {
     case inserted(id: Int64)
     case updated(id: Int64)
