@@ -8,6 +8,7 @@ struct SelectableReaderText: NSViewRepresentable {
     let foregroundColor: Color
     let selectionColor: Color
     var selectionContext: (() -> SentenceContext?)?
+    var onSelectionChange: ((SelectedTextContext?) -> Void)?
 
     func makeNSView(context: Context) -> NSTextView {
         let textView = ContextTextView(frame: .zero)
@@ -26,12 +27,14 @@ struct SelectableReaderText: NSViewRepresentable {
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
         textView.selectionContext = selectionContext
+        textView.onSelectionChange = onSelectionChange
         return textView
     }
 
     func updateNSView(_ textView: NSTextView, context: Context) {
         if let textView = textView as? ContextTextView {
             textView.selectionContext = selectionContext
+            textView.onSelectionChange = onSelectionChange
         }
         let attributed = attributedString()
         if textView.attributedString() != attributed {
@@ -90,8 +93,44 @@ struct SelectableReaderText: NSViewRepresentable {
 
 final class ContextTextView: NSTextView {
     var selectionContext: (() -> SentenceContext?)?
+    var onSelectionChange: ((SelectedTextContext?) -> Void)?
 
     override func accessibilityHelp() -> String? {
         selectionContext?()?.fullSentence ?? super.accessibilityHelp()
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        super.mouseUp(with: event)
+        notifySelectionChange()
+    }
+
+    override func keyUp(with event: NSEvent) {
+        super.keyUp(with: event)
+        notifySelectionChange()
+    }
+
+    private func notifySelectionChange() {
+        let range = selectedRange()
+        guard range.location != NSNotFound,
+              range.length > 0,
+              let stringRange = Range(range, in: string) else {
+            onSelectionChange?(nil)
+            return
+        }
+
+        let selected = SelectionLookupClassifier.normalizedText(String(string[stringRange]))
+        guard !selected.isEmpty else {
+            onSelectionChange?(nil)
+            return
+        }
+
+        onSelectionChange?(
+            SelectedTextContext(
+                text: selected,
+                anchor: firstRect(forCharacterRange: range, actualRange: nil),
+                source: .reader,
+                sentenceContext: selectionContext?()
+            )
+        )
     }
 }

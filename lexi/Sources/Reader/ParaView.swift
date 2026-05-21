@@ -6,6 +6,7 @@ struct ParaView: View {
     let state: ParagraphTranslationState
     let transMode: ReaderTranslationMode
     let preferences: ReaderRuntimePreferences
+    let onSelectionChange: (SelectedTextContext?) -> Void
     let retry: () -> Void
 
     private var enSize: CGFloat {
@@ -27,7 +28,8 @@ struct ParaView: View {
                     selectionColor: preferences.accent.primary.opacity(0.28),
                     selectionContext: {
                         SentenceContext(fullSentence: paragraph.en)
-                    }
+                    },
+                    onSelectionChange: onSelectionChange
                 )
             }
 
@@ -100,7 +102,8 @@ struct ParaView: View {
             selectionColor: preferences.accent.primary.opacity(0.28),
             selectionContext: {
                 SentenceContext(fullSentence: paragraph.en)
-            }
+            },
+            onSelectionChange: onSelectionChange
         )
     }
 }

@@ -9,6 +9,7 @@ struct ReadingColumn: View {
     let transMode: ReaderTranslationMode
     let preferences: ReaderRuntimePreferences
     @Binding var visibleParagraphId: Int64?
+    @Binding var selectedTextContext: SelectedTextContext?
     let goToPreviousChapter: () -> Void
     let goToNextChapter: () -> Void
     let onParagraphChange: (Int64) -> Void
@@ -26,7 +27,20 @@ struct ReadingColumn: View {
                         fontSize: fontSize,
                         state: snapshot.paragraphStates[paragraph.id] ?? .translating,
                         transMode: transMode,
-                        preferences: preferences
+                        preferences: preferences,
+                        onSelectionChange: { context in
+                            selectedTextContext = context.map {
+                                SelectedTextContext(
+                                    text: $0.text,
+                                    anchor: $0.anchor,
+                                    source: .reader,
+                                    sentenceContext: SentenceContext(
+                                        fullSentence: paragraph.en,
+                                        bookTitle: chapter.title
+                                    )
+                                )
+                            }
+                        }
                     ) {
                         retryParagraph(paragraph)
                     }

@@ -83,6 +83,7 @@ private struct ReaderWindowContent: View {
     @State private var vocabBookFilter = VocabBookFilter.all
     @State private var visibleParagraphId: Int64?
     @State private var pendingScrollParagraphIdx: Int?
+    @State private var selectedTextContext: SelectedTextContext?
     @State private var scrollWriteTask: Task<Void, Never>?
     @AppStorage("reader.fontSize") private var fontSize = 17.0
     @AppStorage("reader.transMode") private var transModeRaw = ReaderTranslationMode.both.rawValue
@@ -147,7 +148,8 @@ private struct ReaderWindowContent: View {
                     nextChapter: nextChapter,
                     increaseFontSize: { fontSize = min(22, fontSize + 1) },
                     decreaseFontSize: { fontSize = max(14, fontSize - 1) },
-                    toggleSidebar: toggleSidebar
+                    toggleSidebar: toggleSidebar,
+                    addWordToVocab: addSelectedWordToVocab
                 )
 
             ToastView(message: toast, preferences: preferences)
@@ -294,6 +296,7 @@ private struct ReaderWindowContent: View {
                             transMode: transMode,
                             preferences: preferences,
                             visibleParagraphId: $visibleParagraphId,
+                            selectedTextContext: $selectedTextContext,
                             goToPreviousChapter: previousChapter,
                             goToNextChapter: nextChapter,
                             onParagraphChange: handleVisibleParagraphChange
@@ -735,6 +738,77 @@ private struct ReaderWindowContent: View {
         }
     }
 
+    private func addSelectedWordToVocab() {
+        guard surface == .reader, let database else {
+            return
+        }
+
+        let context = selectedTextContext ?? SelectionMonitor.currentSelection(promptForPermission: false)
+        guard let context else {
+            showToast("请先选中要加入的单词")
+            return
+        }
+
+        guard let candidate = ReaderAddWordCandidate(context: context) else {
+            showToast("仅支持单词加入生词本")
+            return
+        }
+
+        Task {
+            do {
+                let existing = try await database.vocabEntry(normalizedWord: candidate.word)
+                if existing != nil {
+                    _ = try await database.upsertVocabEntry(
+                        word: candidate.word,
+                        context: candidate.sentenceContext?.fullSentence,
+                        primaryZh: "",
+                        sensesJSON: "[]",
+                        ukIPA: nil,
+                        usIPA: nil,
+                        exampleEN: nil,
+                        exampleZH: nil,
+                        bookId: book?.id
+                    )
+                    await MainActor.run {
+                        coordinator.refreshCounts()
+                        showToast("已在生词本，更新来源")
+                    }
+                    return
+                }
+
+                let localEntry = LocalDictionary.lookup(candidate.word)
+                let sentenceContext = SentenceContext(
+                    fullSentence: candidate.sentenceContext?.fullSentence,
+                    bookTitle: book?.title,
+                    localDictionary: localEntry
+                )
+                let config = await EnginePreferences.popupConfig(database: database)
+                let engine = try EngineRegistry.shared.engine(for: config)
+                let result = try await engine.lookup(.wordLookup(word: candidate.word, context: sentenceContext), model: config.model)
+                let snapshot = VocabSnapshot.make(word: candidate.word, lookup: result, localEntry: localEntry)
+                _ = try await database.upsertVocabEntry(
+                    word: candidate.word,
+                    context: sentenceContext.fullSentence,
+                    primaryZh: snapshot.primaryZh,
+                    sensesJSON: snapshot.sensesJSON,
+                    ukIPA: snapshot.ukIPA,
+                    usIPA: snapshot.usIPA,
+                    exampleEN: snapshot.exampleEN,
+                    exampleZH: snapshot.exampleZH,
+                    bookId: book?.id
+                )
+                await MainActor.run {
+                    coordinator.refreshCounts()
+                    showToast("已加入生词本")
+                }
+            } catch {
+                await MainActor.run {
+                    showToast("加入生词本失败 · \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
     private func cycleThemeMode() {
         theme = themeMode.next.storageValue
     }
@@ -752,6 +826,21 @@ private struct ReaderWindowContent: View {
                 }
             }
         }
+    }
+}
+
+struct ReaderAddWordCandidate: Equatable {
+    let word: String
+    let sentenceContext: SentenceContext?
+
+    init?(context: SelectedTextContext) {
+        let word = SelectionLookupClassifier.normalizedText(context.text)
+        guard SelectionLookupClassifier.isWord(word) else {
+            return nil
+        }
+
+        self.word = word
+        sentenceContext = context.sentenceContext
     }
 }
 
