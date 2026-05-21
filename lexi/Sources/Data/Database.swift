@@ -463,6 +463,24 @@ actor AppDatabase {
         }
     }
 
+    func setVocabEntryMastered(id: Int64, mastered: Bool, now: Date = .init()) throws {
+        try pool.write { db in
+            try db.execute(
+                sql: """
+                UPDATE vocab
+                SET mastered = ?, masteredAt = ?, updatedAt = ?
+                WHERE id = ?
+                """,
+                arguments: [
+                    mastered ? 1 : 0,
+                    mastered ? now.lexiTimestamp : nil,
+                    now.lexiTimestamp,
+                    id,
+                ]
+            )
+        }
+    }
+
     func vocabEntries(bookId: String?) throws -> [VocabEntry] {
         try pool.read { db in
             let entries = try Row.fetchAll(db, sql: "SELECT * FROM vocab ORDER BY updatedAt DESC, id DESC")
@@ -484,6 +502,26 @@ actor AppDatabase {
 
     func vocabCount() throws -> Int {
         try countRows(in: "vocab")
+    }
+
+    func unmasteredVocabCount() throws -> Int {
+        try pool.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM vocab WHERE mastered = 0") ?? 0
+        }
+    }
+
+    func vocabStats(now: Date = .init(), calendar: Calendar = .current) throws -> VocabStats {
+        let startOfToday = calendar.startOfDay(for: now).lexiTimestamp
+        return try pool.read { db in
+            let total = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM vocab") ?? 0
+            let addedToday = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM vocab WHERE addedAt >= ?",
+                arguments: [startOfToday]
+            ) ?? 0
+            let unmastered = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM vocab WHERE mastered = 0") ?? 0
+            return VocabStats(total: total, addedToday: addedToday, unmastered: unmastered)
+        }
     }
 
     func deleteVocabEntries(ids: Set<Int64>) throws {

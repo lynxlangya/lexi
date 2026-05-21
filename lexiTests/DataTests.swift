@@ -379,6 +379,148 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(entry.seenInBookIds, ["book-a", "book-b"])
     }
 
+    func testToggleMasteredUpdatesMasteredAt() async throws {
+        let database = try AppDatabase.makeTransient()
+        let inserted = try await database.upsertVocabEntry(
+            word: "Observe",
+            context: nil,
+            primaryZh: "观察",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: nil,
+            exampleEN: nil,
+            exampleZH: nil,
+            bookId: nil,
+            now: Date(lexiTimestamp: 1_800_000_030)
+        )
+        guard case .inserted(let id) = inserted else {
+            return XCTFail("Expected inserted result")
+        }
+
+        try await database.setVocabEntryMastered(
+            id: id,
+            mastered: true,
+            now: Date(lexiTimestamp: 1_800_000_040)
+        )
+        var storedEntry = try await database.vocabEntry(normalizedWord: "observe")
+        var entry = try XCTUnwrap(storedEntry)
+        XCTAssertTrue(entry.mastered)
+        XCTAssertEqual(entry.masteredAt, Date(lexiTimestamp: 1_800_000_040))
+
+        try await database.setVocabEntryMastered(
+            id: id,
+            mastered: false,
+            now: Date(lexiTimestamp: 1_800_000_050)
+        )
+        storedEntry = try await database.vocabEntry(normalizedWord: "observe")
+        entry = try XCTUnwrap(storedEntry)
+        XCTAssertFalse(entry.mastered)
+        XCTAssertNil(entry.masteredAt)
+    }
+
+    func testTodayAddedCountUsesLocalStartOfDay() async throws {
+        let database = try AppDatabase.makeTransient()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
+        let today = calendar.date(from: DateComponents(year: 2026, month: 5, day: 21, hour: 12))!
+        let yesterday = calendar.date(from: DateComponents(year: 2026, month: 5, day: 20, hour: 23))!
+
+        _ = try await database.upsertVocabEntry(
+            word: "today",
+            context: nil,
+            primaryZh: "今天",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: nil,
+            exampleEN: nil,
+            exampleZH: nil,
+            bookId: nil,
+            now: today
+        )
+        _ = try await database.upsertVocabEntry(
+            word: "yesterday",
+            context: nil,
+            primaryZh: "昨天",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: nil,
+            exampleEN: nil,
+            exampleZH: nil,
+            bookId: nil,
+            now: yesterday
+        )
+
+        let stats = try await database.vocabStats(now: today, calendar: calendar)
+        XCTAssertEqual(stats.total, 2)
+        XCTAssertEqual(stats.addedToday, 1)
+    }
+
+    func testUnmasteredCount() async throws {
+        let database = try AppDatabase.makeTransient()
+        let first = try await database.upsertVocabEntry(
+            word: "one",
+            context: nil,
+            primaryZh: "一",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: nil,
+            exampleEN: nil,
+            exampleZH: nil,
+            bookId: nil
+        )
+        _ = try await database.upsertVocabEntry(
+            word: "two",
+            context: nil,
+            primaryZh: "二",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: nil,
+            exampleEN: nil,
+            exampleZH: nil,
+            bookId: nil
+        )
+        if case .inserted(let id) = first {
+            try await database.setVocabEntryMastered(id: id, mastered: true)
+        }
+
+        let stats = try await database.vocabStats()
+        XCTAssertEqual(stats.total, 2)
+        XCTAssertEqual(stats.unmastered, 1)
+        let unmasteredCount = try await database.unmasteredVocabCount()
+        XCTAssertEqual(unmasteredCount, 1)
+    }
+
+    func testMarkdownExportRespectsCurrentFilter() async throws {
+        let unmastered = VocabEntry(
+            id: 1,
+            word: "observe",
+            normalizedWord: "observe",
+            context: "They observe quietly.",
+            primaryZh: "观察",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: "/əbˈzɝːv/",
+            exampleEN: nil,
+            exampleZH: nil,
+            seenInBooks: "[\"book-a\"]",
+            mastered: false,
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            updatedAt: Date(lexiTimestamp: 1_800_000_000),
+            masteredAt: nil
+        )
+        let markdown = VocabMarkdownExporter.markdown(
+            entries: [unmastered],
+            bookTitles: ["book-a": "Co-Intelligence"],
+            filterDescription: "未掌握 · Co-Intelligence",
+            exportedAt: Date(lexiTimestamp: 1_800_000_100)
+        )
+
+        XCTAssertTrue(markdown.contains("> 共 1 条 · 筛选条件：未掌握 · Co-Intelligence"))
+        XCTAssertTrue(markdown.contains("## observe /əbˈzɝːv/"))
+        XCTAssertTrue(markdown.contains("- 来源：Co-Intelligence"))
+        XCTAssertTrue(markdown.contains("- 状态：未掌握"))
+    }
+
     private func temporaryDatabaseURL() -> URL {
         let directory = FileManager.default.temporaryDirectory.appending(path: "LexiTests", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
