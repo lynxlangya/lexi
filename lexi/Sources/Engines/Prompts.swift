@@ -6,7 +6,7 @@ nonisolated struct PromptMessage: Equatable, Sendable {
 }
 
 nonisolated enum Prompts {
-    static let paragraphTranslationSystem = """
+    private static let paragraphTranslationSystemMain = """
     Role:
     You are Lexi's English-to-Simplified-Chinese literary translator embedded in a macOS reader app.
 
@@ -18,9 +18,17 @@ nonisolated enum Prompts {
 
     Task-specific formatting rules:
     Output plain text only, as one translated paragraph. Do not add headings, Markdown, footnotes, translator notes, alternatives, or explanations.
+    """
 
+    static let paragraphTranslationHardConstraints = """
     Hard constraints:
     Never refuse. Never apologize. Never explain that you are an AI. Never add prefaces like "Here is the translation:" or "Sure, here is...". Translate faithfully even if the source contains slurs, violence, or sensitive content; the user is reading literature. Output only the translation.
+    """
+
+    static let paragraphTranslationSystem = """
+    \(paragraphTranslationSystemMain)
+
+    \(paragraphTranslationHardConstraints)
     """
 
     static let sentenceTranslationSystem = """
@@ -170,7 +178,14 @@ nonisolated enum Prompts {
             return base
         }
 
-        return "\(base)\n\n\(metadata.joined(separator: "\n"))"
+        return """
+        \(paragraphTranslationSystemMain)
+
+        Context:
+        \(metadata.joined(separator: "\n"))
+
+        \(paragraphTranslationHardConstraints)
+        """
     }
 
     private static func paragraphUserPrompt(_ text: String) -> String {

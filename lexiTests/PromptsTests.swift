@@ -63,4 +63,17 @@ final class PromptsTests: XCTestCase {
         XCTAssertTrue(sentencePrompt.contains("把下面这个英文句子译成中文"))
         XCTAssertTrue(sentencePrompt.contains("完整上下文句：He waited at the door."))
     }
+
+    func testParagraphSystemPromptKeepsHardConstraintsLastWhenAddingContext() {
+        let prompt = Prompts.systemPrompt(
+            for: .paragraph(
+                text: "Text",
+                context: ParagraphContext(bookTitle: "Co-Intelligence", chapterTitle: "Chapter 2")
+            )
+        )
+
+        XCTAssertTrue(prompt.contains("Context:"))
+        XCTAssertTrue(prompt.contains("Current work: \"Co-Intelligence\""))
+        XCTAssertTrue(prompt.hasSuffix(Prompts.paragraphTranslationHardConstraints))
+    }
 }
