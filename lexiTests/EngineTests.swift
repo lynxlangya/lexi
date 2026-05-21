@@ -5,21 +5,21 @@ import XCTest
 final class EngineTests: XCTestCase {
     func testOpenAIPingMapsAllStates() async throws {
         let okClient = MockEngineHTTPClient(dataResponses: [
-            .success((Data(#"{"data":[{"id":"gpt-4-turbo"}]}"#.utf8), response(status: 200))),
+            .success((Data(#"{"data":[{"id":"gpt-5.4-mini"}]}"#.utf8), response(status: 200))),
         ])
-        let ok = try await OpenAIEngine(apiKey: "key", client: okClient).ping(model: "gpt-4-turbo")
+        let ok = try await OpenAIEngine(apiKey: "key", client: okClient).ping(model: "gpt-5.4-mini")
         XCTAssertEqual(ok, .ok)
 
         let unknownClient = MockEngineHTTPClient(dataResponses: [
             .success((Data(#"{"data":[{"id":"gpt-4o"}]}"#.utf8), response(status: 200))),
         ])
-        let unknown = try await OpenAIEngine(apiKey: "key", client: unknownClient).ping(model: "gpt-4-turbo")
+        let unknown = try await OpenAIEngine(apiKey: "key", client: unknownClient).ping(model: "gpt-5.4-mini")
         XCTAssertEqual(unknown, .keyOkModelUnknown)
 
         let failClient = MockEngineHTTPClient(dataResponses: [
             .success((Data(#"{"error":{"message":"invalid api key"}}"#.utf8), response(status: 401))),
         ])
-        let fail = try await OpenAIEngine(apiKey: "key", client: failClient).ping(model: "gpt-4-turbo")
+        let fail = try await OpenAIEngine(apiKey: "key", client: failClient).ping(model: "gpt-5.4-mini")
         XCTAssertEqual(fail, .fail(reason: "invalid api key"))
     }
 
@@ -37,7 +37,7 @@ final class EngineTests: XCTestCase {
         ])
         let engine = OpenAIEngine(apiKey: "key", client: client)
 
-        let chunks = try await collect(engine.translate(["hello world", "second"], model: "gpt-4-turbo"))
+        let chunks = try await collect(engine.translate(["hello world", "second"], model: "gpt-5.4-mini"))
 
         XCTAssertEqual(chunks, [
             TranslationChunk(index: 0, text: "你好"),
@@ -79,7 +79,7 @@ final class EngineTests: XCTestCase {
         let engine = OpenAIEngine(apiKey: "key", client: client)
 
         do {
-            _ = try await collect(engine.translate(["first", "second"], model: "gpt-4-turbo"))
+            _ = try await collect(engine.translate(["first", "second"], model: "gpt-5.4-mini"))
             XCTFail("Expected paragraph failure")
         } catch let error as EngineError {
             guard case .paragraphFailed(let index, _) = error else {

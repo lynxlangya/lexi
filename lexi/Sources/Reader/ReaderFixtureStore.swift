@@ -91,7 +91,7 @@ enum ReaderFixtureStore {
     nonisolated static func defaultModel(for engine: EngineID) -> String {
         switch engine {
         case .openai:
-            return "gpt-4-turbo"
+            return "gpt-5.4-mini"
         case .anthropic:
             return "claude-sonnet-4-6"
         case .deepseek:

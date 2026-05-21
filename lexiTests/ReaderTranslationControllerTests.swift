@@ -75,7 +75,7 @@ final class ReaderTranslationControllerTests: XCTestCase {
                 id: nil,
                 paragraphId: chapter.paragraphs[0].id,
                 engine: .openai,
-                model: "gpt-4-turbo",
+                model: "gpt-5.4-mini",
                 zh: "old engine zh",
                 createdAt: Date()
             )

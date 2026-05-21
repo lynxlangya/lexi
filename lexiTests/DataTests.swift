@@ -53,7 +53,7 @@ final class DataTests: XCTestCase {
                 id: nil,
                 paragraphId: paragraphId,
                 engine: .openai,
-                model: "gpt-4-turbo",
+                model: "gpt-5.4-mini",
                 zh: "在我年纪更轻、也更容易受伤的时候……",
                 createdAt: addedAt
             )
@@ -61,7 +61,7 @@ final class DataTests: XCTestCase {
         let cachedTranslation = try await database.cachedTranslation(
             paragraphId: paragraphId,
             engine: .openai,
-            model: "gpt-4-turbo"
+            model: "gpt-5.4-mini"
         )
         XCTAssertEqual(cachedTranslation, "在我年纪更轻、也更容易受伤的时候……")
 
@@ -78,10 +78,10 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(vocabEntries.first?.word, "vulnerable")
 
         try await database.upsertEngineConfig(
-            EngineConfig(id: .openai, model: "gpt-4-turbo", lastTestedOK: true, lastTestedAt: addedAt)
+            EngineConfig(id: .openai, model: "gpt-5.4-mini", lastTestedOK: true, lastTestedAt: addedAt)
         )
         let engineConfig = try await database.engineConfig(for: .openai)
-        XCTAssertEqual(engineConfig?.model, "gpt-4-turbo")
+        XCTAssertEqual(engineConfig?.model, "gpt-5.4-mini")
     }
 
     func testShelfBookListOrdersByRecentActivity() async throws {

@@ -490,7 +490,7 @@ struct SettingsSheet: View {
     private func subtitle(for engine: EngineID) -> String {
         switch engine {
         case .openai:
-            return "GPT-4 / GPT-4o / GPT-3.5"
+            return "GPT-5.4 Mini / GPT-5.5"
         case .anthropic:
             return "Claude Sonnet / Haiku"
         case .deepseek:
