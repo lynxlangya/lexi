@@ -20,9 +20,18 @@ private enum ReaderSurface {
     case reader
 }
 
+private struct ScrollPersistenceContext: Sendable {
+    let database: AppDatabase
+    let bookId: String
+    let chapterIndex: Int
+    let paragraphIndex: Int
+    let bookProgress: Double
+}
+
 private struct ReaderWindowContent: View {
     @ObservedObject var coordinator: LexiMenuBarCoordinator
     @Environment(\.colorScheme) private var systemColorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedChapterIndex = 2
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var surface = ReaderSurface.shelf
@@ -38,6 +47,9 @@ private struct ReaderWindowContent: View {
     @State private var removeCandidate: ReaderBook?
     @State private var showsSettings = false
     @State private var showsVocab = false
+    @State private var visibleParagraphId: Int64?
+    @State private var pendingScrollParagraphIdx: Int?
+    @State private var scrollWriteTask: Task<Void, Never>?
     @AppStorage("reader.fontSize") private var fontSize = 17.0
     @AppStorage("reader.transMode") private var transModeRaw = ReaderTranslationMode.both.rawValue
     @AppStorage("reader.prefetch") private var prefetchCount = 1
@@ -79,11 +91,20 @@ private struct ReaderWindowContent: View {
         chapters[safe: selectedChapterIndex]
     }
 
+    private var selectedChapterIndexBinding: Binding<Int> {
+        Binding {
+            selectedChapterIndex
+        } set: { nextIndex in
+            selectChapter(at: nextIndex)
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             content
                 .task(loadInitialData)
                 .onChange(of: selectedChapterIndex) { _, _ in
+                    visibleParagraphId = nil
                     translateSelectedChapter()
                 }
                 .readerShortcuts(
@@ -103,7 +124,7 @@ private struct ReaderWindowContent: View {
                 isReaderSurface: surface == .reader
             )
         )
-        .background(ReaderWindowCloseBehavior())
+        .background(ReaderWindowCloseBehavior(willClose: flushVisibleScrollProgress))
         .background(preferences.theme.paper)
         .preferredColorScheme(themeMode.preferredColorScheme)
         .frame(minWidth: 920, minHeight: 620)
@@ -164,6 +185,15 @@ private struct ReaderWindowContent: View {
         .onReceive(NotificationCenter.default.publisher(for: .lexiChapterEngineSettingsChanged)) { _ in
             applyEngineSettings()
         }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase != .active else {
+                return
+            }
+            flushVisibleScrollProgress()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            flushVisibleScrollProgress()
+        }
     }
 
     @ViewBuilder
@@ -209,7 +239,7 @@ private struct ReaderWindowContent: View {
                             TOCSidebar(
                                 book: book,
                                 chapters: chapters,
-                                selectedChapterIndex: $selectedChapterIndex,
+                                selectedChapterIndex: selectedChapterIndexBinding,
                                 chapterState: { chapterId in
                                     controller.chapterState(for: chapterId)
                                 },
@@ -226,8 +256,10 @@ private struct ReaderWindowContent: View {
                             snapshot: controller.snapshot(for: selectedChapter.id),
                             transMode: transMode,
                             preferences: preferences,
+                            visibleParagraphId: $visibleParagraphId,
                             goToPreviousChapter: previousChapter,
-                            goToNextChapter: nextChapter
+                            goToNextChapter: nextChapter,
+                            onParagraphChange: handleVisibleParagraphChange
                         ) { paragraph in
                             controller.retryParagraph(paragraph, in: selectedChapter)
                         }
@@ -350,6 +382,8 @@ private struct ReaderWindowContent: View {
             let loaded = try await ReaderFixtureStore.loadExistingBook(bookId: nextBook.id, from: database)
             let engineConfig = await EnginePreferences.chapterConfig(database: database)
             let nextController = ChapterTranslationController(database: database, engineConfig: engineConfig)
+            visibleParagraphId = nil
+            pendingScrollParagraphIdx = nil
             book = loaded.0
             chapters = loaded.1
             controller = nextController
@@ -360,6 +394,7 @@ private struct ReaderWindowContent: View {
                let progress = try await database.progress(for: nextBook.id),
                loaded.1.indices.contains(progress.chapterIdx) {
                 selectedChapterIndex = progress.chapterIdx
+                pendingScrollParagraphIdx = validParagraphIndex(from: progress.scrollPct, in: loaded.1[progress.chapterIdx])
             } else if selectedChapterIndex >= loaded.1.count {
                 selectedChapterIndex = max(0, loaded.1.count - 1)
             }
@@ -368,6 +403,7 @@ private struct ReaderWindowContent: View {
             await nextController.prepare(chapters: loaded.1)
             surface = .reader
             translateSelectedChapter()
+            restorePendingScrollTarget()
             try await reloadShelf(from: database)
         } catch {
             showToast(error.localizedDescription)
@@ -440,6 +476,9 @@ private struct ReaderWindowContent: View {
             do {
                 try await database.deleteBook(id: target.id)
                 if target.id == book?.id {
+                    scrollWriteTask?.cancel()
+                    visibleParagraphId = nil
+                    pendingScrollParagraphIdx = nil
                     book = nil
                     chapters = []
                     controller = nil
@@ -472,9 +511,124 @@ private struct ReaderWindowContent: View {
             let progress = chapters.isEmpty ? 0 : (Double(selectedChapterIndex) + Double(chapterProgress) / 100) / Double(chapters.count)
             try? await database.updateBookProgress(id: book.id, progress: progress)
             try? await database.upsertProgress(
-                ProgressRecord(bookId: book.id, chapterIdx: selectedChapterIndex, scrollPct: 0, updatedAt: Date())
+                ProgressRecord(
+                    bookId: book.id,
+                    chapterIdx: selectedChapterIndex,
+                    scrollPct: Double(pendingScrollParagraphIdx ?? currentParagraphIndex(in: selectedChapter)),
+                    updatedAt: Date()
+                )
             )
             try? await reloadShelf(from: database)
+        }
+    }
+
+    private func handleVisibleParagraphChange(_ paragraphId: Int64) {
+        scrollWriteTask?.cancel()
+        guard let context = scrollPersistenceContext(paragraphId: paragraphId) else {
+            return
+        }
+
+        scrollWriteTask = Task {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            await persistScroll(context)
+        }
+    }
+
+    private func flushVisibleScrollProgress() {
+        flushVisibleScrollProgress {}
+    }
+
+    private func flushVisibleScrollProgress(completion: @escaping () -> Void) {
+        scrollWriteTask?.cancel()
+        guard let visibleParagraphId,
+              let context = scrollPersistenceContext(paragraphId: visibleParagraphId) else {
+            completion()
+            return
+        }
+
+        Task {
+            await persistScroll(context)
+            await MainActor.run {
+                completion()
+            }
+        }
+    }
+
+    private func scrollPersistenceContext(paragraphId: Int64) -> ScrollPersistenceContext? {
+        guard let database, let book, let selectedChapter else {
+            return nil
+        }
+        guard let paragraphIndex = selectedChapter.paragraphs.firstIndex(where: { $0.id == paragraphId }) else {
+            return nil
+        }
+
+        let progress = chapters.isEmpty
+            ? 0
+            : (Double(selectedChapterIndex) + Double(paragraphIndex) / Double(max(1, selectedChapter.paragraphs.count))) / Double(chapters.count)
+
+        return ScrollPersistenceContext(
+            database: database,
+            bookId: book.id,
+            chapterIndex: selectedChapterIndex,
+            paragraphIndex: paragraphIndex,
+            bookProgress: progress
+        )
+    }
+
+    private func persistScroll(_ context: ScrollPersistenceContext) async {
+        try? await context.database.updateBookProgress(id: context.bookId, progress: context.bookProgress)
+        try? await context.database.upsertProgress(
+            ProgressRecord(
+                bookId: context.bookId,
+                chapterIdx: context.chapterIndex,
+                scrollPct: Double(context.paragraphIndex),
+                updatedAt: Date()
+            )
+        )
+        try? await reloadShelf(from: context.database)
+    }
+
+    private func currentParagraphIndex(in chapter: ReaderChapter) -> Int {
+        guard let visibleParagraphId,
+              let paragraphIndex = chapter.paragraphs.firstIndex(where: { $0.id == visibleParagraphId }) else {
+            return 0
+        }
+
+        return paragraphIndex
+    }
+
+    private func validParagraphIndex(from rawValue: Double, in chapter: ReaderChapter) -> Int? {
+        guard rawValue.isFinite, rawValue >= 0 else {
+            return nil
+        }
+
+        let index = Int(rawValue)
+        guard chapter.paragraphs.indices.contains(index) else {
+            return nil
+        }
+
+        return index
+    }
+
+    private func restorePendingScrollTarget() {
+        guard let pendingIndex = pendingScrollParagraphIdx,
+              let chapter = chapters[safe: selectedChapterIndex],
+              chapter.paragraphs.indices.contains(pendingIndex) else {
+            pendingScrollParagraphIdx = nil
+            return
+        }
+
+        let targetId = chapter.paragraphs[pendingIndex].id
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard pendingScrollParagraphIdx != nil else {
+                return
+            }
+            visibleParagraphId = targetId
+            pendingScrollParagraphIdx = nil
         }
     }
 
@@ -498,14 +652,24 @@ private struct ReaderWindowContent: View {
         guard surface == .reader else {
             return
         }
-        selectedChapterIndex = max(0, selectedChapterIndex - 1)
+        selectChapter(at: max(0, selectedChapterIndex - 1))
     }
 
     private func nextChapter() {
         guard surface == .reader else {
             return
         }
-        selectedChapterIndex = min(max(0, chapters.count - 1), selectedChapterIndex + 1)
+        selectChapter(at: min(max(0, chapters.count - 1), selectedChapterIndex + 1))
+    }
+
+    private func selectChapter(at index: Int) {
+        let nextIndex = min(max(0, index), max(0, chapters.count - 1))
+        guard nextIndex != selectedChapterIndex else {
+            return
+        }
+
+        flushVisibleScrollProgress()
+        selectedChapterIndex = nextIndex
     }
 
     private func toggleSidebar() {
@@ -558,8 +722,10 @@ private struct ReaderWindowTitleUpdater: NSViewRepresentable {
 }
 
 private struct ReaderWindowCloseBehavior: NSViewRepresentable {
+    let willClose: (@escaping () -> Void) -> Void
+
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(willClose: willClose)
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -568,8 +734,11 @@ private struct ReaderWindowCloseBehavior: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async {
-            guard let window = view.window,
-                  window.delegate !== context.coordinator else {
+            guard let window = view.window else {
+                return
+            }
+            context.coordinator.willClose = willClose
+            guard window.delegate !== context.coordinator else {
                 return
             }
             window.delegate = context.coordinator
@@ -577,14 +746,40 @@ private struct ReaderWindowCloseBehavior: NSViewRepresentable {
     }
 
     final class Coordinator: NSObject, NSWindowDelegate {
+        var willClose: (@escaping () -> Void) -> Void
+        private var isClosingAfterFlush = false
+        private var isTerminatingAfterFlush = false
+
+        init(willClose: @escaping (@escaping () -> Void) -> Void) {
+            self.willClose = willClose
+        }
+
         func windowShouldClose(_ sender: NSWindow) -> Bool {
-            if UserDefaults.standard.string(forKey: "general.onClose") == "quit" {
-                NSApp.terminate(nil)
-                return false
+            if isClosingAfterFlush || isTerminatingAfterFlush {
+                isClosingAfterFlush = false
+                return true
             }
 
+            if UserDefaults.standard.string(forKey: "general.onClose") == "quit" {
+                willClose {
+                    self.isTerminatingAfterFlush = true
+                    NSApp.terminate(nil)
+                }
+            } else {
+                willClose { [weak sender] in
+                    guard let sender else {
+                        return
+                    }
+                    self.isClosingAfterFlush = true
+                    sender.performClose(nil)
+                }
+            }
+
+            return false
+        }
+
+        func windowWillClose(_ notification: Notification) {
             NSApp.setActivationPolicy(.accessory)
-            return true
         }
     }
 }
