@@ -19,12 +19,13 @@ struct ParaView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: LexiSpacing.enZhGap) {
             if transMode != .zh {
-                Text(paragraph.en)
-                    .font(preferences.font.serif(enSize))
-                    .lineSpacing(enSize * preferences.lineHeight.englishSpacingRatio)
-                    .foregroundStyle(preferences.theme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+                SelectableReaderText(
+                    text: paragraph.en,
+                    font: preferences.font.nsSerif(enSize),
+                    lineSpacing: enSize * preferences.lineHeight.englishSpacingRatio,
+                    foregroundColor: preferences.theme.ink,
+                    selectionColor: preferences.accent.primary.opacity(0.28)
+                )
             }
 
             if transMode != .en {
@@ -68,33 +69,32 @@ struct ParaView: View {
 
     @ViewBuilder
     private func translatedText(_ zh: String) -> some View {
-        let text = Text(zh)
-            .font(LexiFont.zh(zhSize))
-            .lineSpacing(zhSize * preferences.lineHeight.chineseSpacingRatio)
-            .foregroundStyle(preferences.theme.ink2)
-
         switch preferences.translationStyle {
         case .demote:
-            text
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+            selectableTranslation(zh)
         case .rule:
             HStack(alignment: .top, spacing: 10) {
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                     .fill(preferences.accent.primary.opacity(0.45))
                     .frame(width: 3)
-                text
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+                selectableTranslation(zh)
             }
         case .tint:
-            text
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+            selectableTranslation(zh)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(preferences.accent.faint)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
+    }
+
+    private func selectableTranslation(_ zh: String) -> some View {
+        SelectableReaderText(
+            text: zh,
+            font: LexiFont.nsSans(zhSize),
+            lineSpacing: zhSize * preferences.lineHeight.chineseSpacingRatio,
+            foregroundColor: preferences.theme.ink2,
+            selectionColor: preferences.accent.primary.opacity(0.28)
+        )
     }
 }

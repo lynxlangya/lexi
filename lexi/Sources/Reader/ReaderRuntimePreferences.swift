@@ -30,6 +30,28 @@ enum ReaderFontChoice: String, Equatable {
         }
         return LexiFont.serif(size)
     }
+
+    func nsSerif(_ size: CGFloat) -> NSFont {
+        switch self {
+        case .newYork:
+            return LexiFont.nsSerif(size)
+        case .charter:
+            return customNSFont(["Charter-Roman", "Charter"], size: size)
+        case .iowanOldStyle:
+            return customNSFont(["IowanOldStyle-Roman", "Iowan Old Style"], size: size)
+        case .georgia:
+            return customNSFont(["Georgia"], size: size)
+        }
+    }
+
+    private func customNSFont(_ names: [String], size: CGFloat) -> NSFont {
+        for name in names {
+            if let font = NSFont(name: name, size: size) {
+                return font
+            }
+        }
+        return LexiFont.nsSerif(size)
+    }
 }
 
 enum ReaderLineHeightChoice: String, Equatable {

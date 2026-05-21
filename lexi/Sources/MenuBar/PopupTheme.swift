@@ -102,10 +102,6 @@ struct PopupCard<Content: View>: View {
                 .frame(width: width)
                 .background(theme.bg)
                 .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .stroke(theme.border, lineWidth: 1)
-                }
                 .overlay(alignment: .top) {
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .stroke(theme.highlight, lineWidth: 0.6)
