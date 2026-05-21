@@ -45,7 +45,7 @@ nonisolated enum LocalDictionary {
     }
 
     private static func extractIPA(from text: String) -> [String] {
-        let pattern = #"[|/][A-Za-zɐ-ʯˈˌː.əɛɪʊɔæɑɒɜθðʃʒŋɡˑ -]+[|/]"#
+        let pattern = "[|/][A-Za-z\u{0250}-\u{02AF}ˈˌː.ˑ -]+[|/]"
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return []
         }
@@ -62,19 +62,29 @@ nonisolated enum LocalDictionary {
     }
 
     private static func extractPartsOfSpeech(from text: String) -> [String] {
-        let known = [
-            "noun": "n.",
-            "verb": "v.",
-            "adjective": "adj.",
-            "adverb": "adv.",
-            "preposition": "prep.",
-            "conjunction": "conj.",
-            "pronoun": "pron.",
+        let mapping: [(pattern: String, label: String)] = [
+            (#"\bpronoun\b"#, "pron."),
+            (#"\bpreposition\b"#, "prep."),
+            (#"\bconjunction\b"#, "conj."),
+            (#"\badjective\b"#, "adj."),
+            (#"\badverb\b"#, "adv."),
+            (#"\bnoun\b"#, "n."),
+            (#"\bverb\b"#, "v."),
         ]
         let lowercased = text.lowercased()
-        let found = known.compactMap { key, value in
-            lowercased.contains(key) ? value : nil
+        let range = NSRange(lowercased.startIndex..<lowercased.endIndex, in: lowercased)
+        var seen = Set<String>()
+        var result: [String] = []
+
+        for (pattern, label) in mapping {
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  regex.firstMatch(in: lowercased, range: range) != nil,
+                  !seen.contains(label) else {
+                continue
+            }
+            seen.insert(label)
+            result.append(label)
         }
-        return Array(NSOrderedSet(array: found)) as? [String] ?? found
+        return result
     }
 }
