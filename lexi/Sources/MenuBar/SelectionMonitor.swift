@@ -4,26 +4,51 @@ import ApplicationServices
 struct SelectedTextContext: Equatable {
     var text: String
     var anchor: CGRect
+    var source: SelectionSource = .global
+}
+
+enum SelectionSource: Equatable {
+    case global
+    case reader
+}
+
+enum SelectionReadFailure: Error, Equatable {
+    case accessibilityDenied
+    case emptySelection
 }
 
 @MainActor
 final class SelectionMonitor {
     private var mouseUpMonitor: Any?
+    private var localMouseUpMonitor: Any?
     var onSelection: ((SelectedTextContext) -> Void)?
 
     func start() {
-        guard mouseUpMonitor == nil else {
-            return
+        if mouseUpMonitor == nil {
+            mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self,
+                          case .success(let context) = Self.currentSelectionResult(promptForPermission: false),
+                          !context.text.isEmpty else {
+                        return
+                    }
+                    self.onSelection?(context)
+                }
+            }
         }
 
-        mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
-            Task { @MainActor in
-                guard let self,
-                      let context = Self.currentSelection(promptForPermission: false),
-                      !context.text.isEmpty else {
-                    return
+        if localMouseUpMonitor == nil {
+            localMouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
+                Task { @MainActor in
+                    guard let self,
+                          case .success(let context) = Self.currentSelectionResult(promptForPermission: false),
+                          context.source == .reader,
+                          !context.text.isEmpty else {
+                        return
+                    }
+                    self.onSelection?(context)
                 }
-                self.onSelection?(context)
+                return event
             }
         }
     }
@@ -33,11 +58,19 @@ final class SelectionMonitor {
             NSEvent.removeMonitor(mouseUpMonitor)
             self.mouseUpMonitor = nil
         }
+        if let localMouseUpMonitor {
+            NSEvent.removeMonitor(localMouseUpMonitor)
+            self.localMouseUpMonitor = nil
+        }
     }
 
     static func currentSelection(promptForPermission: Bool = true) -> SelectedTextContext? {
+        try? currentSelectionResult(promptForPermission: promptForPermission).get()
+    }
+
+    static func currentSelectionResult(promptForPermission: Bool = true) -> Result<SelectedTextContext, SelectionReadFailure> {
         guard ensureAccessibilityPermission(prompt: promptForPermission) else {
-            return nil
+            return .failure(.accessibilityDenied)
         }
 
         let systemWide = AXUIElementCreateSystemWide()
@@ -52,22 +85,28 @@ final class SelectionMonitor {
         }
         AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
         guard let focusedElement else {
-            return nil
+            return .failure(.emptySelection)
         }
         let element = focusedElement as! AXUIElement
 
         var selectedText: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedText)
         guard let rawText = selectedText as? String else {
-            return nil
+            return .failure(.emptySelection)
         }
 
-        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else {
-            return nil
+        let text = SelectionLookupClassifier.normalizedText(rawText)
+        guard SelectionLookupClassifier.canTranslate(text) else {
+            return .failure(.emptySelection)
         }
 
-        return SelectedTextContext(text: text, anchor: selectionFrame(from: element))
+        return .success(
+            SelectedTextContext(
+                text: text,
+                anchor: selectionFrame(from: element),
+                source: selectionSource(from: focusedApp)
+            )
+        )
     }
 
     static func ensureAccessibilityPermission(prompt: Bool) -> Bool {
@@ -105,6 +144,21 @@ final class SelectionMonitor {
         }
         return CGRect(x: 400, y: 400, width: 36, height: 24)
     }
+
+    private static func selectionSource(from focusedApp: CFTypeRef?) -> SelectionSource {
+        guard let focusedApp else {
+            return .global
+        }
+
+        let app = focusedApp as! AXUIElement
+        var pid = pid_t()
+        guard AXUIElementGetPid(app, &pid) == .success,
+              pid == NSRunningApplication.current.processIdentifier else {
+            return .global
+        }
+
+        return .reader
+    }
 }
 
 private extension NSEvent {
@@ -113,7 +167,10 @@ private extension NSEvent {
             return nil
         }
         let location = NSEvent.mouseLocation
-        return CGPoint(x: location.x, y: location.y.clamped(to: screen.visibleFrame.minY...screen.visibleFrame.maxY))
+        return CGPoint(
+            x: location.x.clamped(to: screen.visibleFrame.minX...screen.visibleFrame.maxX),
+            y: location.y.clamped(to: screen.visibleFrame.minY...screen.visibleFrame.maxY)
+        )
     }
 }
 

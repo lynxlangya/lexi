@@ -6,6 +6,7 @@ enum PopupKind: Equatable {
     case word(WordLookup)
     case sentence(SentenceLookup)
     case error(text: String, reason: String)
+    case permissionError(reason: String)
 }
 
 struct WordLookup: Equatable {
@@ -45,6 +46,8 @@ struct PopupActions {
     var addVocab: () -> Void
     var speak: (String) -> Void
     var selectEngine: (EngineID) -> Void
+    var openSettings: () -> Void
+    var openAccessibilitySettings: () -> Void
 }
 
 struct PopupContent: View {
@@ -63,7 +66,25 @@ struct PopupContent: View {
         case .sentence(let lookup):
             SentenceCard(lookup: lookup, pinned: pinned, actions: actions)
         case .error(_, let reason):
-            ErrorCard(reason: reason, retry: actions.retry, close: actions.close)
+            ErrorCard(
+                title: "连接引擎失败",
+                message: "检查网络、API Key 或模型名后重试。",
+                reason: reason,
+                actionTitle: "去设置 →",
+                action: actions.openSettings,
+                retry: actions.retry,
+                close: actions.close
+            )
+        case .permissionError(let reason):
+            ErrorCard(
+                title: "需要辅助功能权限",
+                message: "Lexi 需要读取当前选区，授权后才能划词翻译。",
+                reason: reason,
+                actionTitle: "打开系统设置 →",
+                action: actions.openAccessibilitySettings,
+                retry: nil,
+                close: actions.close
+            )
         }
     }
 }

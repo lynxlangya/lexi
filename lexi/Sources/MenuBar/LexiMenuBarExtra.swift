@@ -130,36 +130,48 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     func translateCurrentSelection() {
-        guard let context = selectedTextContext(promptForPermission: true) else {
+        switch selectedTextContext(promptForPermission: true) {
+        case .success(let context):
+            popupEngineOverride = nil
+            translate(context.text, anchor: context.anchor)
+        case .failure(.accessibilityDenied):
             showPermissionError()
-            return
+        case .failure(.emptySelection):
+            showEmptySelection()
         }
-        popupEngineOverride = nil
-        translate(context.text, anchor: context.anchor)
     }
 
     func translateAndReplaceSelection() {
-        guard let context = selectedTextContext(promptForPermission: true) else {
-            showPermissionError()
-            return
-        }
-
-        let anchor = context.anchor
-        popupEngineOverride = nil
-        Task {
-            do {
-                currentEngine = await popupEngineConfig()
-                show(kind: .loading(text: context.text, isWord: false, engine: currentEngine.id), near: anchor)
-                let translated = try await translateText(context.text)
-                if TextReplacement.replaceSelection(with: translated) {
-                    closePopup()
-                } else {
-                    show(kind: .sentence(SentenceLookup(text: context.text, zh: translated, engine: currentEngine.id)), near: anchor)
-                    showToast("已复制译文")
-                }
-            } catch {
-                show(kind: .error(text: context.text, reason: error.localizedDescription), near: anchor)
+        switch selectedTextContext(promptForPermission: true) {
+        case .success(let context):
+            guard context.source != .reader else {
+                popupEngineOverride = nil
+                translate(context.text, anchor: context.anchor)
+                showToast("阅读器正文不可替换，已改为划词翻译")
+                return
             }
+
+            let anchor = context.anchor
+            popupEngineOverride = nil
+            Task {
+                do {
+                    currentEngine = await popupEngineConfig()
+                    show(kind: .loading(text: context.text, isWord: false, engine: currentEngine.id), near: anchor)
+                    let translated = try await translateText(context.text)
+                    if TextReplacement.replaceSelection(with: translated) {
+                        closePopup()
+                    } else {
+                        show(kind: .sentence(SentenceLookup(text: context.text, zh: translated, engine: currentEngine.id)), near: anchor)
+                        showToast("已复制译文")
+                    }
+                } catch {
+                    show(kind: .error(text: context.text, reason: error.localizedDescription), near: anchor)
+                }
+            }
+        case .failure(.accessibilityDenied):
+            showPermissionError()
+        case .failure(.emptySelection):
+            showEmptySelection()
         }
     }
 
@@ -190,8 +202,8 @@ final class LexiMenuBarCoordinator: ObservableObject {
         NotificationCenter.default.post(name: .lexiOpenSettings, object: nil)
     }
 
-    private func selectedTextContext(promptForPermission: Bool) -> SelectedTextContext? {
-        SelectionMonitor.currentSelection(promptForPermission: promptForPermission)
+    private func selectedTextContext(promptForPermission: Bool) -> Result<SelectedTextContext, SelectionReadFailure> {
+        SelectionMonitor.currentSelectionResult(promptForPermission: promptForPermission)
     }
 
     private func showChip(for context: SelectedTextContext) {
@@ -207,12 +219,13 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func translate(_ text: String, anchor: CGRect) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        let trimmed = SelectionLookupClassifier.normalizedText(text)
+        guard SelectionLookupClassifier.canTranslate(trimmed) else {
+            showEmptySelection()
             return
         }
 
-        let word = isWord(trimmed)
+        let word = SelectionLookupClassifier.isWord(trimmed)
         Task {
             do {
                 currentEngine = await popupEngineConfig()
@@ -267,7 +280,9 @@ final class LexiMenuBarCoordinator: ObservableObject {
             retry: { [weak self] in self?.retryActive() },
             addVocab: { [weak self] in self?.addActiveWordToVocab() },
             speak: { [weak self] text in self?.speech.speak(text) },
-            selectEngine: { [weak self] engine in self?.selectEngine(engine) }
+            selectEngine: { [weak self] engine in self?.selectEngine(engine) },
+            openSettings: { [weak self] in self?.openSettings() },
+            openAccessibilitySettings: { [weak self] in self?.openAccessibilitySettings() }
         )
     }
 
@@ -378,16 +393,22 @@ final class LexiMenuBarCoordinator: ObservableObject {
 
     private func showPermissionError() {
         let reason = "需要在系统设置 → 隐私与安全 → 辅助功能中允许 Lexi。"
-        show(kind: .error(text: "", reason: reason), near: activeAnchor)
+        show(kind: .permissionError(reason: reason), near: activeAnchor)
+    }
+
+    private func openAccessibilitySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func showEmptySelection() {
+        showToast("请先选中要翻译的文字")
     }
 
     private func showToast(_ message: String) {
         toast.show(message)
         NotificationCenter.default.post(name: .lexiMenuBarToast, object: message)
-    }
-
-    private func isWord(_ text: String) -> Bool {
-        text.range(of: #"^[a-zA-Z'\u{2019}-]+$"#, options: .regularExpression) != nil
     }
 
     private func relatedWords(for word: String) -> [String] {

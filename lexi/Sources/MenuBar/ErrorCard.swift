@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct ErrorCard: View {
+    let title: String
+    let message: String
     let reason: String
-    let retry: () -> Void
+    let actionTitle: String
+    let action: () -> Void
+    let retry: (() -> Void)?
     let close: () -> Void
 
     var body: some View {
@@ -26,12 +30,12 @@ struct ErrorCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("连接引擎失败")
+                    Text(title)
                         .font(LexiFont.sans(13.5))
                         .fontWeight(.medium)
                         .foregroundStyle(Color.lexiInk)
 
-                    Text("检查网络、API Key 或模型名后重试。")
+                    Text(message)
                         .font(LexiFont.zh(12.5))
                         .lineSpacing(8)
                         .foregroundStyle(Color.lexiInk2)
@@ -52,12 +56,16 @@ struct ErrorCard: View {
                 .padding(16)
 
                 HStack {
+                    Button(actionTitle, action: action)
+                        .font(LexiFont.sans(11.5))
                     Spacer()
                     Button("关闭", action: close)
                         .font(LexiFont.sans(11.5))
-                    Button("重试", action: retry)
-                        .font(LexiFont.sans(11.5))
-                        .buttonStyle(.borderedProminent)
+                    if let retry {
+                        Button("重试", action: retry)
+                            .font(LexiFont.sans(11.5))
+                            .buttonStyle(.borderedProminent)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
