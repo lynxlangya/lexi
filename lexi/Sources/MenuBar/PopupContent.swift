@@ -21,6 +21,13 @@ struct WordLookup: Equatable {
     var engine: EngineID
     var model: String
     var history: [String]
+    var masteredStatus: MasteredStatus = .notInVocab
+}
+
+enum MasteredStatus: Equatable {
+    case notInVocab
+    case inVocabUnmastered
+    case mastered
 }
 
 struct WordSense: Equatable, Identifiable {
