@@ -180,7 +180,13 @@ final class ChapterTranslationController {
 
             let engine = try registry.engine(for: config)
             var buffers: [Int: String] = [:]
-            for try await chunk in engine.translate(missing.map(\.en), model: config.model) {
+            let tasks = missing.map { paragraph in
+                TranslationTask.paragraph(
+                    text: paragraph.en,
+                    context: ParagraphContext(chapterTitle: chapter.title)
+                )
+            }
+            for try await chunk in engine.translate(tasks, model: config.model) {
                 try Task.checkCancellation()
                 guard let paragraph = missing[safe: chunk.index] else {
                     continue
@@ -229,7 +235,11 @@ final class ChapterTranslationController {
             reconcileChapterState(for: chapter)
             let engine = try registry.engine(for: config)
             var zh = ""
-            for try await chunk in engine.translate([paragraph.en], model: config.model) {
+            let task = TranslationTask.paragraph(
+                text: paragraph.en,
+                context: ParagraphContext(chapterTitle: chapter.title)
+            )
+            for try await chunk in engine.translate([task], model: config.model) {
                 try Task.checkCancellation()
                 zh += chunk.text
                 try await database.upsertTranslation(
@@ -398,7 +408,13 @@ actor ChapterPrefetchWorker {
 
             let engine = try registry.engine(for: config)
             var buffers: [Int: String] = [:]
-            for try await chunk in engine.translate(missing.map(\.en), model: config.model) {
+            let tasks = missing.map { paragraph in
+                TranslationTask.paragraph(
+                    text: paragraph.en,
+                    context: ParagraphContext(chapterTitle: chapter.title)
+                )
+            }
+            for try await chunk in engine.translate(tasks, model: config.model) {
                 try Task.checkCancellation()
                 guard let paragraph = missing[safe: chunk.index] else {
                     continue

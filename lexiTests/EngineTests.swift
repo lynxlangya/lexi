@@ -37,7 +37,13 @@ final class EngineTests: XCTestCase {
         ])
         let engine = OpenAIEngine(apiKey: "key", client: client)
 
-        let chunks = try await collect(engine.translate(["hello world", "second"], model: "gpt-5.4-mini"))
+        let chunks = try await collect(engine.translate(
+            [
+                .paragraph(text: "hello world", context: ParagraphContext()),
+                .paragraph(text: "second", context: ParagraphContext()),
+            ],
+            model: "gpt-5.4-mini"
+        ))
 
         XCTAssertEqual(chunks, [
             TranslationChunk(index: 0, text: "你好"),
@@ -59,7 +65,13 @@ final class EngineTests: XCTestCase {
         ])
         let engine = AnthropicEngine(apiKey: "key", client: client)
 
-        let chunks = try await collect(engine.translate(["a", "b"], model: "claude-sonnet-4-6"))
+        let chunks = try await collect(engine.translate(
+            [
+                .paragraph(text: "a", context: ParagraphContext()),
+                .paragraph(text: "b", context: ParagraphContext()),
+            ],
+            model: "claude-sonnet-4-6"
+        ))
 
         XCTAssertEqual(chunks, [
             TranslationChunk(index: 0, text: "甲"),
@@ -79,7 +91,13 @@ final class EngineTests: XCTestCase {
         let engine = OpenAIEngine(apiKey: "key", client: client)
 
         do {
-            _ = try await collect(engine.translate(["first", "second"], model: "gpt-5.4-mini"))
+            _ = try await collect(engine.translate(
+                [
+                    .paragraph(text: "first", context: ParagraphContext()),
+                    .paragraph(text: "second", context: ParagraphContext()),
+                ],
+                model: "gpt-5.4-mini"
+            ))
             XCTFail("Expected paragraph failure")
         } catch let error as EngineError {
             guard case .paragraphFailed(let index, _) = error else {

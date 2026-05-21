@@ -217,8 +217,11 @@ final class LexiMenuBarCoordinator: ObservableObject {
             do {
                 currentEngine = await popupEngineConfig()
                 show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
-                let requestText = word ? Prompts.wordLookupPayload(word: trimmed) : trimmed
-                let translated = try await translateText(requestText)
+                let translated = try await translateTask(
+                    word
+                        ? .wordLookup(word: trimmed, context: nil)
+                        : .sentence(text: trimmed, context: nil)
+                )
                 todayQueryCount += 1
                 if word {
                     let lookup = makeWordLookup(word: trimmed, dictionaryText: translated)
@@ -237,9 +240,13 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func translateText(_ text: String) async throws -> String {
+        try await translateTask(.sentence(text: text, context: nil))
+    }
+
+    private func translateTask(_ task: TranslationTask) async throws -> String {
         let engine = try EngineRegistry.shared.engine(for: currentEngine)
         var result = ""
-        for try await chunk in engine.translate([text], model: currentEngine.model) {
+        for try await chunk in engine.translate([task], model: currentEngine.model) {
             result += chunk.text
         }
         return result.trimmingCharacters(in: .whitespacesAndNewlines)

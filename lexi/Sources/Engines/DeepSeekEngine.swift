@@ -13,8 +13,8 @@ nonisolated struct DeepSeekEngine: TranslationEngine {
         openAICompatible = OpenAIEngine(apiKey: apiKey, baseURL: baseURL, client: client)
     }
 
-    func translate(_ paragraphs: [String], model: String) -> AsyncThrowingStream<TranslationChunk, Error> {
-        openAICompatible.translate(paragraphs, model: model)
+    func translate(_ tasks: [TranslationTask], model: String) -> AsyncThrowingStream<TranslationChunk, Error> {
+        openAICompatible.translate(tasks, model: model)
     }
 
     func ping(model: String) async throws -> PingResult {

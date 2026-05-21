@@ -3,8 +3,44 @@ import Foundation
 nonisolated protocol TranslationEngine: Sendable {
     var id: EngineID { get }
 
-    func translate(_ paragraphs: [String], model: String) -> AsyncThrowingStream<TranslationChunk, Error>
+    func translate(_ tasks: [TranslationTask], model: String) -> AsyncThrowingStream<TranslationChunk, Error>
     func ping(model: String) async throws -> PingResult
+}
+
+nonisolated enum TranslationTask: Equatable, Sendable {
+    case paragraph(text: String, context: ParagraphContext)
+    case sentence(text: String, context: SentenceContext?)
+    case wordLookup(word: String, context: SentenceContext?)
+    case phraseLookup(phrase: String, context: SentenceContext?)
+}
+
+nonisolated struct ParagraphContext: Equatable, Sendable {
+    var bookTitle: String?
+    var chapterTitle: String?
+    var previousEN: String?
+    var previousZH: String?
+
+    init(
+        bookTitle: String? = nil,
+        chapterTitle: String? = nil,
+        previousEN: String? = nil,
+        previousZH: String? = nil
+    ) {
+        self.bookTitle = bookTitle
+        self.chapterTitle = chapterTitle
+        self.previousEN = previousEN
+        self.previousZH = previousZH
+    }
+}
+
+nonisolated struct SentenceContext: Equatable, Sendable {
+    var fullSentence: String?
+    var bookTitle: String?
+
+    init(fullSentence: String? = nil, bookTitle: String? = nil) {
+        self.fullSentence = fullSentence
+        self.bookTitle = bookTitle
+    }
 }
 
 nonisolated struct TranslationChunk: Equatable, Sendable {

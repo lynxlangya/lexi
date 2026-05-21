@@ -17,12 +17,12 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         self.client = client
     }
 
-    func translate(_ paragraphs: [String], model: String) -> AsyncThrowingStream<TranslationChunk, Error> {
+    func translate(_ tasks: [TranslationTask], model: String) -> AsyncThrowingStream<TranslationChunk, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    for (index, paragraph) in paragraphs.enumerated() {
-                        try await streamParagraph(paragraph, index: index, model: model, continuation: continuation)
+                    for (index, translationTask) in tasks.enumerated() {
+                        try await streamTask(translationTask, index: index, model: model, continuation: continuation)
                     }
                     continuation.finish()
                 } catch {
@@ -53,14 +53,14 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         }
     }
 
-    private func streamParagraph(
-        _ paragraph: String,
+    private func streamTask(
+        _ task: TranslationTask,
         index: Int,
         model: String,
         continuation: AsyncThrowingStream<TranslationChunk, Error>.Continuation
     ) async throws {
         do {
-            let request = try makeTranslateRequest(paragraph: paragraph, model: model)
+            let request = try makeTranslateRequest(task: task, model: model)
             let (stream, response) = try await client.bytes(for: request)
             guard response.isSuccess else {
                 throw EngineError.httpStatus(response.statusCode, HTTPURLResponse.localizedString(forStatusCode: response.statusCode))
@@ -87,7 +87,7 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         }
     }
 
-    private func makeTranslateRequest(paragraph: String, model: String) throws -> URLRequest {
+    private func makeTranslateRequest(task: TranslationTask, model: String) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appending(path: "v1/chat/completions"))
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -97,7 +97,7 @@ nonisolated struct OpenAIEngine: TranslationEngine {
                 model: model,
                 messages: [
                     .init(role: "system", content: Prompts.translationSystem),
-                    .init(role: "user", content: Prompts.translationUserPrompt(paragraph: paragraph)),
+                    .init(role: "user", content: Prompts.translationUserPrompt(for: task)),
                 ],
                 stream: true
             )

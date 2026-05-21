@@ -17,12 +17,12 @@ nonisolated struct AnthropicEngine: TranslationEngine {
         self.client = client
     }
 
-    func translate(_ paragraphs: [String], model: String) -> AsyncThrowingStream<TranslationChunk, Error> {
+    func translate(_ tasks: [TranslationTask], model: String) -> AsyncThrowingStream<TranslationChunk, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    for (index, paragraph) in paragraphs.enumerated() {
-                        try await streamParagraph(paragraph, index: index, model: model, continuation: continuation)
+                    for (index, translationTask) in tasks.enumerated() {
+                        try await streamTask(translationTask, index: index, model: model, continuation: continuation)
                     }
                     continuation.finish()
                 } catch {
@@ -37,7 +37,12 @@ nonisolated struct AnthropicEngine: TranslationEngine {
 
     func ping(model: String) async throws -> PingResult {
         do {
-            let request = try makeMessageRequest(paragraph: "ping", model: model, stream: false, maxTokens: 1)
+            let request = try makeMessageRequest(
+                task: .sentence(text: "ping", context: nil),
+                model: model,
+                stream: false,
+                maxTokens: 1
+            )
             let (data, response) = try await client.data(for: request)
 
             if response.isSuccess {
@@ -54,14 +59,14 @@ nonisolated struct AnthropicEngine: TranslationEngine {
         }
     }
 
-    private func streamParagraph(
-        _ paragraph: String,
+    private func streamTask(
+        _ task: TranslationTask,
         index: Int,
         model: String,
         continuation: AsyncThrowingStream<TranslationChunk, Error>.Continuation
     ) async throws {
         do {
-            let request = try makeMessageRequest(paragraph: paragraph, model: model, stream: true)
+            let request = try makeMessageRequest(task: task, model: model, stream: true)
             let (stream, response) = try await client.bytes(for: request)
             guard response.isSuccess else {
                 throw EngineError.httpStatus(response.statusCode, HTTPURLResponse.localizedString(forStatusCode: response.statusCode))
@@ -89,7 +94,7 @@ nonisolated struct AnthropicEngine: TranslationEngine {
     }
 
     private func makeMessageRequest(
-        paragraph: String,
+        task: TranslationTask,
         model: String,
         stream: Bool,
         maxTokens: Int = 2048
@@ -105,7 +110,7 @@ nonisolated struct AnthropicEngine: TranslationEngine {
                 maxTokens: maxTokens,
                 system: Prompts.translationSystem,
                 messages: [
-                    .init(role: "user", content: Prompts.translationUserPrompt(paragraph: paragraph)),
+                    .init(role: "user", content: Prompts.translationUserPrompt(for: task)),
                 ],
                 stream: stream
             )

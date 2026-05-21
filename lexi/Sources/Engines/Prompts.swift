@@ -8,16 +8,24 @@ nonisolated enum Prompts {
     只输出结果正文。
     """
 
-    private static let wordLookupPrefix = "__LEXI_WORD_LOOKUP__:"
+    static func translationUserPrompt(for task: TranslationTask) -> String {
+        switch task {
+        case .paragraph(let text, _):
+            return """
+            请翻译下面这个英文段落：
 
-    static func wordLookupPayload(word: String) -> String {
-        "\(wordLookupPrefix)\(word)"
-    }
+            \(text)
+            """
+        case .sentence(let text, let context):
+            let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
+            return """
+            请翻译下面这个英文句子：
 
-    static func translationUserPrompt(paragraph: String) -> String {
-        if paragraph.hasPrefix(wordLookupPrefix) {
-            let word = String(paragraph.dropFirst(wordLookupPrefix.count))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            \(text)
+            \(sentence.map { "\n完整上下文句：\($0)" } ?? "")
+            """
+        case .wordLookup(let word, let context):
+            let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
             return """
             请作为英汉词典解释这个英文词，输出 2 到 4 条最常用、最合理的中文义项。
 
@@ -33,9 +41,20 @@ nonisolated enum Prompts {
             - 只输出义项行。
 
             英文词：\(word)
+            \(sentence.map { "完整上下文句：\($0)" } ?? "")
+            """
+        case .phraseLookup(let phrase, let context):
+            let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
+            return """
+            请解释下面这个英文短语在语境中的中文含义，输出 2 到 4 条最合理的中文释义。
+
+            英文短语：\(phrase)
+            \(sentence.map { "完整上下文句：\($0)" } ?? "")
             """
         }
+    }
 
+    static func translationUserPrompt(paragraph: String) -> String {
         return """
         请翻译下面这个英文段落：
 
