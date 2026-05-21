@@ -60,7 +60,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
     @Published var popupVisible = false
 
     private let panel = PopupPanel()
-    private let selectionMonitor = SelectionMonitor()
     private let speech = Speech()
     private let toast = MenuBarToast()
     private var shortcuts: GlobalShortcuts?
@@ -111,11 +110,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
             }
         }
 
-        selectionMonitor.onSelection = { [weak self] context in
-            self?.showChip(for: context)
-        }
-        selectionMonitor.start()
-
         let shortcuts = GlobalShortcuts(
             translateSelection: { [weak self] in self?.translateCurrentSelection() },
             translateAndReplace: { [weak self] in self?.translateAndReplaceSelection() },
@@ -161,7 +155,12 @@ final class LexiMenuBarCoordinator: ObservableObject {
                     if TextReplacement.replaceSelection(with: translated) {
                         closePopup()
                     } else {
-                        show(kind: .sentence(SentenceLookup(text: context.text, zh: translated, engine: currentEngine.id)), near: anchor)
+                        show(
+                            kind: .sentence(
+                                SentenceLookup(text: context.text, zh: translated, engine: currentEngine.id, model: currentEngine.model)
+                            ),
+                            near: anchor
+                        )
                         showToast("已复制译文")
                     }
                 } catch {
@@ -206,18 +205,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
         SelectionMonitor.currentSelectionResult(promptForPermission: promptForPermission)
     }
 
-    private func showChip(for context: SelectedTextContext) {
-        popupEngineOverride = nil
-        guard UserDefaults.standard.string(forKey: "menubar.triggerStyle") != "instant" else {
-            translate(context.text, anchor: context.anchor)
-            return
-        }
-
-        activeKind = .chip(text: context.text)
-        activeAnchor = context.anchor
-        show(kind: .chip(text: context.text), near: context.anchor)
-    }
-
     private func translate(_ text: String, anchor: CGRect) {
         let trimmed = SelectionLookupClassifier.normalizedText(text)
         guard SelectionLookupClassifier.canTranslate(trimmed) else {
@@ -230,25 +217,18 @@ final class LexiMenuBarCoordinator: ObservableObject {
             do {
                 currentEngine = await popupEngineConfig()
                 show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
-                let translated = try await translateText(trimmed)
+                let requestText = word ? Prompts.wordLookupPayload(word: trimmed) : trimmed
+                let translated = try await translateText(requestText)
                 todayQueryCount += 1
                 if word {
-                    let lookup = WordLookup(
-                        word: trimmed,
-                        ukIPA: "/\(trimmed.lowercased())/",
-                        usIPA: "/\(trimmed.lowercased())/",
-                        senses: [
-                            WordSense(partOfSpeech: "n.", en: trimmed, zh: translated)
-                        ],
-                        example: WordExample(en: trimmed, zh: translated),
-                        related: relatedWords(for: trimmed),
-                        engine: currentEngine.id,
-                        history: recentWords
-                    )
+                    let lookup = makeWordLookup(word: trimmed, dictionaryText: translated)
                     remember(word: trimmed)
                     show(kind: .word(lookup), near: anchor)
                 } else {
-                    show(kind: .sentence(SentenceLookup(text: trimmed, zh: translated, engine: currentEngine.id)), near: anchor)
+                    show(
+                        kind: .sentence(SentenceLookup(text: trimmed, zh: translated, engine: currentEngine.id, model: currentEngine.model)),
+                        near: anchor
+                    )
                 }
             } catch {
                 show(kind: .error(text: trimmed, reason: error.localizedDescription), near: anchor)
@@ -265,6 +245,85 @@ final class LexiMenuBarCoordinator: ObservableObject {
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private func makeWordLookup(word: String, dictionaryText: String) -> WordLookup {
+        let senses = parseWordSenses(from: dictionaryText, word: word)
+        let primaryMeaning = senses.first?.zh ?? dictionaryText
+
+        return WordLookup(
+            word: word,
+            ukIPA: "/\(word.lowercased())/",
+            usIPA: "/\(word.lowercased())/",
+            senses: senses,
+            example: WordExample(en: word, zh: primaryMeaning),
+            related: relatedWords(for: word),
+            engine: currentEngine.id,
+            model: currentEngine.model,
+            history: recentWords
+        )
+    }
+
+    private func parseWordSenses(from text: String, word: String) -> [WordSense] {
+        let cleaned = text
+            .replacingOccurrences(of: "：", with: ":")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let lines = cleaned
+            .split(whereSeparator: \.isNewline)
+            .map { stripListPrefix(String($0)) }
+            .filter { !$0.isEmpty }
+
+        let parsed = lines.compactMap { parseSenseLine($0, word: word) }
+        if !parsed.isEmpty {
+            return Array(parsed.prefix(4))
+        }
+
+        let pieces = splitMeanings(cleaned)
+        if pieces.isEmpty {
+            return [WordSense(partOfSpeech: "释.", en: word, zh: cleaned)]
+        }
+
+        let labels = ["释.", "近.", "义.", "web."]
+        return Array(pieces.prefix(4).enumerated()).map { index, meaning in
+            WordSense(partOfSpeech: labels[index], en: word, zh: meaning)
+        }
+    }
+
+    private func parseSenseLine(_ line: String, word: String) -> WordSense? {
+        let labels = ["v.", "n.", "adj.", "adv.", "prep.", "conj.", "pron.", "web.", "phr.", "释.", "近.", "义."]
+        guard let label = labels.first(where: { line.lowercased().hasPrefix($0) }) else {
+            return nil
+        }
+
+        let body = String(line.dropFirst(label.count))
+            .trimmingCharacters(in: CharacterSet(charactersIn: " :.-\t"))
+        guard !body.isEmpty else {
+            return nil
+        }
+
+        return WordSense(partOfSpeech: label, en: word, zh: body)
+    }
+
+    private func splitMeanings(_ text: String) -> [String] {
+        let separators = CharacterSet(charactersIn: "\n;；、/，,")
+        return text
+            .components(separatedBy: separators)
+            .map { stripListPrefix($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func stripListPrefix(_ text: String) -> String {
+        var value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefixes = ["-", "•", "*"]
+        while let prefix = prefixes.first(where: { value.hasPrefix($0) }) {
+            value = String(value.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let dotIndex = value.firstIndex(of: "."),
+           value[..<dotIndex].allSatisfy(\.isNumber),
+           value.distance(from: value.startIndex, to: dotIndex) <= 2 {
+            value = String(value[value.index(after: dotIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return value
+    }
+
     private func show(kind: PopupKind, near anchor: CGRect) {
         activeKind = kind
         activeAnchor = anchor
@@ -276,7 +335,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
         PopupActions(
             close: { [weak self] in self?.closePopup() },
             togglePin: { [weak self] in self?.togglePin() },
-            translateChip: { [weak self] in self?.translateChip() },
             retry: { [weak self] in self?.retryActive() },
             addVocab: { [weak self] in self?.addActiveWordToVocab() },
             speak: { [weak self] text in self?.speech.speak(text) },
@@ -297,13 +355,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
         if let activeKind {
             show(kind: activeKind, near: activeAnchor)
         }
-    }
-
-    private func translateChip() {
-        guard case .chip(let text) = activeKind else {
-            return
-        }
-        translate(text, anchor: activeAnchor)
     }
 
     private func retryActive() {

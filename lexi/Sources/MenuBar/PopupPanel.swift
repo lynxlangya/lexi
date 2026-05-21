@@ -36,17 +36,10 @@ final class PopupPanel {
         let host = NSHostingView(rootView: view)
         let size = host.fittingSize
         host.frame = NSRect(origin: .zero, size: size)
+        host.wantsLayer = true
+        host.layer?.backgroundColor = NSColor.clear.cgColor
 
-        let visualEffect = NSVisualEffectView(frame: host.frame)
-        visualEffect.material = .hudWindow
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.state = .active
-        visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = cornerRadius(for: kind)
-        visualEffect.layer?.masksToBounds = true
-        visualEffect.addSubview(host)
-
-        panel.contentView = visualEffect
+        panel.contentView = host
         panel.setFrame(frame(for: size, anchor: anchor), display: true)
         panel.orderFrontRegardless()
         installMonitors()
@@ -102,25 +95,28 @@ final class PopupPanel {
     private func frame(for size: CGSize, anchor: CGRect) -> CGRect {
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let margin: CGFloat = 16
+        let gap: CGFloat = 10
         var x = anchor.midX - size.width / 2
         x = min(max(x, screenFrame.minX + margin), screenFrame.maxX - size.width - margin)
 
-        var y = anchor.minY - size.height - 8
-        if y < screenFrame.minY + margin {
-            y = anchor.maxY + 8
+        let aboveY = anchor.minY - size.height - gap
+        let belowY = anchor.maxY + gap
+        let fitsBelow = belowY + size.height <= screenFrame.maxY - margin
+        let fitsAbove = aboveY >= screenFrame.minY + margin
+        let roomBelow = screenFrame.maxY - margin - belowY
+        let roomAbove = aboveY - (screenFrame.minY + margin)
+
+        var y: CGFloat
+        if fitsBelow {
+            y = belowY
+        } else if fitsAbove {
+            y = aboveY
+        } else {
+            y = roomBelow >= roomAbove ? belowY : aboveY
         }
         y = min(max(y, screenFrame.minY + margin), screenFrame.maxY - size.height - margin)
 
         return NSRect(origin: CGPoint(x: x, y: y), size: size)
-    }
-
-    private func cornerRadius(for kind: PopupKind) -> CGFloat {
-        switch kind {
-        case .chip:
-            return 6
-        default:
-            return 12
-        }
     }
 }
 

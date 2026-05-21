@@ -52,6 +52,7 @@ struct ReadingColumn: View {
         .scrollPosition(id: $visibleParagraphId, anchor: .top)
         .scrollIndicators(.automatic)
         .background(preferences.theme.paper)
+        .tint(preferences.accent.primary)
         .onChange(of: visibleParagraphId) { _, nextId in
             guard let nextId,
                   chapter.paragraphs.contains(where: { $0.id == nextId }) else {

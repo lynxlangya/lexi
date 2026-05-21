@@ -265,6 +265,7 @@ private struct ReaderWindowContent: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(preferences.theme.paper)
+                        .tint(preferences.accent.primary)
                     }
 
                     ReaderChromeOverlay(

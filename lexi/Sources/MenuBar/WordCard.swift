@@ -4,219 +4,111 @@ struct WordCard: View {
     let lookup: WordLookup
     let pinned: Bool
     let actions: PopupActions
-    @AppStorage("reader.accent") private var accent = "copper"
-
-    private var accentChoice: ReaderAccentChoice {
-        ReaderAccentChoice(storageValue: accent)
-    }
 
     var body: some View {
-        PopupFrame(pinned: pinned) {
-            VStack(spacing: 0) {
-                if !lookup.history.isEmpty {
-                    recentBar
-                }
+        PopupThemeReader { theme in
+            PopupCard(width: 320, pinned: pinned, theme: theme) {
+                VStack(spacing: 0) {
+                    PopupHeader(
+                        label: "Lexi · 单词",
+                        pinned: pinned,
+                        actions: actions,
+                        theme: theme
+                    )
 
-                header
+                    VStack(alignment: .leading, spacing: 0) {
+                        titleLine(theme: theme)
+                            .padding(.bottom, 14)
 
-                VStack(alignment: .leading, spacing: 14) {
-                    titleRow
-                    senses
-                    related
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 16)
-
-                footer
-            }
-            .frame(width: 420)
-        }
-    }
-
-    private var recentBar: some View {
-        HStack(spacing: 6) {
-            Text("近期")
-                .font(LexiFont.sans(9.5))
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.lexiInk3)
-                .tracking(1)
-
-            ForEach(lookup.history.prefix(5), id: \.self) { word in
-                Text(word)
-                    .font(LexiFont.sans(11))
-                    .foregroundStyle(Color.lexiInk2)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.lexiInset)
-                    .clipShape(Capsule())
-                    .overlay {
-                        Capsule().stroke(Color.lexiRule, lineWidth: 1)
+                        senses(theme: theme)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 12)
+                    .textSelection(.enabled)
+
+                    footer(theme: theme)
+                }
             }
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.lexiChrome)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.lexiRule).frame(height: 1)
         }
     }
 
-    private var header: some View {
-        HStack {
-            Text("Lexi · 单词卡")
-                .font(LexiFont.sans(11))
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.lexiInk3)
-                .tracking(0.6)
-            Spacer()
-            PopupHeaderActions(pinned: pinned, actions: actions)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.lexiRule).frame(height: 1)
-        }
-    }
-
-    private var titleRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func titleLine(theme: PopupTheme) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 11) {
             Text(lookup.word)
-                .font(LexiFont.serif(30))
-                .foregroundStyle(Color.lexiInk)
+                .font(LexiFont.serif(24))
+                .fontWeight(.medium)
+                .foregroundStyle(theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
 
-            HStack(spacing: 14) {
-                ipa(label: "UK", value: lookup.ukIPA)
-                ipa(label: "US", value: lookup.usIPA)
-            }
-        }
-    }
+            Text(primaryIPA)
+                .font(LexiFont.mono(14))
+                .foregroundStyle(theme.ink3)
+                .lineLimit(1)
 
-    private func ipa(label: String, value: String) -> some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .font(LexiFont.mono(11.5))
-                .foregroundStyle(Color.lexiInk3)
-            Text(value)
-                .font(LexiFont.mono(12.5))
-                .foregroundStyle(Color.lexiInk2)
             Button {
                 actions.speak(lookup.word)
             } label: {
                 Image(systemName: "speaker.wave.2")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.lexiInk3)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(theme.ink3)
+                    .frame(width: 18, height: 18)
             }
             .buttonStyle(.plain)
+            .help("朗读")
+
+            Spacer(minLength: 0)
         }
     }
 
-    private var senses: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(lookup.senses.enumerated()), id: \.element.id) { index, sense in
-                HStack(alignment: .top, spacing: 12) {
+    private var primaryIPA: String {
+        if !lookup.ukIPA.isEmpty {
+            lookup.ukIPA
+        } else {
+            lookup.usIPA
+        }
+    }
+
+    private func senses(theme: PopupTheme) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(lookup.senses.prefix(4).enumerated()), id: \.element.id) { _, sense in
+                HStack(alignment: .top, spacing: 11) {
                     Text(sense.partOfSpeech)
-                        .font(LexiFont.serif(12.5))
+                        .font(LexiFont.serif(11.5))
                         .italic()
-                        .foregroundStyle(accentChoice.primary)
-                        .frame(width: 36, alignment: .leading)
+                        .foregroundStyle(theme.accent.primary)
+                        .frame(width: 28, alignment: .leading)
+                        .padding(.top, 1)
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(sense.en)
-                            .font(LexiFont.serif(14))
-                            .lineSpacing(7)
-                            .foregroundStyle(Color.lexiInk)
+                            .font(LexiFont.serif(13))
+                            .lineSpacing(6)
+                            .foregroundStyle(theme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+
                         Text(sense.zh)
-                            .font(LexiFont.zh(13))
-                            .lineSpacing(8)
-                            .foregroundStyle(Color.lexiInk2)
-
-                        if index == 0, let example = lookup.example {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\"\(example.en)\"")
-                                    .font(LexiFont.serif(12))
-                                    .italic()
-                                    .foregroundStyle(Color.lexiInk2)
-                                Text(example.zh)
-                                    .font(LexiFont.zh(11.5))
-                                    .foregroundStyle(Color.lexiInk3)
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.lexiInset)
-                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .stroke(Color.lexiRule, lineWidth: 1)
-                            }
-                            .padding(.top, 4)
-                        }
+                            .font(LexiFont.zh(12))
+                            .lineSpacing(7)
+                            .foregroundStyle(theme.ink2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var related: some View {
-        if !lookup.related.isEmpty {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("相关")
-                    .font(LexiFont.sans(10))
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.lexiInk3)
-                    .tracking(1)
-
-                ForEach(lookup.related, id: \.self) { word in
-                    Text(word)
-                        .font(LexiFont.serif(12))
-                        .italic()
-                        .foregroundStyle(Color.lexiInk2)
-                        .overlay(alignment: .bottom) {
-                            DottedRule()
-                                .stroke(Color.lexiRule2, style: StrokeStyle(lineWidth: 1, dash: [1, 2]))
-                                .frame(height: 1)
-                        }
-                }
-            }
-        }
-    }
-
-    private var footer: some View {
-        HStack {
-            HStack(spacing: 2) {
-                ForEach(EngineID.allCases, id: \.self) { engine in
-                    EnginePill(engine: engine, active: lookup.engine == engine) {
-                        actions.selectEngine(engine)
-                    }
-                }
-            }
+    private func footer(theme: PopupTheme) -> some View {
+        PopupFooter(theme: theme) {
+            PopupEngineLabel(engine: lookup.engine, model: lookup.model, theme: theme)
 
             Spacer()
 
-            Button {
-                actions.addVocab()
-            } label: {
+            PopupPrimaryButton(theme: theme, action: actions.addVocab) {
                 Label("生词本", systemImage: "plus")
-                    .font(LexiFont.sans(11.5))
             }
-            .buttonStyle(.borderedProminent)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.lexiChrome)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.lexiRule).frame(height: 1)
-        }
-    }
-}
-
-private struct DottedRule: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
-        return path
     }
 }

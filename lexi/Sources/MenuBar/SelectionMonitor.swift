@@ -83,35 +83,96 @@ final class SelectionMonitor {
         } else {
             systemWide
         }
+        let source = selectionSource(from: focusedApp)
         AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
         guard let focusedElement else {
-            return .failure(.emptySelection)
+            return fallbackSelectionContext(source: source, anchor: fallbackAnchor())
         }
         let element = focusedElement as! AXUIElement
 
         var selectedText: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedText)
-        guard let rawText = selectedText as? String else {
+        let anchor = selectionFrame(from: element)
+
+        if let rawText = selectedText as? String,
+           let context = context(rawText: rawText, anchor: anchor, source: source) {
+            return .success(context)
+        }
+
+        return fallbackSelectionContext(source: source, anchor: anchor)
+    }
+
+    private static func fallbackSelectionContext(source: SelectionSource, anchor: CGRect) -> Result<SelectedTextContext, SelectionReadFailure> {
+        guard source != .reader,
+              let copiedText = selectedTextFromCopyShortcut(),
+              let context = context(rawText: copiedText, anchor: anchor, source: source) else {
             return .failure(.emptySelection)
         }
 
-        let text = SelectionLookupClassifier.normalizedText(rawText)
-        guard SelectionLookupClassifier.canTranslate(text) else {
-            return .failure(.emptySelection)
-        }
-
-        return .success(
-            SelectedTextContext(
-                text: text,
-                anchor: selectionFrame(from: element),
-                source: selectionSource(from: focusedApp)
-            )
-        )
+        return .success(context)
     }
 
     static func ensureAccessibilityPermission(prompt: Bool) -> Bool {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: prompt] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
+    }
+
+    private static func context(rawText: String, anchor: CGRect, source: SelectionSource) -> SelectedTextContext? {
+        let text = SelectionLookupClassifier.normalizedText(rawText)
+        guard SelectionLookupClassifier.canTranslate(text) else {
+            return nil
+        }
+
+        return SelectedTextContext(text: text, anchor: anchor, source: source)
+    }
+
+    private static func selectedTextFromCopyShortcut() -> String? {
+        let pasteboard = NSPasteboard.general
+        let previousChangeCount = pasteboard.changeCount
+        let previousItems = pasteboard.pasteboardItems?.map { item in
+            let copy = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    copy.setData(data, forType: type)
+                }
+            }
+            return copy
+        }
+
+        sendCopyShortcut()
+        let deadline = Date().addingTimeInterval(0.70)
+        while pasteboard.changeCount == previousChangeCount, Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+
+        let didCopy = pasteboard.changeCount != previousChangeCount
+        let copied = pasteboard.string(forType: .string)
+
+        if let previousItems {
+            pasteboard.clearContents()
+            pasteboard.writeObjects(previousItems)
+        } else if didCopy {
+            pasteboard.clearContents()
+        }
+
+        guard didCopy,
+              let copied,
+              !copied.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        return copied
+    }
+
+    private static func sendCopyShortcut() {
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.08))
+        let source = CGEventSource(stateID: .combinedSessionState)
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 8, keyDown: true)
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 8, keyDown: false)
+        keyDown?.flags = .maskCommand
+        keyUp?.flags = .maskCommand
+        keyDown?.post(tap: .cghidEventTap)
+        keyUp?.post(tap: .cghidEventTap)
     }
 
     private static func selectionFrame(from element: AXUIElement) -> CGRect {
@@ -139,6 +200,10 @@ final class SelectionMonitor {
             }
         }
 
+        return fallbackAnchor()
+    }
+
+    private static func fallbackAnchor() -> CGRect {
         if let mouse = NSEvent.mouseLocationOnMainScreen {
             return CGRect(x: mouse.x - 18, y: mouse.y - 12, width: 36, height: 24)
         }

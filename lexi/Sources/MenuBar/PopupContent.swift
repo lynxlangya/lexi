@@ -1,7 +1,6 @@
 import SwiftUI
 
 enum PopupKind: Equatable {
-    case chip(text: String)
     case loading(text: String, isWord: Bool, engine: EngineID)
     case word(WordLookup)
     case sentence(SentenceLookup)
@@ -17,6 +16,7 @@ struct WordLookup: Equatable {
     var example: WordExample?
     var related: [String]
     var engine: EngineID
+    var model: String
     var history: [String]
 }
 
@@ -36,12 +36,12 @@ struct SentenceLookup: Equatable {
     var text: String
     var zh: String
     var engine: EngineID
+    var model: String
 }
 
 struct PopupActions {
     var close: () -> Void
     var togglePin: () -> Void
-    var translateChip: () -> Void
     var retry: () -> Void
     var addVocab: () -> Void
     var speak: (String) -> Void
@@ -57,8 +57,6 @@ struct PopupContent: View {
 
     var body: some View {
         switch kind {
-        case .chip:
-            TriggerChip(action: actions.translateChip)
         case .loading(let text, _, let engine):
             LoadingCard(text: text, engine: engine)
         case .word(let lookup):
@@ -92,86 +90,29 @@ struct PopupContent: View {
 struct PopupHeaderActions: View {
     let pinned: Bool
     let actions: PopupActions
-    @AppStorage("reader.accent") private var accent = "copper"
-
-    private var accentChoice: ReaderAccentChoice {
-        ReaderAccentChoice(storageValue: accent)
-    }
+    let theme: PopupTheme
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 3) {
             Button(action: actions.togglePin) {
                 Image(systemName: "pin")
-                    .font(.system(size: 10, weight: .medium))
-                    .frame(width: 18, height: 18)
-                    .background(pinned ? accentChoice.soft : Color.clear)
-                    .foregroundStyle(pinned ? accentChoice.primary : Color.lexiInk3)
-                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 20, height: 20)
+                    .background(pinned ? theme.accent.soft : Color.clear)
+                    .foregroundStyle(pinned ? theme.accent.primary : theme.ink3)
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
             .buttonStyle(.plain)
             .help(pinned ? "取消固定" : "固定")
 
             Button(action: actions.close) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .medium))
-                    .frame(width: 18, height: 18)
-                    .foregroundStyle(Color.lexiInk3)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(theme.ink3)
             }
             .buttonStyle(.plain)
             .help("关闭 (Esc)")
         }
-    }
-}
-
-struct PopupFrame<Content: View>: View {
-    let pinned: Bool
-    @ViewBuilder var content: Content
-    @AppStorage("reader.accent") private var accent = "copper"
-
-    private var accentChoice: ReaderAccentChoice {
-        ReaderAccentChoice(storageValue: accent)
-    }
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            content
-            if pinned {
-                Circle()
-                    .fill(accentChoice.primary)
-                    .frame(width: 6, height: 6)
-                    .padding(9)
-            }
-        }
-        .background(Color.clear)
-    }
-}
-
-private struct TriggerChip: View {
-    let action: () -> Void
-    @AppStorage("reader.accent") private var accent = "copper"
-
-    private var accentChoice: ReaderAccentChoice {
-        ReaderAccentChoice(storageValue: accent)
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 2) {
-                LexiGlyph(color: accentChoice.primary, size: 12)
-                Text("译")
-                    .font(LexiFont.sans(10))
-                    .fontWeight(.semibold)
-                    .foregroundStyle(accentChoice.primary)
-            }
-            .frame(width: 32, height: 22)
-            .background(Color.lexiRaised)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color.lexiRule, lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.2), radius: 18, y: 8)
-        }
-        .buttonStyle(.plain)
     }
 }
