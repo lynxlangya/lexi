@@ -3,7 +3,7 @@ import SwiftUI
 struct BookCard: View {
     let book: ReaderBook
     let isCurrent: Bool
-    let open: () -> Void
+    let openFromBeginning: () -> Void
     let continueReading: () -> Void
     let revealInFinder: () -> Void
     let clearCache: () -> Void
@@ -17,7 +17,7 @@ struct BookCard: View {
     }
 
     var body: some View {
-        Button(action: open) {
+        Button(action: continueReading) {
             VStack(alignment: .leading, spacing: 10) {
                 ZStack(alignment: .topTrailing) {
                     BookCover(book: book)
@@ -84,7 +84,7 @@ struct BookCard: View {
         .onHover { isHovering = $0 }
         .contextMenu {
             ShelfContextMenu(
-                open: open,
+                openFromBeginning: openFromBeginning,
                 continueReading: continueReading,
                 revealInFinder: revealInFinder,
                 clearCache: clearCache,

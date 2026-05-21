@@ -1,18 +1,18 @@
 import SwiftUI
 
 struct ShelfContextMenu: View {
-    let open: () -> Void
+    let openFromBeginning: () -> Void
     let continueReading: () -> Void
     let revealInFinder: () -> Void
     let clearCache: () -> Void
     let remove: () -> Void
 
     var body: some View {
-        Button("打开", action: open)
-            .keyboardShortcut("o", modifiers: [.command])
-
         Button("继续阅读", action: continueReading)
             .keyboardShortcut(.return, modifiers: [])
+
+        Button("从头开始", action: openFromBeginning)
+            .keyboardShortcut("o", modifiers: [.command])
 
         Divider()
 

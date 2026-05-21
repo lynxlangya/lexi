@@ -28,6 +28,39 @@ private struct ScrollPersistenceContext: Sendable {
     let bookProgress: Double
 }
 
+struct ReaderResumeTarget: Equatable, Sendable {
+    let chapterIndex: Int
+    let paragraphIndex: Int?
+
+    static func resolve(
+        continueReading: Bool,
+        progress: ProgressRecord?,
+        chapters: [ReaderChapter]
+    ) -> ReaderResumeTarget {
+        guard continueReading,
+              let progress,
+              chapters.indices.contains(progress.chapterIdx) else {
+            return ReaderResumeTarget(chapterIndex: 0, paragraphIndex: nil)
+        }
+
+        let paragraphIndex = validParagraphIndex(from: progress.scrollPct, in: chapters[progress.chapterIdx])
+        return ReaderResumeTarget(chapterIndex: progress.chapterIdx, paragraphIndex: paragraphIndex)
+    }
+
+    private static func validParagraphIndex(from rawValue: Double, in chapter: ReaderChapter) -> Int? {
+        guard rawValue.isFinite, rawValue >= 0 else {
+            return nil
+        }
+
+        let index = Int(rawValue)
+        guard chapter.paragraphs.indices.contains(index) else {
+            return nil
+        }
+
+        return index
+    }
+}
+
 private struct ReaderWindowContent: View {
     @ObservedObject var coordinator: LexiMenuBarCoordinator
     @Environment(\.colorScheme) private var systemColorScheme
@@ -244,7 +277,7 @@ private struct ReaderWindowContent: View {
                                     controller.chapterState(for: chapterId)
                                 },
                                 preferences: preferences,
-                                openShelf: { surface = .shelf }
+                                openShelf: returnToShelf
                             )
                         }
 
@@ -389,16 +422,13 @@ private struct ReaderWindowContent: View {
             chapters = loaded.1
             controller = nextController
 
-            if !continueReading {
-                selectedChapterIndex = 0
-            } else if continueReading,
-               let progress = try await database.progress(for: nextBook.id),
-               loaded.1.indices.contains(progress.chapterIdx) {
-                selectedChapterIndex = progress.chapterIdx
-                pendingScrollParagraphIdx = validParagraphIndex(from: progress.scrollPct, in: loaded.1[progress.chapterIdx])
-            } else if selectedChapterIndex >= loaded.1.count {
-                selectedChapterIndex = max(0, loaded.1.count - 1)
-            }
+            let target = ReaderResumeTarget.resolve(
+                continueReading: continueReading,
+                progress: try await database.progress(for: nextBook.id),
+                chapters: loaded.1
+            )
+            selectedChapterIndex = target.chapterIndex
+            pendingScrollParagraphIdx = target.paragraphIndex
 
             try await database.touchBook(id: nextBook.id)
             await nextController.prepare(chapters: loaded.1)
@@ -545,8 +575,7 @@ private struct ReaderWindowContent: View {
 
     private func flushVisibleScrollProgress(completion: @escaping () -> Void) {
         scrollWriteTask?.cancel()
-        guard let visibleParagraphId,
-              let context = scrollPersistenceContext(paragraphId: visibleParagraphId) else {
+        guard let context = currentScrollPersistenceContext() else {
             completion()
             return
         }
@@ -559,11 +588,37 @@ private struct ReaderWindowContent: View {
         }
     }
 
+    private func returnToShelf() {
+        flushVisibleScrollProgress {
+            surface = .shelf
+        }
+    }
+
     private func scrollPersistenceContext(paragraphId: Int64) -> ScrollPersistenceContext? {
-        guard let database, let book, let selectedChapter else {
+        guard let selectedChapter else {
             return nil
         }
         guard let paragraphIndex = selectedChapter.paragraphs.firstIndex(where: { $0.id == paragraphId }) else {
+            return nil
+        }
+
+        return scrollPersistenceContext(paragraphIndex: paragraphIndex)
+    }
+
+    private func currentScrollPersistenceContext() -> ScrollPersistenceContext? {
+        guard let visibleParagraphId,
+              let context = scrollPersistenceContext(paragraphId: visibleParagraphId) else {
+            return scrollPersistenceContext(paragraphIndex: 0)
+        }
+
+        return context
+    }
+
+    private func scrollPersistenceContext(paragraphIndex: Int) -> ScrollPersistenceContext? {
+        guard let database, let book, let selectedChapter else {
+            return nil
+        }
+        guard selectedChapter.paragraphs.isEmpty || selectedChapter.paragraphs.indices.contains(paragraphIndex) else {
             return nil
         }
 
@@ -600,19 +655,6 @@ private struct ReaderWindowContent: View {
         }
 
         return paragraphIndex
-    }
-
-    private func validParagraphIndex(from rawValue: Double, in chapter: ReaderChapter) -> Int? {
-        guard rawValue.isFinite, rawValue >= 0 else {
-            return nil
-        }
-
-        let index = Int(rawValue)
-        guard chapter.paragraphs.indices.contains(index) else {
-            return nil
-        }
-
-        return index
     }
 
     private func restorePendingScrollTarget() {
