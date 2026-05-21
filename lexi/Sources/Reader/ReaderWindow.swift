@@ -575,8 +575,7 @@ private struct ReaderWindowContent: View {
 
     private func flushVisibleScrollProgress(completion: @escaping () -> Void) {
         scrollWriteTask?.cancel()
-        guard let visibleParagraphId,
-              let context = scrollPersistenceContext(paragraphId: visibleParagraphId) else {
+        guard let context = currentScrollPersistenceContext() else {
             completion()
             return
         }
@@ -596,10 +595,30 @@ private struct ReaderWindowContent: View {
     }
 
     private func scrollPersistenceContext(paragraphId: Int64) -> ScrollPersistenceContext? {
-        guard let database, let book, let selectedChapter else {
+        guard let selectedChapter else {
             return nil
         }
         guard let paragraphIndex = selectedChapter.paragraphs.firstIndex(where: { $0.id == paragraphId }) else {
+            return nil
+        }
+
+        return scrollPersistenceContext(paragraphIndex: paragraphIndex)
+    }
+
+    private func currentScrollPersistenceContext() -> ScrollPersistenceContext? {
+        guard let visibleParagraphId,
+              let context = scrollPersistenceContext(paragraphId: visibleParagraphId) else {
+            return scrollPersistenceContext(paragraphIndex: 0)
+        }
+
+        return context
+    }
+
+    private func scrollPersistenceContext(paragraphIndex: Int) -> ScrollPersistenceContext? {
+        guard let database, let book, let selectedChapter else {
+            return nil
+        }
+        guard selectedChapter.paragraphs.isEmpty || selectedChapter.paragraphs.indices.contains(paragraphIndex) else {
             return nil
         }
 
