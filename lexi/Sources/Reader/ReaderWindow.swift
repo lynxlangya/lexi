@@ -261,7 +261,7 @@ private struct ReaderWindowContent: View {
                             goToNextChapter: nextChapter,
                             onParagraphChange: handleVisibleParagraphChange
                         ) { paragraph in
-                            controller.retryParagraph(paragraph, in: selectedChapter)
+                            controller.retryParagraph(paragraph, in: selectedChapter, bookTitle: book.title)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(preferences.theme.paper)
@@ -501,7 +501,8 @@ private struct ReaderWindowContent: View {
         controller.selectChapter(
             selectedChapter,
             chapters: chapters,
-            prefetchCount: max(0, min(2, prefetchCount))
+            prefetchCount: max(0, min(2, prefetchCount)),
+            bookTitle: book?.title
         )
 
         guard let database, let book else {
@@ -644,7 +645,8 @@ private struct ReaderWindowContent: View {
                 config,
                 chapter: selectedChapter,
                 chapters: chapters,
-                prefetchCount: max(0, min(2, prefetchCount))
+                prefetchCount: max(0, min(2, prefetchCount)),
+                bookTitle: book?.title
             )
         }
     }

@@ -5,6 +5,7 @@ struct SelectedTextContext: Equatable {
     var text: String
     var anchor: CGRect
     var source: SelectionSource = .global
+    var sentenceContext: SentenceContext?
 }
 
 enum SelectionSource: Equatable {
@@ -95,7 +96,12 @@ final class SelectionMonitor {
         let anchor = selectionFrame(from: element)
 
         if let rawText = selectedText as? String,
-           let context = context(rawText: rawText, anchor: anchor, source: source) {
+           let context = context(
+            rawText: rawText,
+            anchor: anchor,
+            source: source,
+            sentenceContext: sentenceContext(from: element, selectedText: rawText)
+           ) {
             return .success(context)
         }
 
@@ -105,7 +111,12 @@ final class SelectionMonitor {
     private static func fallbackSelectionContext(source: SelectionSource, anchor: CGRect) -> Result<SelectedTextContext, SelectionReadFailure> {
         guard source != .reader,
               let copiedText = selectedTextFromCopyShortcut(),
-              let context = context(rawText: copiedText, anchor: anchor, source: source) else {
+              let context = context(
+                rawText: copiedText,
+                anchor: anchor,
+                source: source,
+                sentenceContext: SentenceContext(fullSentence: sentenceContainingSelection(copiedText, in: copiedText))
+              ) else {
             return .failure(.emptySelection)
         }
 
@@ -117,13 +128,155 @@ final class SelectionMonitor {
         return AXIsProcessTrustedWithOptions(options)
     }
 
-    private static func context(rawText: String, anchor: CGRect, source: SelectionSource) -> SelectedTextContext? {
+    private static func context(
+        rawText: String,
+        anchor: CGRect,
+        source: SelectionSource,
+        sentenceContext: SentenceContext? = nil
+    ) -> SelectedTextContext? {
         let text = SelectionLookupClassifier.normalizedText(rawText)
         guard SelectionLookupClassifier.canTranslate(text) else {
             return nil
         }
 
-        return SelectedTextContext(text: text, anchor: anchor, source: source)
+        return SelectedTextContext(text: text, anchor: anchor, source: source, sentenceContext: sentenceContext)
+    }
+
+    private static func sentenceContext(from element: AXUIElement, selectedText: String) -> SentenceContext? {
+        let fullText = stringAttribute(element, attribute: kAXHelpAttribute)
+            ?? stringAttribute(element, attribute: kAXValueAttribute)
+            ?? stringAttribute(element, attribute: kAXDescriptionAttribute)
+            ?? stringAttribute(element, attribute: kAXTitleAttribute)
+
+        if let fullText,
+           let sentence = sentenceContainingSelection(selectedText, in: fullText) {
+            return SentenceContext(fullSentence: sentence)
+        }
+
+        return expandedSelectionContext(from: element, selectedText: selectedText)
+    }
+
+    private static func stringAttribute(_ element: AXUIElement, attribute: String) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else {
+            return nil
+        }
+        return value as? String
+    }
+
+    static func sentenceContainingSelection(_ selectedText: String, in sourceText: String) -> String? {
+        let normalizedSelection = SelectionLookupClassifier.normalizedText(selectedText)
+        let normalizedSource = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedSelection.isEmpty,
+              !normalizedSource.isEmpty,
+              let selectedRange = normalizedSource.range(of: normalizedSelection, options: [.caseInsensitive, .diacriticInsensitive]) else {
+            return nil
+        }
+
+        let sentenceStart = sentenceBoundaryBefore(selectedRange.lowerBound, in: normalizedSource)
+        let sentenceEnd = sentenceBoundaryAfter(selectedRange.upperBound, in: normalizedSource)
+        let sentence = String(normalizedSource[sentenceStart..<sentenceEnd])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return sentence.isEmpty ? nil : sentence
+    }
+
+    static func expandedSelectionWindow(in text: String, selectedRange: NSRange, radius: Int = 200) -> String? {
+        guard selectedRange.location >= 0,
+              selectedRange.length > 0,
+              let range = Range(selectedRange, in: text) else {
+            return nil
+        }
+
+        let startOffset = max(0, text.distance(from: text.startIndex, to: range.lowerBound) - radius)
+        let endOffset = min(text.count, text.distance(from: text.startIndex, to: range.upperBound) + radius)
+        let start = text.index(text.startIndex, offsetBy: startOffset)
+        let end = text.index(text.startIndex, offsetBy: endOffset)
+        return String(text[start..<end])
+    }
+
+    private static func expandedSelectionContext(from element: AXUIElement, selectedText: String) -> SentenceContext? {
+        guard let range = selectedTextRange(from: element),
+              let expandedText = stringForExpandedRange(from: element, selectedRange: range),
+              let sentence = sentenceContainingSelection(selectedText, in: expandedText) else {
+            return nil
+        }
+
+        return SentenceContext(fullSentence: sentence)
+    }
+
+    private static func selectedTextRange(from element: AXUIElement) -> CFRange? {
+        var rangeValue: CFTypeRef?
+        let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeValue)
+        guard rangeResult == .success, let rangeValue else {
+            return nil
+        }
+
+        let axRange = rangeValue as! AXValue
+        var range = CFRange()
+        return AXValueGetValue(axRange, .cfRange, &range) ? range : nil
+    }
+
+    private static func stringForExpandedRange(from element: AXUIElement, selectedRange: CFRange) -> String? {
+        guard selectedRange.location >= 0, selectedRange.length > 0 else {
+            return nil
+        }
+
+        let radius = 200
+        let textLength = numberAttribute(element, attribute: kAXNumberOfCharactersAttribute)
+        let start = max(0, selectedRange.location - radius)
+        let uncappedEnd = selectedRange.location + selectedRange.length + radius
+        let end = textLength.map { min($0, uncappedEnd) } ?? uncappedEnd
+        var expandedRange = CFRange(location: start, length: end - start)
+        guard let parameter = AXValueCreate(.cfRange, &expandedRange) else {
+            return nil
+        }
+
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            kAXStringForRangeParameterizedAttribute as CFString,
+            parameter,
+            &value
+        )
+        guard result == .success else {
+            return nil
+        }
+        return value as? String
+    }
+
+    private static func numberAttribute(_ element: AXUIElement, attribute: String) -> Int? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else {
+            return nil
+        }
+        return value as? Int
+    }
+
+    private static func sentenceBoundaryBefore(_ index: String.Index, in text: String) -> String.Index {
+        var cursor = index
+        while cursor > text.startIndex {
+            let previous = text.index(before: cursor)
+            if isSentenceTerminator(text[previous]) {
+                return cursor
+            }
+            cursor = previous
+        }
+        return text.startIndex
+    }
+
+    private static func sentenceBoundaryAfter(_ index: String.Index, in text: String) -> String.Index {
+        var cursor = index
+        while cursor < text.endIndex {
+            if isSentenceTerminator(text[cursor]) {
+                return text.index(after: cursor)
+            }
+            cursor = text.index(after: cursor)
+        }
+        return text.endIndex
+    }
+
+    private static func isSentenceTerminator(_ character: Character) -> Bool {
+        ".!?。！？".contains(character)
     }
 
     private static func selectedTextFromCopyShortcut() -> String? {

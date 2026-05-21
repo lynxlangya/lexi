@@ -97,6 +97,89 @@ final class ReaderTranslationControllerTests: XCTestCase {
         XCTAssertEqual(client.requestCount, 0)
     }
 
+    func testParagraphContextUsesBookChapterAndExactPreviousTranslation() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["cached", "missing"])
+        try await database.upsertTranslation(
+            Translation(
+                id: nil,
+                paragraphId: chapter.paragraphs[0].id,
+                engine: .deepseek,
+                model: "deepseek-chat",
+                zh: "上一段当前引擎译文",
+                createdAt: Date()
+            )
+        )
+        try await database.upsertTranslation(
+            Translation(
+                id: nil,
+                paragraphId: chapter.paragraphs[0].id,
+                engine: .openai,
+                model: "gpt-5.4-mini",
+                zh: "上一段其他引擎译文",
+                createdAt: Date()
+            )
+        )
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"missing zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0, bookTitle: "Test Book")
+
+        await waitUntil("chapter reaches cached state") {
+            controller.chapterState(for: chapter.id) == .cached
+        }
+
+        let request = try XCTUnwrap(client.requestsSnapshot.first)
+        let payload = try decodedJSONObject(try XCTUnwrap(request.httpBody))
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("Current work: \"Test Book\"") == true)
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("Chapter: \"Chapter 1\"") == true)
+        XCTAssertTrue((messages[1]["content"] as? String)?.contains("cached") == true)
+        XCTAssertEqual(messages[2]["content"] as? String, "上一段当前引擎译文")
+        XCTAssertTrue((messages[3]["content"] as? String)?.contains("missing") == true)
+    }
+
+    func testParagraphContextDoesNotUsePreviousFallbackFromDifferentEngine() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["fallback only", "missing"])
+        try await database.upsertTranslation(
+            Translation(
+                id: nil,
+                paragraphId: chapter.paragraphs[0].id,
+                engine: .openai,
+                model: "gpt-5.4-mini",
+                zh: "上一段其他引擎译文",
+                createdAt: Date()
+            )
+        )
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"missing zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0, bookTitle: "Test Book")
+
+        await waitUntil("chapter reaches cached state") {
+            controller.chapterState(for: chapter.id) == .cached
+        }
+
+        let request = try XCTUnwrap(client.requestsSnapshot.first)
+        let payload = try decodedJSONObject(try XCTUnwrap(request.httpBody))
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+        XCTAssertEqual(messages.map { $0["role"] as? String }, ["system", "user"])
+        XCTAssertFalse(String(data: try XCTUnwrap(request.httpBody), encoding: .utf8)?.contains("上一段其他引擎译文") == true)
+    }
+
     func testParagraphFailureMapsToMissingParagraphIndex() async throws {
         let database = try AppDatabase.makeTransient()
         let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["cached", "fails", "blocked"])
@@ -416,6 +499,12 @@ private final class ReaderMockEngineHTTPClient: EngineHTTPClient, @unchecked Sen
         return requests.count
     }
 
+    var requestsSnapshot: [URLRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests
+    }
+
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         throw EngineError.invalidResponse
     }
@@ -509,6 +598,10 @@ private func readerResponse(status: Int) -> HTTPURLResponse {
         httpVersion: nil,
         headerFields: nil
     )!
+}
+
+private func decodedJSONObject(_ data: Data) throws -> [String: Any] {
+    try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }
 
 private extension Array {

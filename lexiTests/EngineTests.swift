@@ -37,7 +37,13 @@ final class EngineTests: XCTestCase {
         ])
         let engine = OpenAIEngine(apiKey: "key", client: client)
 
-        let chunks = try await collect(engine.translate(["hello world", "second"], model: "gpt-5.4-mini"))
+        let chunks = try await collect(engine.translate(
+            [
+                .paragraph(text: "hello world", context: ParagraphContext()),
+                .paragraph(text: "second", context: ParagraphContext()),
+            ],
+            model: "gpt-5.4-mini"
+        ))
 
         XCTAssertEqual(chunks, [
             TranslationChunk(index: 0, text: "你好"),
@@ -45,6 +51,42 @@ final class EngineTests: XCTestCase {
             TranslationChunk(index: 1, text: "第二段"),
         ])
         XCTAssertEqual(client.requests.map { $0.url?.path }, ["/v1/chat/completions", "/v1/chat/completions"])
+    }
+
+    func testOpenAIParagraphContextAddsSystemMetadataAndPreviousTurns() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([
+                #"data: {"choices":[{"delta":{"content":"当前译文"}}]}"#,
+                "data: [DONE]",
+            ]), response(status: 200))),
+        ])
+        let engine = OpenAIEngine(apiKey: "key", client: client)
+
+        _ = try await collect(engine.translate(
+            [
+                .paragraph(
+                    text: "Current paragraph.",
+                    context: ParagraphContext(
+                        bookTitle: "Co-Intelligence",
+                        chapterTitle: "Chapter 2",
+                        previousEN: "Previous English.",
+                        previousZH: "上一段中文。"
+                    )
+                ),
+            ],
+            model: "gpt-5.4-mini"
+        ))
+
+        let body = try XCTUnwrap(client.requests.first?.httpBody)
+        let payload = try decodedJSONObject(body)
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+
+        XCTAssertEqual(messages.map { $0["role"] as? String }, ["system", "user", "assistant", "user"])
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("Current work: \"Co-Intelligence\"") == true)
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("Chapter: \"Chapter 2\"") == true)
+        XCTAssertTrue((messages[1]["content"] as? String)?.contains("Previous English.") == true)
+        XCTAssertEqual(messages[2]["content"] as? String, "上一段中文。")
+        XCTAssertTrue((messages[3]["content"] as? String)?.contains("Current paragraph.") == true)
     }
 
     func testAnthropicStreamProducesOrderedChunksWithParagraphIndexes() async throws {
@@ -59,7 +101,13 @@ final class EngineTests: XCTestCase {
         ])
         let engine = AnthropicEngine(apiKey: "key", client: client)
 
-        let chunks = try await collect(engine.translate(["a", "b"], model: "claude-sonnet-4-6"))
+        let chunks = try await collect(engine.translate(
+            [
+                .paragraph(text: "a", context: ParagraphContext()),
+                .paragraph(text: "b", context: ParagraphContext()),
+            ],
+            model: "claude-sonnet-4-6"
+        ))
 
         XCTAssertEqual(chunks, [
             TranslationChunk(index: 0, text: "甲"),
@@ -69,7 +117,60 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(client.requests.map { $0.url?.path }, ["/v1/messages", "/v1/messages"])
     }
 
-    func testFailedParagraphMapsToParagraphFailed() async throws {
+    func testAnthropicParagraphContextAddsSystemMetadataAndPreviousTurns() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([
+                #"data: {"type":"content_block_delta","delta":{"text":"当前译文"}}"#,
+            ]), response(status: 200))),
+        ])
+        let engine = AnthropicEngine(apiKey: "key", client: client)
+
+        _ = try await collect(engine.translate(
+            [
+                .paragraph(
+                    text: "Current paragraph.",
+                    context: ParagraphContext(
+                        bookTitle: "Co-Intelligence",
+                        chapterTitle: "Chapter 2",
+                        previousEN: "Previous English.",
+                        previousZH: "上一段中文。"
+                    )
+                ),
+            ],
+            model: "claude-sonnet-4-6"
+        ))
+
+        let body = try XCTUnwrap(client.requests.first?.httpBody)
+        let payload = try decodedJSONObject(body)
+        let system = try XCTUnwrap(payload["system"] as? String)
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+
+        XCTAssertTrue(system.contains("Current work: \"Co-Intelligence\""))
+        XCTAssertTrue(system.contains("Chapter: \"Chapter 2\""))
+        XCTAssertEqual(messages.map { $0["role"] as? String }, ["user", "assistant", "user"])
+        XCTAssertTrue((messages[0]["content"] as? String)?.contains("Previous English.") == true)
+        XCTAssertEqual(messages[1]["content"] as? String, "上一段中文。")
+        XCTAssertTrue((messages[2]["content"] as? String)?.contains("Current paragraph.") == true)
+    }
+
+    func testParagraphPreviousTextIsTruncatedFromEnd() {
+        let previousEN = String(repeating: "a", count: 4_010) + "tail"
+        let previousZH = String(repeating: "中", count: 4_010) + "尾巴"
+        let messages = Prompts.conversationMessages(
+            for: .paragraph(
+                text: "Current.",
+                context: ParagraphContext(previousEN: previousEN, previousZH: previousZH)
+            )
+        )
+
+        XCTAssertEqual(messages.count, 3)
+        XCTAssertFalse(messages[0].content.contains(String(repeating: "a", count: 4_010)))
+        XCTAssertTrue(messages[0].content.contains(String(repeating: "a", count: 3_996) + "tail"))
+        XCTAssertFalse(messages[1].content.contains(String(repeating: "中", count: 4_010)))
+        XCTAssertEqual(messages[1].content, String(repeating: "中", count: 3_998) + "尾巴")
+    }
+
+    func testFailedTaskMapsToTaskFailed() async throws {
         let client = MockEngineHTTPClient(streamResponses: [
             .success((sseStream([
                 #"data: {"choices":[{"delta":{"content":"第一段"}}]}"#,
@@ -79,13 +180,41 @@ final class EngineTests: XCTestCase {
         let engine = OpenAIEngine(apiKey: "key", client: client)
 
         do {
-            _ = try await collect(engine.translate(["first", "second"], model: "gpt-5.4-mini"))
+            _ = try await collect(engine.translate(
+                [
+                    .paragraph(text: "first", context: ParagraphContext()),
+                    .paragraph(text: "second", context: ParagraphContext()),
+                ],
+                model: "gpt-5.4-mini"
+            ))
             XCTFail("Expected paragraph failure")
         } catch let error as EngineError {
-            guard case .paragraphFailed(let index, _) = error else {
-                return XCTFail("Expected paragraphFailed, got \(error)")
+            guard case .taskFailed(let index, _) = error else {
+                return XCTFail("Expected taskFailed, got \(error)")
             }
             XCTAssertEqual(index, 1)
+        }
+    }
+
+    func testFailedSentenceTaskMapsToTaskFailed() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([]), response(status: 500))),
+        ])
+        let engine = OpenAIEngine(apiKey: "key", client: client)
+
+        do {
+            _ = try await collect(engine.translate(
+                [
+                    .sentence(text: "selected text", context: nil),
+                ],
+                model: "gpt-5.4-mini"
+            ))
+            XCTFail("Expected task failure")
+        } catch let error as EngineError {
+            guard case .taskFailed(let index, _) = error else {
+                return XCTFail("Expected taskFailed, got \(error)")
+            }
+            XCTAssertEqual(index, 0)
         }
     }
 
@@ -201,4 +330,8 @@ private func collect(_ stream: AsyncThrowingStream<TranslationChunk, Error>) asy
         chunks.append(chunk)
     }
     return chunks
+}
+
+private func decodedJSONObject(_ data: Data) throws -> [String: Any] {
+    try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }

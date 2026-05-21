@@ -17,12 +17,12 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         self.client = client
     }
 
-    func translate(_ paragraphs: [String], model: String) -> AsyncThrowingStream<TranslationChunk, Error> {
+    func translate(_ tasks: [TranslationTask], model: String) -> AsyncThrowingStream<TranslationChunk, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    for (index, paragraph) in paragraphs.enumerated() {
-                        try await streamParagraph(paragraph, index: index, model: model, continuation: continuation)
+                    for (index, translationTask) in tasks.enumerated() {
+                        try await streamTask(translationTask, index: index, model: model, continuation: continuation)
                     }
                     continuation.finish()
                 } catch {
@@ -53,14 +53,28 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         }
     }
 
-    private func streamParagraph(
-        _ paragraph: String,
+    func lookup(_ task: TranslationTask, model: String) async throws -> LookupResult {
+        let request = try makeLookupRequest(task: task, model: model, strict: true)
+        let (data, response) = try await client.data(for: request)
+        guard response.isSuccess else {
+            throw EngineError.httpStatus(response.statusCode, engineErrorReason(from: data))
+        }
+
+        let payload = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+        guard let content = payload.choices.first?.message.content else {
+            throw EngineError.invalidResponse
+        }
+        return try LookupSchema.decode(content)
+    }
+
+    private func streamTask(
+        _ task: TranslationTask,
         index: Int,
         model: String,
         continuation: AsyncThrowingStream<TranslationChunk, Error>.Continuation
     ) async throws {
         do {
-            let request = try makeTranslateRequest(paragraph: paragraph, model: model)
+            let request = try makeTranslateRequest(task: task, model: model)
             let (stream, response) = try await client.bytes(for: request)
             guard response.isSuccess else {
                 throw EngineError.httpStatus(response.statusCode, HTTPURLResponse.localizedString(forStatusCode: response.statusCode))
@@ -81,13 +95,13 @@ nonisolated struct OpenAIEngine: TranslationEngine {
                 }
             }
         } catch let error as EngineError {
-            throw EngineError.paragraphFailed(index: index, reason: error.localizedDescription)
+            throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
         } catch {
-            throw EngineError.paragraphFailed(index: index, reason: error.localizedDescription)
+            throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
         }
     }
 
-    private func makeTranslateRequest(paragraph: String, model: String) throws -> URLRequest {
+    private func makeTranslateRequest(task: TranslationTask, model: String) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appending(path: "v1/chat/completions"))
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -95,14 +109,42 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         request.httpBody = try JSONEncoder().encode(
             OpenAIChatRequest(
                 model: model,
-                messages: [
-                    .init(role: "system", content: Prompts.translationSystem),
-                    .init(role: "user", content: Prompts.translationUserPrompt(paragraph: paragraph)),
-                ],
+                messages: openAIMessages(for: task),
                 stream: true
             )
         )
         return request
+    }
+
+    func makeLookupRequest(
+        task: TranslationTask,
+        model: String,
+        strict: Bool,
+        extraUserMessages: [String] = []
+    ) throws -> URLRequest {
+        var request = URLRequest(url: baseURL.appending(path: "v1/chat/completions"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let messages = openAIMessages(for: task) + extraUserMessages.map {
+            OpenAIChatRequest.Message(role: "user", content: $0)
+        }
+        request.httpBody = try JSONEncoder().encode(
+            OpenAIChatRequest(
+                model: model,
+                messages: messages,
+                stream: false,
+                responseFormat: strict ? .jsonSchema(name: LookupSchema.name, schema: LookupSchema.schema) : nil
+            )
+        )
+        return request
+    }
+
+    private func openAIMessages(for task: TranslationTask) -> [OpenAIChatRequest.Message] {
+        [.init(role: "system", content: Prompts.systemPrompt(for: task))]
+            + Prompts.conversationMessages(for: task).map {
+                .init(role: $0.role, content: $0.content)
+            }
     }
 }
 
@@ -115,6 +157,46 @@ nonisolated struct OpenAIChatRequest: Encodable {
     var model: String
     var messages: [Message]
     var stream: Bool
+    var responseFormat: ResponseFormat?
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case messages
+        case stream
+        case responseFormat = "response_format"
+    }
+
+    struct ResponseFormat: Encodable {
+        struct JSONSchema: Encodable {
+            var name: String
+            var strict: Bool
+            var schema: JSONValue
+        }
+
+        var type: String
+        var jsonSchema: JSONSchema
+
+        static func jsonSchema(name: String, schema: JSONValue) -> ResponseFormat {
+            ResponseFormat(type: "json_schema", jsonSchema: JSONSchema(name: name, strict: true, schema: schema))
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case jsonSchema = "json_schema"
+        }
+    }
+}
+
+nonisolated struct OpenAIChatResponse: Decodable {
+    struct Choice: Decodable {
+        struct Message: Decodable {
+            var content: String?
+        }
+
+        var message: Message
+    }
+
+    var choices: [Choice]
 }
 
 nonisolated struct OpenAIModelsResponse: Decodable {

@@ -3,13 +3,84 @@ import Foundation
 nonisolated protocol TranslationEngine: Sendable {
     var id: EngineID { get }
 
-    func translate(_ paragraphs: [String], model: String) -> AsyncThrowingStream<TranslationChunk, Error>
+    func translate(_ tasks: [TranslationTask], model: String) -> AsyncThrowingStream<TranslationChunk, Error>
+    func lookup(_ task: TranslationTask, model: String) async throws -> LookupResult
     func ping(model: String) async throws -> PingResult
+}
+
+nonisolated enum TranslationTask: Equatable, Sendable {
+    case paragraph(text: String, context: ParagraphContext)
+    case sentence(text: String, context: SentenceContext?)
+    case wordLookup(word: String, context: SentenceContext?)
+    case phraseLookup(phrase: String, context: SentenceContext?)
+}
+
+nonisolated struct ParagraphContext: Equatable, Sendable {
+    var bookTitle: String?
+    var chapterTitle: String?
+    var previousEN: String?
+    var previousZH: String?
+
+    init(
+        bookTitle: String? = nil,
+        chapterTitle: String? = nil,
+        previousEN: String? = nil,
+        previousZH: String? = nil
+    ) {
+        self.bookTitle = bookTitle
+        self.chapterTitle = chapterTitle
+        self.previousEN = previousEN
+        self.previousZH = previousZH
+    }
+}
+
+nonisolated struct SentenceContext: Equatable, Sendable {
+    var fullSentence: String?
+    var bookTitle: String?
+    var localDictionary: LocalDictionaryEntry?
+
+    init(
+        fullSentence: String? = nil,
+        bookTitle: String? = nil,
+        localDictionary: LocalDictionaryEntry? = nil
+    ) {
+        self.fullSentence = fullSentence
+        self.bookTitle = bookTitle
+        self.localDictionary = localDictionary
+    }
 }
 
 nonisolated struct TranslationChunk: Equatable, Sendable {
     let index: Int
     let text: String
+}
+
+nonisolated struct LookupResult: Codable, Equatable, Sendable {
+    var senses: [LookupSense]
+    var contextualMeaning: String?
+    var synonyms: [String]?
+    var example: LookupExample?
+}
+
+nonisolated struct LookupSense: Codable, Equatable, Sendable {
+    var pos: LookupPartOfSpeech
+    var zh: String
+}
+
+nonisolated enum LookupPartOfSpeech: String, Codable, CaseIterable, Sendable {
+    case v
+    case n
+    case adj
+    case adv
+    case prep
+    case conj
+    case phr
+    case idiom
+}
+
+nonisolated struct LookupExample: Codable, Equatable, Sendable {
+    var en: String?
+    var zh: String?
 }
 
 nonisolated enum PingResult: Equatable, Sendable {
@@ -21,8 +92,9 @@ nonisolated enum PingResult: Equatable, Sendable {
 nonisolated enum EngineError: Error, Equatable, LocalizedError, Sendable {
     case missingAPIKey(EngineID)
     case invalidResponse
+    case invalidResponseWithReason(String)
     case httpStatus(Int, String)
-    case paragraphFailed(index: Int, reason: String)
+    case taskFailed(index: Int, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -30,10 +102,12 @@ nonisolated enum EngineError: Error, Equatable, LocalizedError, Sendable {
             return "Missing API key for \(engine.rawValue)."
         case .invalidResponse:
             return "Invalid engine response."
+        case .invalidResponseWithReason(let reason):
+            return "Invalid engine response: \(reason)"
         case .httpStatus(let status, let reason):
             return "HTTP \(status): \(reason)"
-        case .paragraphFailed(let index, let reason):
-            return "Paragraph \(index) failed: \(reason)"
+        case .taskFailed(let index, let reason):
+            return "Task \(index) failed: \(reason)"
         }
     }
 }

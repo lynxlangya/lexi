@@ -24,7 +24,10 @@ struct ParaView: View {
                     font: preferences.font.nsSerif(enSize),
                     lineSpacing: enSize * preferences.lineHeight.englishSpacingRatio,
                     foregroundColor: preferences.theme.ink,
-                    selectionColor: preferences.accent.primary.opacity(0.28)
+                    selectionColor: preferences.accent.primary.opacity(0.28),
+                    selectionContext: {
+                        SentenceContext(fullSentence: paragraph.en)
+                    }
                 )
             }
 
@@ -94,7 +97,10 @@ struct ParaView: View {
             font: LexiFont.nsSans(zhSize),
             lineSpacing: zhSize * preferences.lineHeight.chineseSpacingRatio,
             foregroundColor: preferences.theme.ink2,
-            selectionColor: preferences.accent.primary.opacity(0.28)
+            selectionColor: preferences.accent.primary.opacity(0.28),
+            selectionContext: {
+                SentenceContext(fullSentence: paragraph.en)
+            }
         )
     }
 }

@@ -7,9 +7,10 @@ struct SelectableReaderText: NSViewRepresentable {
     let lineSpacing: CGFloat
     let foregroundColor: Color
     let selectionColor: Color
+    var selectionContext: (() -> SentenceContext?)?
 
     func makeNSView(context: Context) -> NSTextView {
-        let textView = NSTextView(frame: .zero)
+        let textView = ContextTextView(frame: .zero)
         textView.isEditable = false
         textView.isSelectable = true
         textView.isRichText = false
@@ -24,10 +25,14 @@ struct SelectableReaderText: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        textView.selectionContext = selectionContext
         return textView
     }
 
     func updateNSView(_ textView: NSTextView, context: Context) {
+        if let textView = textView as? ContextTextView {
+            textView.selectionContext = selectionContext
+        }
         let attributed = attributedString()
         if textView.attributedString() != attributed {
             textView.textStorage?.setAttributedString(attributed)
@@ -80,5 +85,13 @@ struct SelectableReaderText: NSViewRepresentable {
         layoutManager.ensureLayout(for: textContainer)
 
         return ceil(layoutManager.usedRect(for: textContainer).height)
+    }
+}
+
+final class ContextTextView: NSTextView {
+    var selectionContext: (() -> SentenceContext?)?
+
+    override func accessibilityHelp() -> String? {
+        selectionContext?()?.fullSentence ?? super.accessibilityHelp()
     }
 }
