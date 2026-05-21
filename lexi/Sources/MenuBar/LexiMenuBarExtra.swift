@@ -127,7 +127,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
         switch selectedTextContext(promptForPermission: true) {
         case .success(let context):
             popupEngineOverride = nil
-            translate(context.text, anchor: context.anchor)
+            translate(context.text, anchor: context.anchor, sentenceContext: context.sentenceContext)
         case .failure(.accessibilityDenied):
             showPermissionError()
         case .failure(.emptySelection):
@@ -140,7 +140,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
         case .success(let context):
             guard context.source != .reader else {
                 popupEngineOverride = nil
-                translate(context.text, anchor: context.anchor)
+                translate(context.text, anchor: context.anchor, sentenceContext: context.sentenceContext)
                 showToast("阅读器正文不可替换，已改为划词翻译")
                 return
             }
@@ -151,7 +151,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
                 do {
                     currentEngine = await popupEngineConfig()
                     show(kind: .loading(text: context.text, isWord: false, engine: currentEngine.id), near: anchor)
-                    let translated = try await translateText(context.text)
+                    let translated = try await translateText(context.text, sentenceContext: context.sentenceContext)
                     if TextReplacement.replaceSelection(with: translated) {
                         closePopup()
                     } else {
@@ -205,7 +205,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
         SelectionMonitor.currentSelectionResult(promptForPermission: promptForPermission)
     }
 
-    private func translate(_ text: String, anchor: CGRect) {
+    private func translate(_ text: String, anchor: CGRect, sentenceContext: SentenceContext? = nil) {
         let trimmed = SelectionLookupClassifier.normalizedText(text)
         guard SelectionLookupClassifier.canTranslate(trimmed) else {
             showEmptySelection()
@@ -218,14 +218,19 @@ final class LexiMenuBarCoordinator: ObservableObject {
                 currentEngine = await popupEngineConfig()
                 show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
                 let localEntry = word ? LocalDictionary.lookup(trimmed) : nil
+                let enrichedContext = SentenceContext(
+                    fullSentence: sentenceContext?.fullSentence,
+                    bookTitle: sentenceContext?.bookTitle,
+                    localDictionary: localEntry
+                )
                 todayQueryCount += 1
                 if word {
-                    let result = try await lookupTask(.wordLookup(word: trimmed, context: SentenceContext(localDictionary: localEntry)))
+                    let result = try await lookupTask(.wordLookup(word: trimmed, context: enrichedContext))
                     let lookup = makeWordLookup(word: trimmed, result: result, localEntry: localEntry)
                     remember(word: trimmed)
                     show(kind: .word(lookup), near: anchor)
                 } else {
-                    let translated = try await translateTask(.sentence(text: trimmed, context: nil))
+                    let translated = try await translateTask(.sentence(text: trimmed, context: sentenceContext))
                     show(
                         kind: .sentence(SentenceLookup(text: trimmed, zh: translated, engine: currentEngine.id, model: currentEngine.model)),
                         near: anchor
@@ -237,8 +242,8 @@ final class LexiMenuBarCoordinator: ObservableObject {
         }
     }
 
-    private func translateText(_ text: String) async throws -> String {
-        try await translateTask(.sentence(text: text, context: nil))
+    private func translateText(_ text: String, sentenceContext: SentenceContext? = nil) async throws -> String {
+        try await translateTask(.sentence(text: text, context: sentenceContext))
     }
 
     private func translateTask(_ task: TranslationTask) async throws -> String {
