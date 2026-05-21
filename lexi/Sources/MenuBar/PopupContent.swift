@@ -95,7 +95,7 @@ struct PopupHeaderActions: View {
             Button(action: actions.togglePin) {
                 Image(systemName: "pin")
                     .font(.system(size: 12, weight: .medium))
-                    .frame(width: 26, height: 26)
+                    .frame(width: 20, height: 20)
                     .background(pinned ? theme.accent.soft : Color.clear)
                     .foregroundStyle(pinned ? theme.accent.primary : theme.ink3)
                     .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -106,7 +106,7 @@ struct PopupHeaderActions: View {
             Button(action: actions.close) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .medium))
-                    .frame(width: 26, height: 26)
+                    .frame(width: 20, height: 20)
                     .foregroundStyle(theme.ink3)
             }
             .buttonStyle(.plain)

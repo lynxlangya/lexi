@@ -6,7 +6,7 @@ struct LoadingCard: View {
 
     var body: some View {
         PopupThemeReader { theme in
-            PopupCard(width: 420, pinned: false, theme: theme) {
+            PopupCard(width: 340, pinned: false, theme: theme) {
                 VStack(spacing: 0) {
                     HStack {
                         Text("Lexi · 翻译中".uppercased())
@@ -26,8 +26,8 @@ struct LoadingCard: View {
                         }
                         .foregroundStyle(theme.accent.primary)
                     }
-                    .frame(height: 56)
-                    .padding(.horizontal, 20)
+                    .frame(height: 35)
+                    .padding(.horizontal, 14)
                     .overlay(alignment: .bottom) {
                         Rectangle()
                             .fill(theme.rule)
@@ -52,8 +52,8 @@ struct LoadingCard: View {
                             ShimmerLine(width: 0.62, theme: theme)
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 18)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
                 }
             }
         }

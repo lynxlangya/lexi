@@ -93,6 +93,7 @@ struct PopupCard<Content: View>: View {
     let width: CGFloat
     let pinned: Bool
     let theme: PopupTheme
+    var radius: CGFloat = 12
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -100,24 +101,24 @@ struct PopupCard<Content: View>: View {
             content
                 .frame(width: width)
                 .background(theme.bg)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .stroke(theme.border, lineWidth: 1)
                 }
                 .overlay(alignment: .top) {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .stroke(theme.highlight, lineWidth: 0.6)
                         .blendMode(.plusLighter)
                 }
-                .shadow(color: theme.shadow, radius: theme.isDark ? 34 : 30, y: theme.isDark ? 22 : 20)
+                .shadow(color: theme.shadow, radius: theme.isDark ? 26 : 22, y: theme.isDark ? 16 : 14)
 
             if pinned {
                 Circle()
                     .fill(theme.accent.primary)
                     .frame(width: 6, height: 6)
-                    .padding(.top, 12)
-                    .padding(.trailing, 12)
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
             }
         }
         .fixedSize()
@@ -142,8 +143,8 @@ struct PopupHeader: View {
 
             PopupHeaderActions(pinned: pinned, actions: actions, theme: theme)
         }
-        .frame(height: 66)
-        .padding(.horizontal, 24)
+        .frame(height: 35)
+        .padding(.horizontal, 14)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(theme.rule)
@@ -160,8 +161,8 @@ struct PopupFooter<Content: View>: View {
         HStack(spacing: 10) {
             content
         }
-        .frame(height: 74)
-        .padding(.horizontal, 24)
+        .frame(height: 44)
+        .padding(.horizontal, 12)
         .background(theme.chrome)
         .overlay(alignment: .top) {
             Rectangle()
@@ -181,7 +182,7 @@ struct PopupIconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 12, weight: .medium))
-                .frame(width: 26, height: 26)
+                .frame(width: 20, height: 20)
                 .foregroundStyle(theme.ink3)
                 .contentShape(Rectangle())
         }
@@ -198,11 +199,11 @@ struct PopupPrimaryButton<Label: View>: View {
     var body: some View {
         Button(action: action) {
             label
-                .font(LexiFont.sans(12))
+                .font(LexiFont.sans(11.5))
                 .fontWeight(.medium)
                 .foregroundStyle(.white)
-                .padding(.horizontal, 13)
-                .frame(height: 28)
+                .padding(.horizontal, 10)
+                .frame(height: 26)
                 .background(theme.accent.primary)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
@@ -218,11 +219,11 @@ struct PopupOutlineButton<Label: View>: View {
     var body: some View {
         Button(action: action) {
             label
-                .font(LexiFont.sans(12))
+                .font(LexiFont.sans(11.5))
                 .fontWeight(.medium)
                 .foregroundStyle(theme.ink2)
-                .padding(.horizontal, 11)
-                .frame(height: 28)
+                .padding(.horizontal, 9)
+                .frame(height: 26)
                 .background(Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay {

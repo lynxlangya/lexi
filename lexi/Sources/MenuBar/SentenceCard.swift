@@ -7,7 +7,7 @@ struct SentenceCard: View {
 
     var body: some View {
         PopupThemeReader { theme in
-            PopupCard(width: 678, pinned: pinned, theme: theme) {
+            PopupCard(width: 340, pinned: pinned, theme: theme) {
                 VStack(spacing: 0) {
                     PopupHeader(
                         label: "Lexi · 整句",
@@ -18,27 +18,27 @@ struct SentenceCard: View {
 
                     VStack(alignment: .leading, spacing: 0) {
                         Text("\"\(lookup.text)\"")
-                            .font(LexiFont.serif(19))
+                            .font(LexiFont.serif(13.5))
                             .italic()
-                            .lineSpacing(12)
+                            .lineSpacing(7)
                             .foregroundStyle(theme.ink2)
+                            .lineLimit(5)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Rectangle()
                             .fill(theme.rule)
                             .frame(height: 1)
-                            .padding(.vertical, 26)
+                            .padding(.vertical, 14)
 
                         Text(lookup.zh)
-                            .font(LexiFont.zh(20))
-                            .lineSpacing(16)
+                            .font(LexiFont.zh(14))
+                            .lineSpacing(10)
                             .foregroundStyle(theme.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.horizontal, 32)
-                    .padding(.top, 30)
-                    .padding(.bottom, 34)
-                    .frame(minHeight: 316, alignment: .topLeading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 12)
 
                     footer(theme: theme)
                 }

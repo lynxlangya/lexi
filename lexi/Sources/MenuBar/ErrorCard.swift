@@ -11,7 +11,7 @@ struct ErrorCard: View {
 
     var body: some View {
         PopupThemeReader { theme in
-            PopupCard(width: 420, pinned: false, theme: theme) {
+            PopupCard(width: 340, pinned: false, theme: theme) {
                 VStack(spacing: 0) {
                     HStack {
                         Text("Lexi".uppercased())
@@ -27,8 +27,8 @@ struct ErrorCard: View {
                             .fontWeight(.medium)
                             .foregroundStyle(theme.warn)
                     }
-                    .frame(height: 56)
-                    .padding(.horizontal, 20)
+                    .frame(height: 35)
+                    .padding(.horizontal, 14)
                     .overlay(alignment: .bottom) {
                         Rectangle()
                             .fill(theme.rule)
@@ -59,8 +59,8 @@ struct ErrorCard: View {
                                     .stroke(theme.rule, lineWidth: 1)
                             }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 20)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
 
                     PopupFooter(theme: theme) {
                         PopupOutlineButton(theme: theme, action: action) {
