@@ -93,7 +93,7 @@ nonisolated enum EngineError: Error, Equatable, LocalizedError, Sendable {
     case missingAPIKey(EngineID)
     case invalidResponse
     case httpStatus(Int, String)
-    case paragraphFailed(index: Int, reason: String)
+    case taskFailed(index: Int, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -103,8 +103,8 @@ nonisolated enum EngineError: Error, Equatable, LocalizedError, Sendable {
             return "Invalid engine response."
         case .httpStatus(let status, let reason):
             return "HTTP \(status): \(reason)"
-        case .paragraphFailed(let index, let reason):
-            return "Paragraph \(index) failed: \(reason)"
+        case .taskFailed(let index, let reason):
+            return "Task \(index) failed: \(reason)"
         }
     }
 }

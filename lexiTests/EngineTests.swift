@@ -167,7 +167,7 @@ final class EngineTests: XCTestCase {
         XCTAssertTrue(messages[0].content.contains(String(repeating: "a", count: 3_996) + "tail"))
     }
 
-    func testFailedParagraphMapsToParagraphFailed() async throws {
+    func testFailedTaskMapsToTaskFailed() async throws {
         let client = MockEngineHTTPClient(streamResponses: [
             .success((sseStream([
                 #"data: {"choices":[{"delta":{"content":"第一段"}}]}"#,
@@ -186,10 +186,32 @@ final class EngineTests: XCTestCase {
             ))
             XCTFail("Expected paragraph failure")
         } catch let error as EngineError {
-            guard case .paragraphFailed(let index, _) = error else {
-                return XCTFail("Expected paragraphFailed, got \(error)")
+            guard case .taskFailed(let index, _) = error else {
+                return XCTFail("Expected taskFailed, got \(error)")
             }
             XCTAssertEqual(index, 1)
+        }
+    }
+
+    func testFailedSentenceTaskMapsToTaskFailed() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([]), response(status: 500))),
+        ])
+        let engine = OpenAIEngine(apiKey: "key", client: client)
+
+        do {
+            _ = try await collect(engine.translate(
+                [
+                    .sentence(text: "selected text", context: nil),
+                ],
+                model: "gpt-5.4-mini"
+            ))
+            XCTFail("Expected task failure")
+        } catch let error as EngineError {
+            guard case .taskFailed(let index, _) = error else {
+                return XCTFail("Expected taskFailed, got \(error)")
+            }
+            XCTAssertEqual(index, 0)
         }
     }
 

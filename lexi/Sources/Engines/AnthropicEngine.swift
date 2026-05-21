@@ -101,9 +101,9 @@ nonisolated struct AnthropicEngine: TranslationEngine {
                 }
             }
         } catch let error as EngineError {
-            throw EngineError.paragraphFailed(index: index, reason: error.localizedDescription)
+            throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
         } catch {
-            throw EngineError.paragraphFailed(index: index, reason: error.localizedDescription)
+            throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
         }
     }
 

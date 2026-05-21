@@ -345,7 +345,7 @@ final class ChapterTranslationController {
 
     private func apply(error: EngineError, to chapter: ReaderChapter, translating: [ReaderParagraph]) {
         switch error {
-        case .paragraphFailed(let index, let reason):
+        case .taskFailed(let index, let reason):
             let paragraphs = paragraphsForError(in: chapter, translating: translating)
             if let paragraph = paragraphs[safe: index] {
                 snapshots[chapter.id]?.paragraphStates[paragraph.id] = .error(reason)
