@@ -148,10 +148,10 @@ nonisolated enum Prompts {
             messages.append(
                 PromptMessage(
                     role: "user",
-                    content: paragraphUserPrompt(truncatedPreviousSource(previousEN))
+                    content: paragraphUserPrompt(truncatedPreviousText(previousEN))
                 )
             )
-            messages.append(PromptMessage(role: "assistant", content: previousZH))
+            messages.append(PromptMessage(role: "assistant", content: truncatedPreviousText(previousZH)))
         }
         messages.append(PromptMessage(role: "user", content: paragraphUserPrompt(text)))
         return messages
@@ -207,7 +207,7 @@ nonisolated enum Prompts {
         return normalized.isEmpty ? nil : normalized
     }
 
-    private static func truncatedPreviousSource(_ text: String) -> String {
+    private static func truncatedPreviousText(_ text: String) -> String {
         let maxLength = 4_000
         guard text.count > maxLength else {
             return text

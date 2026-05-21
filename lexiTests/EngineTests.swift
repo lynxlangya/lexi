@@ -153,18 +153,21 @@ final class EngineTests: XCTestCase {
         XCTAssertTrue((messages[2]["content"] as? String)?.contains("Current paragraph.") == true)
     }
 
-    func testParagraphPreviousSourceIsTruncatedFromEnd() {
-        let previous = String(repeating: "a", count: 4_010) + "tail"
+    func testParagraphPreviousTextIsTruncatedFromEnd() {
+        let previousEN = String(repeating: "a", count: 4_010) + "tail"
+        let previousZH = String(repeating: "中", count: 4_010) + "尾巴"
         let messages = Prompts.conversationMessages(
             for: .paragraph(
                 text: "Current.",
-                context: ParagraphContext(previousEN: previous, previousZH: "上一段。")
+                context: ParagraphContext(previousEN: previousEN, previousZH: previousZH)
             )
         )
 
         XCTAssertEqual(messages.count, 3)
         XCTAssertFalse(messages[0].content.contains(String(repeating: "a", count: 4_010)))
         XCTAssertTrue(messages[0].content.contains(String(repeating: "a", count: 3_996) + "tail"))
+        XCTAssertFalse(messages[1].content.contains(String(repeating: "中", count: 4_010)))
+        XCTAssertEqual(messages[1].content, String(repeating: "中", count: 3_998) + "尾巴")
     }
 
     func testFailedTaskMapsToTaskFailed() async throws {
