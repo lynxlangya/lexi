@@ -102,11 +102,6 @@ struct PopupCard<Content: View>: View {
                 .frame(width: width)
                 .background(theme.bg)
                 .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-                .overlay(alignment: .top) {
-                    RoundedRectangle(cornerRadius: radius, style: .continuous)
-                        .stroke(theme.highlight, lineWidth: 0.6)
-                        .blendMode(.plusLighter)
-                }
                 .shadow(color: theme.shadow, radius: theme.isDark ? 26 : 22, y: theme.isDark ? 16 : 14)
 
             if pinned {

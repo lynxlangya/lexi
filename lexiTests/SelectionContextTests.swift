@@ -29,4 +29,21 @@ final class SelectionContextTests: XCTestCase {
         XCTAssertEqual(extracted, sentence)
         XCTAssertLessThan(window.count, source.count)
     }
+
+    func testScreenAnchorConvertsAccessibilityTopLeftBounds() throws {
+        let screen = try XCTUnwrap(NSScreen.main)
+        let bounds = CGRect(
+            x: screen.frame.midX - 20,
+            y: 120,
+            width: 40,
+            height: 16
+        )
+
+        let anchor = SelectionMonitor.screenAnchor(fromAccessibilityBounds: bounds)
+
+        XCTAssertEqual(anchor.minX, bounds.minX, accuracy: 0.1)
+        XCTAssertEqual(anchor.width, bounds.width, accuracy: 0.1)
+        XCTAssertEqual(anchor.height, bounds.height, accuracy: 0.1)
+        XCTAssertEqual(anchor.minY, screen.frame.maxY - bounds.maxY, accuracy: 0.1)
+    }
 }

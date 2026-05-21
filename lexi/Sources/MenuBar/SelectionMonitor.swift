@@ -194,6 +194,19 @@ final class SelectionMonitor {
         return String(text[start..<end])
     }
 
+    static func screenAnchor(fromAccessibilityBounds rect: CGRect) -> CGRect {
+        guard let screen = screen(containingAccessibilityBounds: rect) else {
+            return rect
+        }
+
+        return CGRect(
+            x: rect.minX,
+            y: screen.frame.maxY - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+    }
+
     private static func expandedSelectionContext(from element: AXUIElement, selectedText: String) -> SentenceContext? {
         guard let range = selectedTextRange(from: element),
               let expandedText = stringForExpandedRange(from: element, selectedRange: range),
@@ -347,7 +360,7 @@ final class SelectionMonitor {
                     let axBounds = boundsValue as! AXValue
                     var rect = CGRect.zero
                     if AXValueGetValue(axBounds, .cgRect, &rect) {
-                        return rect
+                        return screenAnchor(fromAccessibilityBounds: rect)
                     }
                 }
             }
@@ -376,6 +389,12 @@ final class SelectionMonitor {
         }
 
         return .reader
+    }
+
+    private static func screen(containingAccessibilityBounds rect: CGRect) -> NSScreen? {
+        NSScreen.screens.first { screen in
+            screen.frame.intersects(rect)
+        } ?? NSScreen.main
     }
 }
 

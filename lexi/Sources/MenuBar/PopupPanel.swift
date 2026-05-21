@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class PopupPanel {
     private let panel: NSPanel
+    private let contentInset: CGFloat = 18
     private var outsideMonitor: Any?
     private var escMonitor: Any?
     private(set) var pinned = false
@@ -20,7 +21,7 @@ final class PopupPanel {
         panel.level = .floating
         panel.becomesKeyOnlyIfNeeded = true
         panel.hidesOnDeactivate = false
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -33,6 +34,7 @@ final class PopupPanel {
     func show(kind: PopupKind, near anchor: CGRect, actions: PopupActions, pinned: Bool) {
         self.pinned = pinned
         let view = PopupContent(kind: kind, pinned: pinned, actions: actions)
+            .padding(contentInset)
         let host = NSHostingView(rootView: view)
         let size = host.fittingSize
         host.frame = NSRect(origin: .zero, size: size)
@@ -96,27 +98,29 @@ final class PopupPanel {
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let margin: CGFloat = 16
         let gap: CGFloat = 10
-        var x = anchor.midX - size.width / 2
-        x = min(max(x, screenFrame.minX + margin), screenFrame.maxX - size.width - margin)
+        let visualWidth = max(0, size.width - contentInset * 2)
+        let visualHeight = max(0, size.height - contentInset * 2)
+        var visualX = anchor.midX - visualWidth / 2
+        visualX = min(max(visualX, screenFrame.minX + margin), screenFrame.maxX - visualWidth - margin)
 
-        let aboveY = anchor.minY - size.height - gap
+        let aboveY = anchor.minY - visualHeight - gap
         let belowY = anchor.maxY + gap
-        let fitsBelow = belowY + size.height <= screenFrame.maxY - margin
+        let fitsBelow = belowY + visualHeight <= screenFrame.maxY - margin
         let fitsAbove = aboveY >= screenFrame.minY + margin
         let roomBelow = screenFrame.maxY - margin - belowY
         let roomAbove = aboveY - (screenFrame.minY + margin)
 
-        var y: CGFloat
+        var visualY: CGFloat
         if fitsBelow {
-            y = belowY
+            visualY = belowY
         } else if fitsAbove {
-            y = aboveY
+            visualY = aboveY
         } else {
-            y = roomBelow >= roomAbove ? belowY : aboveY
+            visualY = roomBelow >= roomAbove ? belowY : aboveY
         }
-        y = min(max(y, screenFrame.minY + margin), screenFrame.maxY - size.height - margin)
+        visualY = min(max(visualY, screenFrame.minY + margin), screenFrame.maxY - visualHeight - margin)
 
-        return NSRect(origin: CGPoint(x: x, y: y), size: size)
+        return NSRect(origin: CGPoint(x: visualX - contentInset, y: visualY - contentInset), size: size)
     }
 }
 
