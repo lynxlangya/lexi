@@ -10,68 +10,77 @@ struct ErrorCard: View {
     let close: () -> Void
 
     var body: some View {
-        PopupFrame(pinned: false) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Lexi")
-                        .font(LexiFont.sans(11))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.lexiInk3)
-                        .tracking(0.6)
-                    Spacer()
-                    Label("翻译失败", systemImage: "exclamationmark.triangle")
-                        .font(LexiFont.sans(10.5))
-                        .foregroundStyle(Color.lexiWarn)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Color.lexiRule).frame(height: 1)
-                }
+        PopupThemeReader { theme in
+            PopupCard(width: 420, pinned: false, theme: theme) {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Lexi".uppercased())
+                            .font(LexiFont.sans(11))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(theme.ink3)
+                            .tracking(0.7)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(title)
-                        .font(LexiFont.sans(13.5))
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.lexiInk)
+                        Spacer()
 
-                    Text(message)
-                        .font(LexiFont.zh(12.5))
-                        .lineSpacing(8)
-                        .foregroundStyle(Color.lexiInk2)
+                        Label("翻译失败", systemImage: "exclamationmark.triangle")
+                            .font(LexiFont.sans(11))
+                            .fontWeight(.medium)
+                            .foregroundStyle(theme.warn)
+                    }
+                    .frame(height: 56)
+                    .padding(.horizontal, 20)
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(theme.rule)
+                            .frame(height: 1)
+                    }
 
-                    Text(reason)
-                        .font(LexiFont.mono(10.5))
-                        .foregroundStyle(Color.lexiInk3)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.lexiInset)
-                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                .stroke(Color.lexiRule, lineWidth: 1)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(title)
+                            .font(LexiFont.sans(15))
+                            .fontWeight(.medium)
+                            .foregroundStyle(theme.ink)
+
+                        Text(message)
+                            .font(LexiFont.zh(13.5))
+                            .lineSpacing(8)
+                            .foregroundStyle(theme.ink2)
+
+                        Text(reason)
+                            .font(LexiFont.mono(11))
+                            .foregroundStyle(theme.ink3)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(theme.bgInset)
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .stroke(theme.rule, lineWidth: 1)
+                            }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 20)
+
+                    PopupFooter(theme: theme) {
+                        PopupOutlineButton(theme: theme, action: action) {
+                            Text(actionTitle)
                         }
-                }
-                .padding(16)
 
-                HStack {
-                    Button(actionTitle, action: action)
-                        .font(LexiFont.sans(11.5))
-                    Spacer()
-                    Button("关闭", action: close)
-                        .font(LexiFont.sans(11.5))
-                    if let retry {
-                        Button("重试", action: retry)
-                            .font(LexiFont.sans(11.5))
-                            .buttonStyle(.borderedProminent)
+                        Spacer()
+
+                        PopupOutlineButton(theme: theme, action: close) {
+                            Text("关闭")
+                        }
+
+                        if let retry {
+                            PopupPrimaryButton(theme: theme, action: retry) {
+                                Text("重试")
+                            }
+                        }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.lexiChrome)
             }
-            .frame(width: 360)
         }
     }
 }

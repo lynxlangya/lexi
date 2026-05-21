@@ -3,71 +3,73 @@ import SwiftUI
 struct LoadingCard: View {
     let text: String
     let engine: EngineID
-    @AppStorage("reader.accent") private var accent = "copper"
-
-    private var accentChoice: ReaderAccentChoice {
-        ReaderAccentChoice(storageValue: accent)
-    }
 
     var body: some View {
-        PopupFrame(pinned: false) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Lexi · 翻译中")
-                        .font(LexiFont.sans(11))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.lexiInk3)
-                        .tracking(0.6)
-                    Spacer()
-                    HStack(spacing: 5) {
-                        ProgressView()
-                            .controlSize(.mini)
-                        Text(engine.menuLabel)
-                            .font(LexiFont.sans(10.5))
+        PopupThemeReader { theme in
+            PopupCard(width: 420, pinned: false, theme: theme) {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Lexi · 翻译中".uppercased())
+                            .font(LexiFont.sans(11))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(theme.ink3)
+                            .tracking(0.7)
+
+                        Spacer()
+
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text(engine.menuLabel)
+                                .font(LexiFont.sans(10.5))
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(theme.accent.primary)
                     }
-                    .foregroundStyle(accentChoice.primary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Color.lexiRule).frame(height: 1)
-                }
-
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("\"\(text)\"")
-                        .font(LexiFont.serif(13.5))
-                        .italic()
-                        .lineSpacing(7)
-                        .foregroundStyle(Color.lexiInk2)
-                        .lineLimit(3)
-
-                    Rectangle()
-                        .fill(Color.lexiRule)
-                        .frame(height: 1)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        ShimmerLine(width: 1)
-                        ShimmerLine(width: 0.9)
-                        ShimmerLine(width: 0.6)
+                    .frame(height: 56)
+                    .padding(.horizontal, 20)
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(theme.rule)
+                            .frame(height: 1)
                     }
+
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("\"\(text)\"")
+                            .font(LexiFont.serif(15))
+                            .italic()
+                            .lineSpacing(8)
+                            .foregroundStyle(theme.ink2)
+                            .lineLimit(3)
+
+                        Rectangle()
+                            .fill(theme.rule)
+                            .frame(height: 1)
+
+                        VStack(alignment: .leading, spacing: 9) {
+                            ShimmerLine(width: 1, theme: theme)
+                            ShimmerLine(width: 0.9, theme: theme)
+                            ShimmerLine(width: 0.62, theme: theme)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 18)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
             }
-            .frame(width: 340)
         }
     }
 }
 
 private struct ShimmerLine: View {
     let width: CGFloat
+    let theme: PopupTheme
 
     var body: some View {
         GeometryReader { proxy in
             RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color.lexiShimmer1, Color.lexiShimmer2, Color.lexiShimmer1],
+                        colors: [theme.shimmer1, theme.shimmer2, theme.shimmer1],
                         startPoint: .leading,
                         endPoint: .trailing
                     )

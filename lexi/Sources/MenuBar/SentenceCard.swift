@@ -6,70 +6,63 @@ struct SentenceCard: View {
     let actions: PopupActions
 
     var body: some View {
-        PopupFrame(pinned: pinned) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Lexi · 整句")
-                        .font(LexiFont.sans(11))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.lexiInk3)
-                        .tracking(0.6)
-                    Spacer()
-                    PopupHeaderActions(pinned: pinned, actions: actions)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Color.lexiRule).frame(height: 1)
-                }
+        PopupThemeReader { theme in
+            PopupCard(width: 678, pinned: pinned, theme: theme) {
+                VStack(spacing: 0) {
+                    PopupHeader(
+                        label: "Lexi · 整句",
+                        pinned: pinned,
+                        actions: actions,
+                        theme: theme
+                    )
 
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("\"\(lookup.text)\"")
-                        .font(LexiFont.serif(14))
-                        .italic()
-                        .lineSpacing(8)
-                        .foregroundStyle(Color.lexiInk2)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("\"\(lookup.text)\"")
+                            .font(LexiFont.serif(19))
+                            .italic()
+                            .lineSpacing(12)
+                            .foregroundStyle(theme.ink2)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    Rectangle()
-                        .fill(Color.lexiRule)
-                        .frame(height: 1)
+                        Rectangle()
+                            .fill(theme.rule)
+                            .frame(height: 1)
+                            .padding(.vertical, 26)
 
-                    Text(lookup.zh)
-                        .font(LexiFont.zh(14.5))
-                        .lineSpacing(11)
-                        .foregroundStyle(Color.lexiInk)
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 16)
-
-                HStack {
-                    HStack(spacing: 2) {
-                        ForEach(EngineID.allCases, id: \.self) { engine in
-                            EnginePill(engine: engine, active: lookup.engine == engine) {
-                                actions.selectEngine(engine)
-                            }
-                        }
+                        Text(lookup.zh)
+                            .font(LexiFont.zh(20))
+                            .lineSpacing(16)
+                            .foregroundStyle(theme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .padding(.horizontal, 32)
+                    .padding(.top, 30)
+                    .padding(.bottom, 34)
+                    .frame(minHeight: 316, alignment: .topLeading)
 
-                    Spacer()
-
-                    Button {
-                        actions.speak(lookup.zh)
-                    } label: {
-                        Image(systemName: "speaker.wave.2")
-                            .font(.system(size: 11))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.lexiInk3)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.lexiChrome)
-                .overlay(alignment: .top) {
-                    Rectangle().fill(Color.lexiRule).frame(height: 1)
+                    footer(theme: theme)
                 }
             }
-            .frame(width: 420)
+        }
+    }
+
+    private func footer(theme: PopupTheme) -> some View {
+        PopupFooter(theme: theme) {
+            HStack(spacing: 2) {
+                ForEach(EngineID.allCases, id: \.self) { engine in
+                    EnginePill(engine: engine, active: lookup.engine == engine, theme: theme) {
+                        actions.selectEngine(engine)
+                    }
+                }
+            }
+
+            Spacer()
+
+            PopupOutlineButton(theme: theme) {
+                actions.speak(lookup.zh)
+            } label: {
+                Label("朗读", systemImage: "speaker.wave.2")
+            }
         }
     }
 }

@@ -60,7 +60,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
     @Published var popupVisible = false
 
     private let panel = PopupPanel()
-    private let selectionMonitor = SelectionMonitor()
     private let speech = Speech()
     private let toast = MenuBarToast()
     private var shortcuts: GlobalShortcuts?
@@ -110,11 +109,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
                 await self?.applyPopupEngineSettings()
             }
         }
-
-        selectionMonitor.onSelection = { [weak self] context in
-            self?.showChip(for: context)
-        }
-        selectionMonitor.start()
 
         let shortcuts = GlobalShortcuts(
             translateSelection: { [weak self] in self?.translateCurrentSelection() },
@@ -206,18 +200,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
         SelectionMonitor.currentSelectionResult(promptForPermission: promptForPermission)
     }
 
-    private func showChip(for context: SelectedTextContext) {
-        popupEngineOverride = nil
-        guard UserDefaults.standard.string(forKey: "menubar.triggerStyle") != "instant" else {
-            translate(context.text, anchor: context.anchor)
-            return
-        }
-
-        activeKind = .chip(text: context.text)
-        activeAnchor = context.anchor
-        show(kind: .chip(text: context.text), near: context.anchor)
-    }
-
     private func translate(_ text: String, anchor: CGRect) {
         let trimmed = SelectionLookupClassifier.normalizedText(text)
         guard SelectionLookupClassifier.canTranslate(trimmed) else {
@@ -276,7 +258,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
         PopupActions(
             close: { [weak self] in self?.closePopup() },
             togglePin: { [weak self] in self?.togglePin() },
-            translateChip: { [weak self] in self?.translateChip() },
             retry: { [weak self] in self?.retryActive() },
             addVocab: { [weak self] in self?.addActiveWordToVocab() },
             speak: { [weak self] text in self?.speech.speak(text) },
@@ -297,13 +278,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
         if let activeKind {
             show(kind: activeKind, near: activeAnchor)
         }
-    }
-
-    private func translateChip() {
-        guard case .chip(let text) = activeKind else {
-            return
-        }
-        translate(text, anchor: activeAnchor)
     }
 
     private func retryActive() {
