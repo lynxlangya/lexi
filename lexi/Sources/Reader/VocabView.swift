@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct VocabView: View {
@@ -122,7 +123,7 @@ struct VocabView: View {
     }
 
     private func source(for entry: VocabEntry) -> String {
-        guard let bookId = entry.bookId else {
+        guard let bookId = entry.seenInBookIds.first else {
             return "MenuBar"
         }
         return bookTitles[bookId] ?? bookId
@@ -130,6 +131,9 @@ struct VocabView: View {
 
     private func deleteSelected() {
         let ids = selection
+        guard ids.count < 3 || confirmBulkDelete(count: ids.count) else {
+            return
+        }
         Task {
             try? await database?.deleteVocabEntries(ids: ids)
             selection.removeAll()
@@ -137,6 +141,16 @@ struct VocabView: View {
             onChanged()
             showToast("已删除选中生词")
         }
+    }
+
+    private func confirmBulkDelete(count: Int) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "删除 \(count) 条生词？"
+        alert.informativeText = "此操作无法撤销。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: "删除")
+        return alert.runModal() == .alertSecondButtonReturn
     }
 }
 
@@ -151,9 +165,17 @@ private struct VocabRow: View {
                     Text(entry.word)
                         .font(LexiFont.serif(18))
                         .foregroundStyle(Color.lexiInk)
-                    Text("/\(entry.word.lowercased())/")
-                        .font(LexiFont.mono(11.5))
-                        .foregroundStyle(Color.lexiInk3)
+                    if let ipa = entry.ukIPA ?? entry.usIPA, !ipa.isEmpty {
+                        Text(ipa)
+                            .font(LexiFont.mono(11.5))
+                            .foregroundStyle(Color.lexiInk3)
+                    }
+                }
+
+                if entry.primaryZh.isEmpty {
+                    Text("（需重查）")
+                        .font(LexiFont.zh(12.5))
+                        .foregroundStyle(Color.lexiInk4)
                 }
 
                 if let context = entry.context, !context.isEmpty {

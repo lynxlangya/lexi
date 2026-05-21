@@ -344,31 +344,99 @@ actor AppDatabase {
         }
     }
 
-    func insertVocabEntry(_ entry: VocabEntry) throws -> Int64 {
+    @discardableResult
+    func upsertVocabEntry(
+        word: String,
+        context: String?,
+        primaryZh: String,
+        sensesJSON: String,
+        ukIPA: String?,
+        usIPA: String?,
+        exampleEN: String?,
+        exampleZH: String?,
+        bookId: String?,
+        now: Date = .init()
+    ) throws -> VocabUpsertResult {
         try pool.write { db in
+            let trimmedWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
+            let displayWord = trimmedWord.isEmpty ? word : trimmedWord
+            let normalized = VocabEntry.normalized(displayWord)
+            guard !normalized.isEmpty else {
+                throw NSError(
+                    domain: "LexiDatabase",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Cannot add an empty vocab entry."]
+                )
+            }
+
+            if let existing = try Row.fetchOne(
+                db,
+                sql: "SELECT id, seenInBooks FROM vocab WHERE normalizedWord = ? LIMIT 1",
+                arguments: [normalized]
+            ) {
+                let id: Int64 = existing["id"]
+                let seenInBooks: String = existing["seenInBooks"]
+                let booksJSON = Self.mergedSeenInBooks(existing: seenInBooks, adding: bookId)
+
+                try db.execute(
+                    sql: """
+                    UPDATE vocab
+                    SET updatedAt = ?, seenInBooks = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [now.lexiTimestamp, booksJSON, id]
+                )
+                return .updated(id: id)
+            }
+
+            let booksJSON = Self.mergedSeenInBooks(existing: "[]", adding: bookId)
             try db.execute(
                 sql: """
-                INSERT INTO vocab (word, context, bookId, addedAt)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO vocab (
+                    word, normalizedWord, context, primaryZh, sensesJSON,
+                    ukIPA, usIPA, exampleEN, exampleZH, seenInBooks,
+                    mastered, addedAt, updatedAt
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
-                arguments: [entry.word, entry.context, entry.bookId, entry.addedAt.lexiTimestamp]
+                arguments: [
+                    displayWord,
+                    normalized,
+                    context,
+                    primaryZh,
+                    sensesJSON,
+                    ukIPA,
+                    usIPA,
+                    exampleEN,
+                    exampleZH,
+                    booksJSON,
+                    now.lexiTimestamp,
+                    now.lexiTimestamp,
+                ]
             )
-            return db.lastInsertedRowID
+            return .inserted(id: db.lastInsertedRowID)
+        }
+    }
+
+    func vocabEntry(normalizedWord: String) throws -> VocabEntry? {
+        try pool.read { db in
+            try Row.fetchOne(
+                db,
+                sql: "SELECT * FROM vocab WHERE normalizedWord = ? LIMIT 1",
+                arguments: [VocabEntry.normalized(normalizedWord)]
+            ).map(VocabEntry.init(row:))
         }
     }
 
     func vocabEntries(bookId: String?) throws -> [VocabEntry] {
         try pool.read { db in
+            let entries = try Row.fetchAll(db, sql: "SELECT * FROM vocab ORDER BY updatedAt DESC, id DESC")
+                .map(VocabEntry.init(row:))
             if let bookId {
-                return try Row.fetchAll(
-                    db,
-                    sql: "SELECT * FROM vocab WHERE bookId = ? ORDER BY id",
-                    arguments: [bookId]
-                ).map(VocabEntry.init(row:))
+                return entries.filter { $0.seenInBookIds.contains(bookId) }
             }
 
-            return try Row.fetchAll(db, sql: "SELECT * FROM vocab WHERE bookId IS NULL ORDER BY id")
-                .map(VocabEntry.init(row:))
+            return entries.filter { $0.seenInBookIds.isEmpty }
         }
     }
 
@@ -395,6 +463,14 @@ actor AppDatabase {
                 arguments: StatementArguments(Array(ids))
             )
         }
+    }
+
+    private static func mergedSeenInBooks(existing: String, adding bookId: String?) -> String {
+        var books = (try? JSONDecoder().decode([String].self, from: Data(existing.utf8))) ?? []
+        if let bookId, !bookId.isEmpty, !books.contains(bookId) {
+            books.append(bookId)
+        }
+        return (try? String(data: JSONEncoder().encode(books), encoding: .utf8)) ?? existing
     }
 
     func bookTitlesById() throws -> [String: String] {
@@ -567,9 +643,19 @@ private extension VocabEntry {
     init(row: Row) {
         id = row["id"]
         word = row["word"]
+        normalizedWord = row["normalizedWord"]
         context = row["context"]
-        bookId = row["bookId"]
+        primaryZh = row["primaryZh"]
+        sensesJSON = row["sensesJSON"]
+        ukIPA = row["ukIPA"]
+        usIPA = row["usIPA"]
+        exampleEN = row["exampleEN"]
+        exampleZH = row["exampleZH"]
+        seenInBooks = row["seenInBooks"]
+        mastered = row["mastered"] != 0
         addedAt = Date(lexiTimestamp: row["addedAt"])
+        updatedAt = Date(lexiTimestamp: row["updatedAt"])
+        masteredAt = (row["masteredAt"] as Int64?).map(Date.init(lexiTimestamp:))
     }
 }
 

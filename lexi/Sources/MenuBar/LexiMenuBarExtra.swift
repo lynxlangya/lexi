@@ -67,6 +67,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     private var pinned = false
     private var activeKind: PopupKind?
     private var activeAnchor = CGRect(x: 600, y: 480, width: 36, height: 24)
+    private var activeSentenceContext: SentenceContext?
     private var currentEngine = EngineConfig(id: .deepseek, model: ReaderFixtureStore.defaultModel(for: .deepseek), lastTestedOK: false, lastTestedAt: nil)
     private var popupEngineOverride: EngineConfig?
     private var recentWords: [String] = []
@@ -223,6 +224,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
                     bookTitle: sentenceContext?.bookTitle,
                     localDictionary: localEntry
                 )
+                activeSentenceContext = enrichedContext
                 todayQueryCount += 1
                 if word {
                     let result = try await lookupTask(.wordLookup(word: trimmed, context: enrichedContext))
@@ -315,11 +317,11 @@ final class LexiMenuBarCoordinator: ObservableObject {
     private func retryActive() {
         switch activeKind {
         case .error(let text, _):
-            translate(text, anchor: activeAnchor)
+            translate(text, anchor: activeAnchor, sentenceContext: activeSentenceContext)
         case .sentence(let lookup):
-            translate(lookup.text, anchor: activeAnchor)
+            translate(lookup.text, anchor: activeAnchor, sentenceContext: activeSentenceContext)
         case .word(let lookup):
-            translate(lookup.word, anchor: activeAnchor)
+            translate(lookup.word, anchor: activeAnchor, sentenceContext: activeSentenceContext)
         default:
             break
         }
@@ -334,11 +336,26 @@ final class LexiMenuBarCoordinator: ObservableObject {
             return
         }
         Task {
-            _ = try? await database.insertVocabEntry(
-                VocabEntry(id: nil, word: lookup.word, context: lookup.example?.en, bookId: nil, addedAt: Date())
+            let result = try? await database.upsertVocabEntry(
+                word: lookup.word,
+                context: activeSentenceContext?.fullSentence,
+                primaryZh: "",
+                sensesJSON: "[]",
+                ukIPA: nil,
+                usIPA: nil,
+                exampleEN: nil,
+                exampleZH: nil,
+                bookId: nil
             )
             refreshVocabCount()
-            showToast("已加入生词本")
+            switch result {
+            case .inserted:
+                showToast("已加入生词本")
+            case .updated:
+                showToast("已在生词本，更新来源")
+            case nil:
+                showToast("加入生词本失败")
+            }
         }
     }
 
