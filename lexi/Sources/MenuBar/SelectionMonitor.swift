@@ -143,7 +143,8 @@ final class SelectionMonitor {
     }
 
     private static func sentenceContext(from element: AXUIElement, selectedText: String) -> SentenceContext? {
-        let fullText = stringAttribute(element, attribute: kAXValueAttribute)
+        let fullText = stringAttribute(element, attribute: kAXHelpAttribute)
+            ?? stringAttribute(element, attribute: kAXValueAttribute)
             ?? stringAttribute(element, attribute: kAXDescriptionAttribute)
             ?? stringAttribute(element, attribute: kAXTitleAttribute)
 

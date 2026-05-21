@@ -91,7 +91,7 @@ struct SelectableReaderText: NSViewRepresentable {
 final class ContextTextView: NSTextView {
     var selectionContext: (() -> SentenceContext?)?
 
-    override func accessibilityValue() -> String? {
-        selectionContext?()?.fullSentence ?? super.accessibilityValue()
+    override func accessibilityHelp() -> String? {
+        selectionContext?()?.fullSentence ?? super.accessibilityHelp()
     }
 }
