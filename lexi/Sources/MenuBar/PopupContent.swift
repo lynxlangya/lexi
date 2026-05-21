@@ -16,6 +16,7 @@ struct WordLookup: Equatable {
     var example: WordExample?
     var related: [String]
     var engine: EngineID
+    var model: String
     var history: [String]
 }
 
@@ -35,6 +36,7 @@ struct SentenceLookup: Equatable {
     var text: String
     var zh: String
     var engine: EngineID
+    var model: String
 }
 
 struct PopupActions {

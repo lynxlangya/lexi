@@ -25,6 +25,7 @@ struct WordCard: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 14)
                     .padding(.bottom, 12)
+                    .textSelection(.enabled)
 
                     footer(theme: theme)
                 }
@@ -70,8 +71,8 @@ struct WordCard: View {
     }
 
     private func senses(theme: PopupTheme) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(lookup.senses.prefix(2).enumerated()), id: \.element.id) { _, sense in
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(lookup.senses.prefix(4).enumerated()), id: \.element.id) { _, sense in
                 HStack(alignment: .top, spacing: 11) {
                     Text(sense.partOfSpeech)
                         .font(LexiFont.serif(11.5))
@@ -101,13 +102,7 @@ struct WordCard: View {
 
     private func footer(theme: PopupTheme) -> some View {
         PopupFooter(theme: theme) {
-            HStack(spacing: 2) {
-                ForEach(EngineID.allCases, id: \.self) { engine in
-                    EnginePill(engine: engine, active: lookup.engine == engine, theme: theme) {
-                        actions.selectEngine(engine)
-                    }
-                }
-            }
+            PopupEngineLabel(engine: lookup.engine, model: lookup.model, theme: theme)
 
             Spacer()
 

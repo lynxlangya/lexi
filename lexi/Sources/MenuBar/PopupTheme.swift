@@ -172,6 +172,42 @@ struct PopupFooter<Content: View>: View {
     }
 }
 
+struct PopupEngineLabel: View {
+    let engine: EngineID
+    let model: String
+    let theme: PopupTheme
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(theme.accent.primary)
+                .frame(width: 5, height: 5)
+
+            Text(modelLabel)
+                .font(LexiFont.sans(10.5))
+                .fontWeight(.semibold)
+                .foregroundStyle(theme.ink2)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 24)
+        .background(theme.bgInset)
+        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(theme.rule, lineWidth: 1)
+        }
+        .help("当前模型：\(engine.menuLabel) · \(model)")
+    }
+
+    private var modelLabel: String {
+        if model.isEmpty {
+            return engine.menuLabel
+        }
+        return model
+    }
+}
+
 struct PopupIconButton: View {
     let systemName: String
     let help: String

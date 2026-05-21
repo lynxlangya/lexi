@@ -39,6 +39,7 @@ struct SentenceCard: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 14)
                     .padding(.bottom, 12)
+                    .textSelection(.enabled)
 
                     footer(theme: theme)
                 }
@@ -48,13 +49,7 @@ struct SentenceCard: View {
 
     private func footer(theme: PopupTheme) -> some View {
         PopupFooter(theme: theme) {
-            HStack(spacing: 2) {
-                ForEach(EngineID.allCases, id: \.self) { engine in
-                    EnginePill(engine: engine, active: lookup.engine == engine, theme: theme) {
-                        actions.selectEngine(engine)
-                    }
-                }
-            }
+            PopupEngineLabel(engine: lookup.engine, model: lookup.model, theme: theme)
 
             Spacer()
 
