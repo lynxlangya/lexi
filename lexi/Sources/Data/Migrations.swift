@@ -1,7 +1,13 @@
+import Foundation
 import GRDB
 
 enum Migrations {
     static func register(in migrator: inout DatabaseMigrator) {
+        registerV1Initial(in: &migrator)
+        registerV2VocabEnrichment(in: &migrator)
+    }
+
+    static func registerV1Initial(in migrator: inout DatabaseMigrator) {
         migrator.registerMigration("v1_initial") { db in
             try db.create(table: "books") { table in
                 table.column("id", .text).primaryKey()
@@ -75,5 +81,98 @@ enum Migrations {
                 table.column("lastTestedAt", .integer)
             }
         }
+    }
+
+    private static func registerV2VocabEnrichment(in migrator: inout DatabaseMigrator) {
+        migrator.registerMigration("v2_vocab_enrichment") { db in
+            try db.create(table: "vocab_new") { table in
+                table.autoIncrementedPrimaryKey("id")
+                table.column("word", .text).notNull()
+                table.column("normalizedWord", .text).notNull().unique()
+                table.column("context", .text)
+                table.column("primaryZh", .text).notNull().defaults(to: "")
+                table.column("sensesJSON", .text).notNull().defaults(to: "[]")
+                table.column("ukIPA", .text)
+                table.column("usIPA", .text)
+                table.column("exampleEN", .text)
+                table.column("exampleZH", .text)
+                table.column("seenInBooks", .text).notNull().defaults(to: "[]")
+                table.column("mastered", .integer).notNull().defaults(to: 0)
+                table.column("addedAt", .integer).notNull()
+                table.column("updatedAt", .integer).notNull()
+                table.column("masteredAt", .integer)
+            }
+            let legacyRows = try Row.fetchAll(
+                db,
+                sql: "SELECT id, word, context, bookId, addedAt FROM vocab ORDER BY id ASC"
+            ).compactMap(LegacyVocabRow.init(row:))
+
+            let grouped = Dictionary(grouping: legacyRows, by: \.normalizedWord)
+            for normalized in grouped.keys.sorted() {
+                guard let rows = grouped[normalized], let first = rows.first else {
+                    continue
+                }
+
+                var bookIds: [String] = []
+                for row in rows {
+                    guard let bookId = row.bookId, !bookId.isEmpty, !bookIds.contains(bookId) else {
+                        continue
+                    }
+                    bookIds.append(bookId)
+                }
+
+                let booksJSON = LegacyVocabRow.encodeBookIds(bookIds)
+                let lastAddedAt = rows.last?.addedAt ?? first.addedAt
+
+                try db.execute(
+                    sql: """
+                    INSERT INTO vocab_new (
+                        word, normalizedWord, context, primaryZh, sensesJSON,
+                        seenInBooks, mastered, addedAt, updatedAt
+                    )
+                    VALUES (?, ?, ?, '', '[]', ?, 0, ?, ?)
+                    """,
+                    arguments: [
+                        first.word,
+                        normalized,
+                        first.context,
+                        booksJSON,
+                        first.addedAt,
+                        lastAddedAt,
+                    ]
+                )
+            }
+
+            try db.execute(sql: "DROP TABLE vocab")
+            try db.rename(table: "vocab_new", to: "vocab")
+            try db.create(index: "vocab_mastered_updated_idx", on: "vocab", columns: ["mastered", "updatedAt"])
+            try db.create(index: "vocab_added_idx", on: "vocab", columns: ["addedAt"])
+        }
+    }
+}
+
+private struct LegacyVocabRow {
+    let word: String
+    let normalizedWord: String
+    let context: String?
+    let bookId: String?
+    let addedAt: Int64
+
+    init?(row: Row) {
+        let rawWord: String = row["word"]
+        let normalized = VocabEntry.normalized(rawWord)
+        guard !normalized.isEmpty else {
+            return nil
+        }
+
+        word = rawWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? normalized : rawWord
+        normalizedWord = normalized
+        context = row["context"]
+        bookId = row["bookId"]
+        addedAt = row["addedAt"]
+    }
+
+    static func encodeBookIds(_ bookIds: [String]) -> String {
+        (try? String(data: JSONEncoder().encode(bookIds), encoding: .utf8)) ?? "[]"
     }
 }

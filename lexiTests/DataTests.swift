@@ -1,4 +1,5 @@
 import XCTest
+import GRDB
 @testable import lexi
 
 final class DataTests: XCTestCase {
@@ -71,8 +72,17 @@ final class DataTests: XCTestCase {
         let progress = try await database.progress(for: "gatsby")
         XCTAssertEqual(progress?.scrollPct, 0.42)
 
-        _ = try await database.insertVocabEntry(
-            VocabEntry(id: nil, word: "vulnerable", context: "younger and more vulnerable", bookId: "gatsby", addedAt: addedAt)
+        _ = try await database.upsertVocabEntry(
+            word: "vulnerable",
+            context: "younger and more vulnerable",
+            primaryZh: "",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: nil,
+            exampleEN: nil,
+            exampleZH: nil,
+            bookId: "gatsby",
+            now: addedAt
         )
         let vocabEntries = try await database.vocabEntries(bookId: "gatsby")
         XCTAssertEqual(vocabEntries.first?.word, "vulnerable")
@@ -82,6 +92,167 @@ final class DataTests: XCTestCase {
         )
         let engineConfig = try await database.engineConfig(for: .openai)
         XCTAssertEqual(engineConfig?.model, "gpt-5.4-mini")
+    }
+
+    func testV2VocabBackfillDedupesAndMergesBookIds() throws {
+        let pool = try DatabasePool(path: temporaryDatabaseURL().path)
+        var v1Migrator = DatabaseMigrator()
+        Migrations.registerV1Initial(in: &v1Migrator)
+        try v1Migrator.migrate(pool)
+
+        try pool.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO books (id, title, author, fileURL, addedAt, progress)
+                VALUES ('book-a', 'Book A', 'A', 'file:///a.epub', 1800000000, 0),
+                       ('book-b', 'Book B', 'B', 'file:///b.epub', 1800000000, 0)
+                """
+            )
+            try db.execute(
+                sql: """
+                INSERT INTO vocab (word, context, bookId, addedAt)
+                VALUES ('Observe', 'first context', 'book-a', 1800000001),
+                       ('observe', 'second context', 'book-b', 1800000002),
+                       ('  ', 'bad row', NULL, 1800000003)
+                """
+            )
+        }
+
+        var fullMigrator = DatabaseMigrator()
+        Migrations.register(in: &fullMigrator)
+        try fullMigrator.migrate(pool)
+
+        let rows = try pool.read { db in
+            try Row.fetchAll(db, sql: "SELECT * FROM vocab ORDER BY id")
+        }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0]["word"] as String, "Observe")
+        XCTAssertEqual(rows[0]["normalizedWord"] as String, "observe")
+        XCTAssertEqual(rows[0]["context"] as String?, "first context")
+        XCTAssertEqual(rows[0]["primaryZh"] as String, "")
+        XCTAssertEqual(rows[0]["sensesJSON"] as String, "[]")
+        XCTAssertEqual(rows[0]["seenInBooks"] as String, "[\"book-a\",\"book-b\"]")
+        XCTAssertEqual(rows[0]["updatedAt"] as Int64, 1_800_000_002)
+    }
+
+    func testUpsertNewWordInsertsFullRow() async throws {
+        let database = try AppDatabase.makeTransient()
+        let result = try await database.upsertVocabEntry(
+            word: "Observe",
+            context: "They observe the Sabbath.",
+            primaryZh: "观察；遵守",
+            sensesJSON: "[{\"pos\":\"v\",\"zh\":\"观察\"}]",
+            ukIPA: "/əbˈzɜːv/",
+            usIPA: "/əbˈzɝːv/",
+            exampleEN: "They observe quietly.",
+            exampleZH: "他们静静观察。",
+            bookId: "book-a",
+            now: Date(lexiTimestamp: 1_800_000_010)
+        )
+
+        guard case .inserted = result else {
+            return XCTFail("Expected inserted result")
+        }
+        let entry = try await database.vocabEntry(normalizedWord: "observe")
+        XCTAssertEqual(entry?.word, "Observe")
+        XCTAssertEqual(entry?.context, "They observe the Sabbath.")
+        XCTAssertEqual(entry?.primaryZh, "观察；遵守")
+        XCTAssertEqual(entry?.sensesJSON, "[{\"pos\":\"v\",\"zh\":\"观察\"}]")
+        XCTAssertEqual(entry?.ukIPA, "/əbˈzɜːv/")
+        XCTAssertEqual(entry?.usIPA, "/əbˈzɝːv/")
+        XCTAssertEqual(entry?.exampleEN, "They observe quietly.")
+        XCTAssertEqual(entry?.exampleZH, "他们静静观察。")
+        XCTAssertEqual(entry?.seenInBookIds, ["book-a"])
+        XCTAssertEqual(entry?.mastered, false)
+    }
+
+    func testUpsertExistingWordOnlyUpdatesTimestampsAndBooks() async throws {
+        let database = try AppDatabase.makeTransient()
+        _ = try await database.upsertVocabEntry(
+            word: "Observe",
+            context: "first context",
+            primaryZh: "first zh",
+            sensesJSON: "[{\"pos\":\"v\",\"zh\":\"first\"}]",
+            ukIPA: "/first/",
+            usIPA: nil,
+            exampleEN: "first example",
+            exampleZH: "第一个例句",
+            bookId: "book-a",
+            now: Date(lexiTimestamp: 1_800_000_010)
+        )
+
+        let result = try await database.upsertVocabEntry(
+            word: "observe",
+            context: "second context",
+            primaryZh: "second zh",
+            sensesJSON: "[{\"pos\":\"v\",\"zh\":\"second\"}]",
+            ukIPA: "/second/",
+            usIPA: "/second-us/",
+            exampleEN: "second example",
+            exampleZH: "第二个例句",
+            bookId: "book-b",
+            now: Date(lexiTimestamp: 1_800_000_020)
+        )
+
+        guard case .updated = result else {
+            return XCTFail("Expected updated result")
+        }
+        let entries = try await database.allVocabEntries()
+        XCTAssertEqual(entries.count, 1)
+        let entry = try XCTUnwrap(entries.first)
+        XCTAssertEqual(entry.word, "Observe")
+        XCTAssertEqual(entry.context, "first context")
+        XCTAssertEqual(entry.primaryZh, "first zh")
+        XCTAssertEqual(entry.sensesJSON, "[{\"pos\":\"v\",\"zh\":\"first\"}]")
+        XCTAssertEqual(entry.ukIPA, "/first/")
+        XCTAssertEqual(entry.exampleEN, "first example")
+        XCTAssertEqual(entry.seenInBookIds, ["book-a", "book-b"])
+        XCTAssertEqual(entry.addedAt, Date(lexiTimestamp: 1_800_000_010))
+        XCTAssertEqual(entry.updatedAt, Date(lexiTimestamp: 1_800_000_020))
+    }
+
+    func testUpsertExistingWordDoesNotOverwriteSnapshot() async throws {
+        let database = try AppDatabase.makeTransient()
+        _ = try await database.upsertVocabEntry(
+            word: "Abnegate",
+            context: "original context",
+            primaryZh: "放弃",
+            sensesJSON: "[{\"pos\":\"v\",\"zh\":\"放弃\"}]",
+            ukIPA: "/original/",
+            usIPA: nil,
+            exampleEN: "original example",
+            exampleZH: "原例句",
+            bookId: nil,
+            now: Date(lexiTimestamp: 1_800_000_010)
+        )
+
+        _ = try await database.upsertVocabEntry(
+            word: "abnegate",
+            context: "new context",
+            primaryZh: "覆盖",
+            sensesJSON: "[{\"pos\":\"v\",\"zh\":\"覆盖\"}]",
+            ukIPA: "/new/",
+            usIPA: "/new-us/",
+            exampleEN: "new example",
+            exampleZH: "新例句",
+            bookId: nil,
+            now: Date(lexiTimestamp: 1_800_000_020)
+        )
+
+        let storedEntry = try await database.vocabEntry(normalizedWord: "abnegate")
+        let entry = try XCTUnwrap(storedEntry)
+        XCTAssertEqual(entry.context, "original context")
+        XCTAssertEqual(entry.primaryZh, "放弃")
+        XCTAssertEqual(entry.sensesJSON, "[{\"pos\":\"v\",\"zh\":\"放弃\"}]")
+        XCTAssertEqual(entry.ukIPA, "/original/")
+        XCTAssertEqual(entry.exampleEN, "original example")
+        XCTAssertEqual(entry.exampleZH, "原例句")
+    }
+
+    private func temporaryDatabaseURL() -> URL {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "LexiTests", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appending(path: "\(UUID().uuidString).sqlite")
     }
 
     func testShelfBookListOrdersByRecentActivity() async throws {

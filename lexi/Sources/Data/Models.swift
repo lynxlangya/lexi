@@ -46,9 +46,34 @@ struct Translation: Codable, Equatable, Identifiable, Sendable {
 struct VocabEntry: Codable, Equatable, Identifiable, Sendable {
     var id: Int64?
     var word: String
+    var normalizedWord: String
     var context: String?
-    var bookId: String?
+    var primaryZh: String
+    var sensesJSON: String
+    var ukIPA: String?
+    var usIPA: String?
+    var exampleEN: String?
+    var exampleZH: String?
+    var seenInBooks: String
+    var mastered: Bool
     var addedAt: Date
+    var updatedAt: Date
+    var masteredAt: Date?
+}
+
+enum VocabUpsertResult: Equatable, Sendable {
+    case inserted(id: Int64)
+    case updated(id: Int64)
+}
+
+extension VocabEntry {
+    static func normalized(_ word: String) -> String {
+        word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var seenInBookIds: [String] {
+        (try? JSONDecoder().decode([String].self, from: Data(seenInBooks.utf8))) ?? []
+    }
 }
 
 struct ProgressRecord: Codable, Equatable, Sendable {
