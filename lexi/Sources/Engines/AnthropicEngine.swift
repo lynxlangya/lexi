@@ -108,9 +108,9 @@ nonisolated struct AnthropicEngine: TranslationEngine {
             AnthropicMessageRequest(
                 model: model,
                 maxTokens: maxTokens,
-                system: Prompts.translationSystem,
+                system: Prompts.systemPrompt(for: task),
                 messages: [
-                    .init(role: "user", content: Prompts.translationUserPrompt(for: task)),
+                    .init(role: "user", content: Prompts.userPrompt(for: task)),
                 ],
                 stream: stream
             )

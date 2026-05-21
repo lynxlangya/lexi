@@ -3,7 +3,7 @@ import XCTest
 
 final class TranslationTaskTests: XCTestCase {
     func testWordLookupPromptUsesExplicitTaskInsteadOfSentinelPrefix() {
-        let prompt = Prompts.translationUserPrompt(
+        let prompt = Prompts.userPrompt(
             for: .wordLookup(
                 word: "observe",
                 context: SentenceContext(fullSentence: "They observe the Sabbath.", bookTitle: nil)

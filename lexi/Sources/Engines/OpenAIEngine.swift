@@ -96,8 +96,8 @@ nonisolated struct OpenAIEngine: TranslationEngine {
             OpenAIChatRequest(
                 model: model,
                 messages: [
-                    .init(role: "system", content: Prompts.translationSystem),
-                    .init(role: "user", content: Prompts.translationUserPrompt(for: task)),
+                    .init(role: "system", content: Prompts.systemPrompt(for: task)),
+                    .init(role: "user", content: Prompts.userPrompt(for: task)),
                 ],
                 stream: true
             )

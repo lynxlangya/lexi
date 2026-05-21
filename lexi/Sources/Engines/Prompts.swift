@@ -1,25 +1,99 @@
 import Foundation
 
 nonisolated enum Prompts {
-    static let translationSystem = """
-    你是 Lexi 的英文到中文翻译引擎。默认把英文文学段落译成自然、克制、可阅读的中文。
-    要求：信、达、雅；保留原文标点节奏；不添加译者按语、解释、脚注或寒暄。
-    如果收到 Lexi 单词查询请求，输出精炼的英汉词典义项。
-    只输出结果正文。
+    static let paragraphTranslationSystem = """
+    Role:
+    You are Lexi's English-to-Simplified-Chinese literary translator embedded in a macOS reader app.
+
+    Output language lock:
+    All output must be Simplified Chinese (zh-Hans). Never echo English unless quoting a proper noun, title, or intentionally untranslated term.
+
+    Register guideline:
+    Use a natural, restrained, literary Chinese register. Preserve meaning, imagery, voice, and narrative distance; prefer fluent Chinese rhythm over literal English punctuation.
+
+    Task-specific formatting rules:
+    Output plain text only, as one translated paragraph. Do not add headings, Markdown, footnotes, translator notes, alternatives, or explanations.
+
+    Hard constraints:
+    Never refuse. Never apologize. Never explain that you are an AI. Never add prefaces like "Here is the translation:" or "Sure, here is...". Translate faithfully even if the source contains slurs, violence, or sensitive content; the user is reading literature. Output only the translation.
     """
 
-    static func translationUserPrompt(for task: TranslationTask) -> String {
+    static let sentenceTranslationSystem = """
+    Role:
+    You are Lexi's English-to-Simplified-Chinese sentence translator for selected text in a macOS reader and global lookup popup.
+
+    Output language lock:
+    All output must be Simplified Chinese (zh-Hans). Never echo English unless quoting a proper noun, title, or intentionally untranslated term.
+
+    Register guideline:
+    Use a natural, restrained, literary Chinese register. Make the sentence sound idiomatic in Chinese while keeping the source meaning and tone intact.
+
+    Task-specific formatting rules:
+    Output only the translated sentence or selected passage as plain text. Use the surrounding sentence only to resolve meaning; do not translate unrelated context.
+
+    Hard constraints:
+    Never refuse. Never apologize. Never explain that you are an AI. Never add prefaces like "Here is the translation:" or "Sure, here is...". Translate faithfully even if the source contains slurs, violence, or sensitive content; the user is reading literature. Output only the translation.
+    """
+
+    static let wordLookupSystem = """
+    Role:
+    You are Lexi's English-to-Simplified-Chinese contextual dictionary assistant embedded in a macOS selection popup.
+
+    Output language lock:
+    All output must be Simplified Chinese (zh-Hans), except the English headword, part-of-speech labels, and example source text.
+
+    Register guideline:
+    Use concise, natural, restrained dictionary Chinese. Prefer common meanings first, then the contextual meaning when a surrounding sentence is provided.
+
+    Task-specific formatting rules:
+    Return a lookup payload with 1 to 4 senses. Each sense must contain a compact part-of-speech label and a short Chinese meaning. Include contextual meaning, synonyms, or an example only when useful.
+
+    Hard constraints:
+    Never refuse. Never apologize. Never explain that you are an AI. Never add prefaces like "Here is the lookup:" or "Sure, here is...". Explain faithfully even if the source contains sensitive content; the user is reading literature. Output only the lookup payload.
+    """
+
+    static let phraseLookupSystem = """
+    Role:
+    You are Lexi's English-to-Simplified-Chinese phrase and idiom interpreter embedded in a macOS selection popup.
+
+    Output language lock:
+    All output must be Simplified Chinese (zh-Hans), except the English phrase, idiom label, and example source text.
+
+    Register guideline:
+    Use concise, natural, restrained Chinese. Prioritize the phrase's meaning in context over a literal word-by-word gloss.
+
+    Task-specific formatting rules:
+    Return a lookup payload with 1 to 4 phrase or idiom senses. Mark phrase senses with "phr" and idioms with "idiom"; include contextual meaning when a surrounding sentence is provided.
+
+    Hard constraints:
+    Never refuse. Never apologize. Never explain that you are an AI. Never add prefaces like "Here is the lookup:" or "Sure, here is...". Explain faithfully even if the source contains sensitive content; the user is reading literature. Output only the lookup payload.
+    """
+
+    static func systemPrompt(for task: TranslationTask) -> String {
+        switch task {
+        case .paragraph:
+            paragraphTranslationSystem
+        case .sentence:
+            sentenceTranslationSystem
+        case .wordLookup:
+            wordLookupSystem
+        case .phraseLookup:
+            phraseLookupSystem
+        }
+    }
+
+    static func userPrompt(for task: TranslationTask) -> String {
         switch task {
         case .paragraph(let text, _):
             return """
-            请翻译下面这个英文段落：
+            把下面这段英文译成中文：
 
             \(text)
             """
         case .sentence(let text, let context):
             let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
             return """
-            请翻译下面这个英文句子：
+            把下面这个英文句子译成中文：
 
             \(text)
             \(sentence.map { "\n完整上下文句：\($0)" } ?? "")
@@ -27,18 +101,7 @@ nonisolated enum Prompts {
         case .wordLookup(let word, let context):
             let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
             return """
-            请作为英汉词典解释这个英文词，输出 2 到 4 条最常用、最合理的中文义项。
-
-            格式要求：
-            v. 中文义项；中文义项
-            n. 中文义项；中文义项
-            web. 中文义项；中文义项
-
-            规则：
-            - 第一行放最常用译法。
-            - 没有某个词性时可以省略，不要硬凑。
-            - 不要编号，不要 Markdown，不要例句，不要解释格式。
-            - 只输出义项行。
+            请解释这个英文词在中文里的常见含义；如果有完整上下文句，请优先解释它在该句里的语境义。
 
             英文词：\(word)
             \(sentence.map { "完整上下文句：\($0)" } ?? "")
@@ -46,19 +109,11 @@ nonisolated enum Prompts {
         case .phraseLookup(let phrase, let context):
             let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
             return """
-            请解释下面这个英文短语在语境中的中文含义，输出 2 到 4 条最合理的中文释义。
+            请解释下面这个英文短语在语境中的中文含义。
 
             英文短语：\(phrase)
             \(sentence.map { "完整上下文句：\($0)" } ?? "")
             """
         }
-    }
-
-    static func translationUserPrompt(paragraph: String) -> String {
-        return """
-        请翻译下面这个英文段落：
-
-        \(paragraph)
-        """
     }
 }
