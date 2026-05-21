@@ -10,10 +10,13 @@ enum PopupKind: Equatable {
 
 struct WordLookup: Equatable {
     var word: String
+    var primaryZh: String
     var ukIPA: String
     var usIPA: String
     var senses: [WordSense]
+    var lookupSenses: [LookupSense]
     var example: WordExample?
+    var localDictionary: LocalDictionaryEntry?
     var related: [String]
     var engine: EngineID
     var model: String

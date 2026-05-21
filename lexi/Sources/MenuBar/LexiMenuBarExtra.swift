@@ -270,10 +270,13 @@ final class LexiMenuBarCoordinator: ObservableObject {
 
         return WordLookup(
             word: word,
+            primaryZh: primaryMeaning,
             ukIPA: localEntry?.ukIPA ?? "—",
             usIPA: localEntry?.usIPA ?? "—",
             senses: senses,
-            example: WordExample(en: word, zh: primaryMeaning),
+            lookupSenses: result.senses,
+            example: WordExample(en: result.example?.en ?? word, zh: result.example?.zh ?? primaryMeaning),
+            localDictionary: localEntry,
             related: relatedWords(for: word),
             engine: currentEngine.id,
             model: currentEngine.model,
@@ -336,15 +339,26 @@ final class LexiMenuBarCoordinator: ObservableObject {
             return
         }
         Task {
+            let lookupResult = LookupResult(
+                senses: lookup.lookupSenses,
+                contextualMeaning: lookup.primaryZh,
+                synonyms: nil,
+                example: LookupExample(en: lookup.example?.en, zh: lookup.example?.zh)
+            )
+            let snapshot = VocabSnapshot.make(
+                word: lookup.word,
+                lookup: lookupResult,
+                localEntry: lookup.localDictionary
+            )
             let result = try? await database.upsertVocabEntry(
                 word: lookup.word,
                 context: activeSentenceContext?.fullSentence,
-                primaryZh: "",
-                sensesJSON: "[]",
-                ukIPA: nil,
-                usIPA: nil,
-                exampleEN: nil,
-                exampleZH: nil,
+                primaryZh: snapshot.primaryZh,
+                sensesJSON: snapshot.sensesJSON,
+                ukIPA: snapshot.ukIPA,
+                usIPA: snapshot.usIPA,
+                exampleEN: snapshot.exampleEN,
+                exampleZH: snapshot.exampleZH,
                 bookId: nil
             )
             refreshVocabCount()

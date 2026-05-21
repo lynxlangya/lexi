@@ -249,6 +249,136 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(entry.exampleZH, "原例句")
     }
 
+    func testInsertCapturesLookupResultSnapshot() async throws {
+        let database = try AppDatabase.makeTransient()
+        let lookup = LookupResult(
+            senses: [LookupSense(pos: .v, zh: "观察")],
+            contextualMeaning: "观察；遵守",
+            synonyms: nil,
+            example: LookupExample(en: "They observe quietly.", zh: "他们静静观察。")
+        )
+        let snapshot = VocabSnapshot.make(
+            word: "Observe",
+            lookup: lookup,
+            localEntry: LocalDictionaryEntry(
+                ukIPA: "/əbˈzɜːv/",
+                usIPA: "/əbˈzɝːv/",
+                partsOfSpeech: ["v."],
+                rawDefinition: nil
+            )
+        )
+
+        _ = try await database.upsertVocabEntry(
+            word: "Observe",
+            context: "They observe the Sabbath.",
+            primaryZh: snapshot.primaryZh,
+            sensesJSON: snapshot.sensesJSON,
+            ukIPA: snapshot.ukIPA,
+            usIPA: snapshot.usIPA,
+            exampleEN: snapshot.exampleEN,
+            exampleZH: snapshot.exampleZH,
+            bookId: nil,
+            now: Date(lexiTimestamp: 1_800_000_030)
+        )
+
+        let storedEntry = try await database.vocabEntry(normalizedWord: "observe")
+        let entry = try XCTUnwrap(storedEntry)
+        XCTAssertEqual(entry.primaryZh, "观察；遵守")
+        XCTAssertEqual(entry.ukIPA, "/əbˈzɜːv/")
+        XCTAssertEqual(entry.usIPA, "/əbˈzɝːv/")
+        XCTAssertEqual(entry.exampleEN, "They observe quietly.")
+        XCTAssertEqual(entry.exampleZH, "他们静静观察。")
+        XCTAssertEqual(
+            try JSONDecoder().decode([LookupSense].self, from: Data(entry.sensesJSON.utf8)),
+            [LookupSense(pos: .v, zh: "观察")]
+        )
+    }
+
+    func testRequeryOverridesSnapshot() async throws {
+        let database = try AppDatabase.makeTransient()
+        let inserted = try await database.upsertVocabEntry(
+            word: "Observe",
+            context: "Original context",
+            primaryZh: "旧释义",
+            sensesJSON: "[{\"pos\":\"v\",\"zh\":\"旧\"}]",
+            ukIPA: "/old/",
+            usIPA: nil,
+            exampleEN: "old example",
+            exampleZH: "旧例句",
+            bookId: nil,
+            now: Date(lexiTimestamp: 1_800_000_030)
+        )
+
+        guard case .inserted(let id) = inserted else {
+            return XCTFail("Expected inserted result")
+        }
+
+        let snapshot = VocabSnapshot.make(
+            word: "Observe",
+            lookup: LookupResult(
+                senses: [LookupSense(pos: .v, zh: "新释义")],
+                contextualMeaning: "新释义",
+                synonyms: nil,
+                example: LookupExample(en: "new example", zh: "新例句")
+            ),
+            localEntry: LocalDictionaryEntry(ukIPA: "/new/", usIPA: "/new-us/", partsOfSpeech: ["v."], rawDefinition: nil)
+        )
+        try await database.refreshVocabSnapshot(
+            id: id,
+            context: "Original context",
+            snapshot: snapshot,
+            now: Date(lexiTimestamp: 1_800_000_040)
+        )
+
+        let storedEntry = try await database.vocabEntry(normalizedWord: "observe")
+        let entry = try XCTUnwrap(storedEntry)
+        XCTAssertEqual(entry.context, "Original context")
+        XCTAssertEqual(entry.primaryZh, "新释义")
+        XCTAssertEqual(entry.ukIPA, "/new/")
+        XCTAssertEqual(entry.usIPA, "/new-us/")
+        XCTAssertEqual(entry.exampleEN, "new example")
+        XCTAssertEqual(entry.exampleZH, "新例句")
+        XCTAssertEqual(entry.updatedAt, Date(lexiTimestamp: 1_800_000_040))
+    }
+
+    func testReAddDoesNotOverwriteSnapshot() async throws {
+        let database = try AppDatabase.makeTransient()
+        _ = try await database.upsertVocabEntry(
+            word: "Observe",
+            context: "Original context",
+            primaryZh: "原始释义",
+            sensesJSON: "[{\"pos\":\"v\",\"zh\":\"原始\"}]",
+            ukIPA: "/original/",
+            usIPA: nil,
+            exampleEN: "original example",
+            exampleZH: "原始例句",
+            bookId: "book-a",
+            now: Date(lexiTimestamp: 1_800_000_030)
+        )
+
+        _ = try await database.upsertVocabEntry(
+            word: "observe",
+            context: "New context",
+            primaryZh: "新释义",
+            sensesJSON: "[{\"pos\":\"v\",\"zh\":\"新\"}]",
+            ukIPA: "/new/",
+            usIPA: "/new-us/",
+            exampleEN: "new example",
+            exampleZH: "新例句",
+            bookId: "book-b",
+            now: Date(lexiTimestamp: 1_800_000_040)
+        )
+
+        let storedEntry = try await database.vocabEntry(normalizedWord: "observe")
+        let entry = try XCTUnwrap(storedEntry)
+        XCTAssertEqual(entry.context, "Original context")
+        XCTAssertEqual(entry.primaryZh, "原始释义")
+        XCTAssertEqual(entry.ukIPA, "/original/")
+        XCTAssertEqual(entry.exampleEN, "original example")
+        XCTAssertEqual(entry.exampleZH, "原始例句")
+        XCTAssertEqual(entry.seenInBookIds, ["book-a", "book-b"])
+    }
+
     private func temporaryDatabaseURL() -> URL {
         let directory = FileManager.default.temporaryDirectory.appending(path: "LexiTests", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

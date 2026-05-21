@@ -67,7 +67,7 @@ enum VocabUpsertResult: Equatable, Sendable {
 }
 
 extension VocabEntry {
-    static func normalized(_ word: String) -> String {
+    nonisolated static func normalized(_ word: String) -> String {
         word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct ShelfContextMenu: View {
     let openFromBeginning: () -> Void
     let continueReading: () -> Void
+    let openVocab: () -> Void
     let revealInFinder: () -> Void
     let clearCache: () -> Void
     let remove: () -> Void
@@ -13,6 +14,10 @@ struct ShelfContextMenu: View {
 
         Button("从头开始", action: openFromBeginning)
             .keyboardShortcut("o", modifiers: [.command])
+
+        Divider()
+
+        Button("查看本书生词本", action: openVocab)
 
         Divider()
 
