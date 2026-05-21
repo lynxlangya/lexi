@@ -36,10 +36,16 @@ nonisolated struct ParagraphContext: Equatable, Sendable {
 nonisolated struct SentenceContext: Equatable, Sendable {
     var fullSentence: String?
     var bookTitle: String?
+    var localDictionary: LocalDictionaryEntry?
 
-    init(fullSentence: String? = nil, bookTitle: String? = nil) {
+    init(
+        fullSentence: String? = nil,
+        bookTitle: String? = nil,
+        localDictionary: LocalDictionaryEntry? = nil
+    ) {
         self.fullSentence = fullSentence
         self.bookTitle = bookTitle
+        self.localDictionary = localDictionary
     }
 }
 

@@ -217,14 +217,15 @@ final class LexiMenuBarCoordinator: ObservableObject {
             do {
                 currentEngine = await popupEngineConfig()
                 show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
+                let localEntry = word ? LocalDictionary.lookup(trimmed) : nil
                 let translated = try await translateTask(
                     word
-                        ? .wordLookup(word: trimmed, context: nil)
+                        ? .wordLookup(word: trimmed, context: SentenceContext(localDictionary: localEntry))
                         : .sentence(text: trimmed, context: nil)
                 )
                 todayQueryCount += 1
                 if word {
-                    let lookup = makeWordLookup(word: trimmed, dictionaryText: translated)
+                    let lookup = makeWordLookup(word: trimmed, dictionaryText: translated, localEntry: localEntry)
                     remember(word: trimmed)
                     show(kind: .word(lookup), near: anchor)
                 } else {
@@ -252,14 +253,14 @@ final class LexiMenuBarCoordinator: ObservableObject {
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func makeWordLookup(word: String, dictionaryText: String) -> WordLookup {
+    private func makeWordLookup(word: String, dictionaryText: String, localEntry: LocalDictionaryEntry?) -> WordLookup {
         let senses = parseWordSenses(from: dictionaryText, word: word)
         let primaryMeaning = senses.first?.zh ?? dictionaryText
 
         return WordLookup(
             word: word,
-            ukIPA: "/\(word.lowercased())/",
-            usIPA: "/\(word.lowercased())/",
+            ukIPA: localEntry?.ukIPA ?? "—",
+            usIPA: localEntry?.usIPA ?? "—",
             senses: senses,
             example: WordExample(en: word, zh: primaryMeaning),
             related: relatedWords(for: word),

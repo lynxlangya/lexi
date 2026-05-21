@@ -6,13 +6,23 @@ final class TranslationTaskTests: XCTestCase {
         let prompt = Prompts.userPrompt(
             for: .wordLookup(
                 word: "observe",
-                context: SentenceContext(fullSentence: "They observe the Sabbath.", bookTitle: nil)
+                context: SentenceContext(
+                    fullSentence: "They observe the Sabbath.",
+                    bookTitle: nil,
+                    localDictionary: LocalDictionaryEntry(
+                        ukIPA: "/əbˈzɜːv/",
+                        usIPA: "/əbˈzɝːv/",
+                        partsOfSpeech: ["v."],
+                        rawDefinition: "verb: notice or perceive"
+                    )
+                )
             )
         )
 
         XCTAssertFalse(prompt.contains("__LEXI_WORD_LOOKUP__:"))
         XCTAssertTrue(prompt.contains("英文词：observe"))
         XCTAssertTrue(prompt.contains("完整上下文句：They observe the Sabbath."))
+        XCTAssertTrue(prompt.contains("UK IPA: /əbˈzɜːv/"))
     }
 
     func testParagraphTaskCarriesContextWithoutChangingSourceText() {

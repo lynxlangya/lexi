@@ -100,10 +100,12 @@ nonisolated enum Prompts {
             """
         case .wordLookup(let word, let context):
             let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
+            let localDictionary = context?.localDictionary.map(localDictionaryPrompt)
             return """
             请解释这个英文词在中文里的常见含义；如果有完整上下文句，请优先解释它在该句里的语境义。
 
             英文词：\(word)
+            \(localDictionary.map { "本地词典已知信息：\n\($0)" } ?? "")
             \(sentence.map { "完整上下文句：\($0)" } ?? "")
             """
         case .phraseLookup(let phrase, let context):
@@ -115,5 +117,16 @@ nonisolated enum Prompts {
             \(sentence.map { "完整上下文句：\($0)" } ?? "")
             """
         }
+    }
+
+    private static func localDictionaryPrompt(_ entry: LocalDictionaryEntry) -> String {
+        [
+            entry.ukIPA.map { "UK IPA: \($0)" },
+            entry.usIPA.map { "US IPA: \($0)" },
+            entry.partsOfSpeech.isEmpty ? nil : "Parts of speech: \(entry.partsOfSpeech.joined(separator: ", "))",
+            entry.rawDefinition.map { "Raw definition: \($0)" },
+        ]
+        .compactMap(\.self)
+        .joined(separator: "\n")
     }
 }
