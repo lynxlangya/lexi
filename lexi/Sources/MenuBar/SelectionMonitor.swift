@@ -148,12 +148,12 @@ final class SelectionMonitor {
             ?? stringAttribute(element, attribute: kAXDescriptionAttribute)
             ?? stringAttribute(element, attribute: kAXTitleAttribute)
 
-        guard let fullText,
-              let sentence = sentenceContainingSelection(selectedText, in: fullText) else {
-            return nil
+        if let fullText,
+           let sentence = sentenceContainingSelection(selectedText, in: fullText) {
+            return SentenceContext(fullSentence: sentence)
         }
 
-        return SentenceContext(fullSentence: sentence)
+        return expandedSelectionContext(from: element, selectedText: selectedText)
     }
 
     private static func stringAttribute(_ element: AXUIElement, attribute: String) -> String? {
@@ -178,6 +178,78 @@ final class SelectionMonitor {
         let sentence = String(normalizedSource[sentenceStart..<sentenceEnd])
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return sentence.isEmpty ? nil : sentence
+    }
+
+    static func expandedSelectionWindow(in text: String, selectedRange: NSRange, radius: Int = 200) -> String? {
+        guard selectedRange.location >= 0,
+              selectedRange.length > 0,
+              let range = Range(selectedRange, in: text) else {
+            return nil
+        }
+
+        let startOffset = max(0, text.distance(from: text.startIndex, to: range.lowerBound) - radius)
+        let endOffset = min(text.count, text.distance(from: text.startIndex, to: range.upperBound) + radius)
+        let start = text.index(text.startIndex, offsetBy: startOffset)
+        let end = text.index(text.startIndex, offsetBy: endOffset)
+        return String(text[start..<end])
+    }
+
+    private static func expandedSelectionContext(from element: AXUIElement, selectedText: String) -> SentenceContext? {
+        guard let range = selectedTextRange(from: element),
+              let expandedText = stringForExpandedRange(from: element, selectedRange: range),
+              let sentence = sentenceContainingSelection(selectedText, in: expandedText) else {
+            return nil
+        }
+
+        return SentenceContext(fullSentence: sentence)
+    }
+
+    private static func selectedTextRange(from element: AXUIElement) -> CFRange? {
+        var rangeValue: CFTypeRef?
+        let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeValue)
+        guard rangeResult == .success, let rangeValue else {
+            return nil
+        }
+
+        let axRange = rangeValue as! AXValue
+        var range = CFRange()
+        return AXValueGetValue(axRange, .cfRange, &range) ? range : nil
+    }
+
+    private static func stringForExpandedRange(from element: AXUIElement, selectedRange: CFRange) -> String? {
+        guard selectedRange.location >= 0, selectedRange.length > 0 else {
+            return nil
+        }
+
+        let radius = 200
+        let textLength = numberAttribute(element, attribute: kAXNumberOfCharactersAttribute)
+        let start = max(0, selectedRange.location - radius)
+        let uncappedEnd = selectedRange.location + selectedRange.length + radius
+        let end = textLength.map { min($0, uncappedEnd) } ?? uncappedEnd
+        var expandedRange = CFRange(location: start, length: end - start)
+        guard let parameter = AXValueCreate(.cfRange, &expandedRange) else {
+            return nil
+        }
+
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(
+            element,
+            kAXStringForRangeParameterizedAttribute as CFString,
+            parameter,
+            &value
+        )
+        guard result == .success else {
+            return nil
+        }
+        return value as? String
+    }
+
+    private static func numberAttribute(_ element: AXUIElement, attribute: String) -> Int? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else {
+            return nil
+        }
+        return value as? Int
     }
 
     private static func sentenceBoundaryBefore(_ index: String.Index, in text: String) -> String.Index {

@@ -15,4 +15,18 @@ final class SelectionContextTests: XCTestCase {
 
         XCTAssertNil(sentence)
     }
+
+    func testExpandedSelectionWindowSupportsSentenceFallbackAroundRange() throws {
+        let prefix = String(repeating: "x", count: 260)
+        let sentence = "They observe the Sabbath in silence."
+        let suffix = String(repeating: "y", count: 260)
+        let source = "\(prefix). \(sentence) \(suffix)"
+        let nsRange = try XCTUnwrap(source.range(of: "observe").map { NSRange($0, in: source) })
+
+        let window = try XCTUnwrap(SelectionMonitor.expandedSelectionWindow(in: source, selectedRange: nsRange))
+        let extracted = SelectionMonitor.sentenceContainingSelection("observe", in: window)
+
+        XCTAssertEqual(extracted, sentence)
+        XCTAssertLessThan(window.count, source.count)
+    }
 }
