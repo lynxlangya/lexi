@@ -59,6 +59,20 @@ nonisolated struct AnthropicEngine: TranslationEngine {
         }
     }
 
+    func lookup(_ task: TranslationTask, model: String) async throws -> LookupResult {
+        let request = try makeLookupRequest(task: task, model: model)
+        let (data, response) = try await client.data(for: request)
+        guard response.isSuccess else {
+            throw EngineError.httpStatus(response.statusCode, engineErrorReason(from: data))
+        }
+
+        let payload = try JSONDecoder().decode(AnthropicMessageResponse.self, from: data)
+        guard let toolInput = payload.content.first(where: { $0.type == "tool_use" && $0.name == AnthropicLookupTool.name })?.input else {
+            throw EngineError.invalidResponse
+        }
+        return toolInput
+    }
+
     private func streamTask(
         _ task: TranslationTask,
         index: Int,
@@ -117,6 +131,28 @@ nonisolated struct AnthropicEngine: TranslationEngine {
         )
         return request
     }
+
+    func makeLookupRequest(task: TranslationTask, model: String) throws -> URLRequest {
+        var request = URLRequest(url: baseURL.appending(path: "v1/messages"))
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            AnthropicMessageRequest(
+                model: model,
+                maxTokens: 1024,
+                system: Prompts.systemPrompt(for: task),
+                messages: [
+                    .init(role: "user", content: Prompts.userPrompt(for: task)),
+                ],
+                stream: false,
+                tools: [AnthropicLookupTool.tool],
+                toolChoice: AnthropicToolChoice(type: "tool", name: AnthropicLookupTool.name)
+            )
+        )
+        return request
+    }
 }
 
 nonisolated struct AnthropicMessageRequest: Encodable {
@@ -130,6 +166,8 @@ nonisolated struct AnthropicMessageRequest: Encodable {
     var system: String
     var messages: [Message]
     var stream: Bool
+    var tools: [AnthropicTool]?
+    var toolChoice: AnthropicToolChoice?
 
     enum CodingKeys: String, CodingKey {
         case model
@@ -137,5 +175,43 @@ nonisolated struct AnthropicMessageRequest: Encodable {
         case system
         case messages
         case stream
+        case tools
+        case toolChoice = "tool_choice"
     }
+}
+
+nonisolated struct AnthropicTool: Encodable {
+    var name: String
+    var description: String
+    var inputSchema: JSONValue
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case description
+        case inputSchema = "input_schema"
+    }
+}
+
+nonisolated struct AnthropicToolChoice: Encodable {
+    var type: String
+    var name: String
+}
+
+nonisolated enum AnthropicLookupTool {
+    static let name = "emit_lookup"
+    static let tool = AnthropicTool(
+        name: name,
+        description: "Emit Lexi's structured dictionary or phrase lookup payload.",
+        inputSchema: LookupSchema.schema
+    )
+}
+
+nonisolated struct AnthropicMessageResponse: Decodable {
+    struct Content: Decodable {
+        var type: String
+        var name: String?
+        var input: LookupResult?
+    }
+
+    var content: [Content]
 }

@@ -103,6 +103,7 @@ nonisolated enum Prompts {
             let localDictionary = context?.localDictionary.map(localDictionaryPrompt)
             return """
             请解释这个英文词在中文里的常见含义；如果有完整上下文句，请优先解释它在该句里的语境义。
+            只输出符合 lookup JSON schema 的 JSON 对象。不要 Markdown，不要代码块。
 
             英文词：\(word)
             \(localDictionary.map { "本地词典已知信息：\n\($0)" } ?? "")
@@ -112,6 +113,7 @@ nonisolated enum Prompts {
             let sentence = context?.fullSentence.flatMap { $0.isEmpty ? nil : $0 }
             return """
             请解释下面这个英文短语在语境中的中文含义。
+            只输出符合 lookup JSON schema 的 JSON 对象。不要 Markdown，不要代码块。
 
             英文短语：\(phrase)
             \(sentence.map { "完整上下文句：\($0)" } ?? "")

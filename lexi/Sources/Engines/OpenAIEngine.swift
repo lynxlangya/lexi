@@ -53,6 +53,20 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         }
     }
 
+    func lookup(_ task: TranslationTask, model: String) async throws -> LookupResult {
+        let request = try makeLookupRequest(task: task, model: model, strict: true)
+        let (data, response) = try await client.data(for: request)
+        guard response.isSuccess else {
+            throw EngineError.httpStatus(response.statusCode, engineErrorReason(from: data))
+        }
+
+        let payload = try JSONDecoder().decode(OpenAIChatResponse.self, from: data)
+        guard let content = payload.choices.first?.message.content else {
+            throw EngineError.invalidResponse
+        }
+        return try LookupSchema.decode(content)
+    }
+
     private func streamTask(
         _ task: TranslationTask,
         index: Int,
@@ -104,6 +118,25 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         )
         return request
     }
+
+    func makeLookupRequest(task: TranslationTask, model: String, strict: Bool) throws -> URLRequest {
+        var request = URLRequest(url: baseURL.appending(path: "v1/chat/completions"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            OpenAIChatRequest(
+                model: model,
+                messages: [
+                    .init(role: "system", content: Prompts.systemPrompt(for: task)),
+                    .init(role: "user", content: Prompts.userPrompt(for: task)),
+                ],
+                stream: false,
+                responseFormat: strict ? .jsonSchema(name: LookupSchema.name, schema: LookupSchema.schema) : nil
+            )
+        )
+        return request
+    }
 }
 
 nonisolated struct OpenAIChatRequest: Encodable {
@@ -115,6 +148,46 @@ nonisolated struct OpenAIChatRequest: Encodable {
     var model: String
     var messages: [Message]
     var stream: Bool
+    var responseFormat: ResponseFormat?
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case messages
+        case stream
+        case responseFormat = "response_format"
+    }
+
+    struct ResponseFormat: Encodable {
+        struct JSONSchema: Encodable {
+            var name: String
+            var strict: Bool
+            var schema: JSONValue
+        }
+
+        var type: String
+        var jsonSchema: JSONSchema
+
+        static func jsonSchema(name: String, schema: JSONValue) -> ResponseFormat {
+            ResponseFormat(type: "json_schema", jsonSchema: JSONSchema(name: name, strict: true, schema: schema))
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case jsonSchema = "json_schema"
+        }
+    }
+}
+
+nonisolated struct OpenAIChatResponse: Decodable {
+    struct Choice: Decodable {
+        struct Message: Decodable {
+            var content: String?
+        }
+
+        var message: Message
+    }
+
+    var choices: [Choice]
 }
 
 nonisolated struct OpenAIModelsResponse: Decodable {

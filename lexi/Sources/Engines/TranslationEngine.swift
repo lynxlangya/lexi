@@ -4,6 +4,7 @@ nonisolated protocol TranslationEngine: Sendable {
     var id: EngineID { get }
 
     func translate(_ tasks: [TranslationTask], model: String) -> AsyncThrowingStream<TranslationChunk, Error>
+    func lookup(_ task: TranslationTask, model: String) async throws -> LookupResult
     func ping(model: String) async throws -> PingResult
 }
 
@@ -52,6 +53,34 @@ nonisolated struct SentenceContext: Equatable, Sendable {
 nonisolated struct TranslationChunk: Equatable, Sendable {
     let index: Int
     let text: String
+}
+
+nonisolated struct LookupResult: Codable, Equatable, Sendable {
+    var senses: [LookupSense]
+    var contextualMeaning: String?
+    var synonyms: [String]?
+    var example: LookupExample?
+}
+
+nonisolated struct LookupSense: Codable, Equatable, Sendable {
+    var pos: LookupPartOfSpeech
+    var zh: String
+}
+
+nonisolated enum LookupPartOfSpeech: String, Codable, CaseIterable, Sendable {
+    case v
+    case n
+    case adj
+    case adv
+    case prep
+    case conj
+    case phr
+    case idiom
+}
+
+nonisolated struct LookupExample: Codable, Equatable, Sendable {
+    var en: String?
+    var zh: String?
 }
 
 nonisolated enum PingResult: Equatable, Sendable {

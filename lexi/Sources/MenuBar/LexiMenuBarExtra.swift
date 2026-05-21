@@ -218,17 +218,14 @@ final class LexiMenuBarCoordinator: ObservableObject {
                 currentEngine = await popupEngineConfig()
                 show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
                 let localEntry = word ? LocalDictionary.lookup(trimmed) : nil
-                let translated = try await translateTask(
-                    word
-                        ? .wordLookup(word: trimmed, context: SentenceContext(localDictionary: localEntry))
-                        : .sentence(text: trimmed, context: nil)
-                )
                 todayQueryCount += 1
                 if word {
-                    let lookup = makeWordLookup(word: trimmed, dictionaryText: translated, localEntry: localEntry)
+                    let result = try await lookupTask(.wordLookup(word: trimmed, context: SentenceContext(localDictionary: localEntry)))
+                    let lookup = makeWordLookup(word: trimmed, result: result, localEntry: localEntry)
                     remember(word: trimmed)
                     show(kind: .word(lookup), near: anchor)
                 } else {
+                    let translated = try await translateTask(.sentence(text: trimmed, context: nil))
                     show(
                         kind: .sentence(SentenceLookup(text: trimmed, zh: translated, engine: currentEngine.id, model: currentEngine.model)),
                         near: anchor
@@ -253,9 +250,16 @@ final class LexiMenuBarCoordinator: ObservableObject {
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func makeWordLookup(word: String, dictionaryText: String, localEntry: LocalDictionaryEntry?) -> WordLookup {
-        let senses = parseWordSenses(from: dictionaryText, word: word)
-        let primaryMeaning = senses.first?.zh ?? dictionaryText
+    private func lookupTask(_ task: TranslationTask) async throws -> LookupResult {
+        let engine = try EngineRegistry.shared.engine(for: currentEngine)
+        return try await engine.lookup(task, model: currentEngine.model)
+    }
+
+    private func makeWordLookup(word: String, result: LookupResult, localEntry: LocalDictionaryEntry?) -> WordLookup {
+        let senses = result.senses.map { sense in
+            WordSense(partOfSpeech: sense.pos.displayLabel, en: word, zh: sense.zh)
+        }
+        let primaryMeaning = result.contextualMeaning ?? senses.first?.zh ?? word
 
         return WordLookup(
             word: word,
@@ -268,68 +272,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
             model: currentEngine.model,
             history: recentWords
         )
-    }
-
-    private func parseWordSenses(from text: String, word: String) -> [WordSense] {
-        let cleaned = text
-            .replacingOccurrences(of: "：", with: ":")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let lines = cleaned
-            .split(whereSeparator: \.isNewline)
-            .map { stripListPrefix(String($0)) }
-            .filter { !$0.isEmpty }
-
-        let parsed = lines.compactMap { parseSenseLine($0, word: word) }
-        if !parsed.isEmpty {
-            return Array(parsed.prefix(4))
-        }
-
-        let pieces = splitMeanings(cleaned)
-        if pieces.isEmpty {
-            return [WordSense(partOfSpeech: "释.", en: word, zh: cleaned)]
-        }
-
-        let labels = ["释.", "近.", "义.", "web."]
-        return Array(pieces.prefix(4).enumerated()).map { index, meaning in
-            WordSense(partOfSpeech: labels[index], en: word, zh: meaning)
-        }
-    }
-
-    private func parseSenseLine(_ line: String, word: String) -> WordSense? {
-        let labels = ["v.", "n.", "adj.", "adv.", "prep.", "conj.", "pron.", "web.", "phr.", "释.", "近.", "义."]
-        guard let label = labels.first(where: { line.lowercased().hasPrefix($0) }) else {
-            return nil
-        }
-
-        let body = String(line.dropFirst(label.count))
-            .trimmingCharacters(in: CharacterSet(charactersIn: " :.-\t"))
-        guard !body.isEmpty else {
-            return nil
-        }
-
-        return WordSense(partOfSpeech: label, en: word, zh: body)
-    }
-
-    private func splitMeanings(_ text: String) -> [String] {
-        let separators = CharacterSet(charactersIn: "\n;；、/，,")
-        return text
-            .components(separatedBy: separators)
-            .map { stripListPrefix($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
-    private func stripListPrefix(_ text: String) -> String {
-        var value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let prefixes = ["-", "•", "*"]
-        while let prefix = prefixes.first(where: { value.hasPrefix($0) }) {
-            value = String(value.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let dotIndex = value.firstIndex(of: "."),
-           value[..<dotIndex].allSatisfy(\.isNumber),
-           value.distance(from: value.startIndex, to: dotIndex) <= 2 {
-            value = String(value[value.index(after: dotIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return value
     }
 
     private func show(kind: PopupKind, near anchor: CGRect) {
@@ -486,4 +428,19 @@ extension Notification.Name {
     static let lexiOpenSettings = Notification.Name("lexi.openSettings")
     static let lexiOpenVocab = Notification.Name("lexi.openVocab")
     static let lexiMenuBarToast = Notification.Name("lexi.menuBarToast")
+}
+
+private extension LookupPartOfSpeech {
+    var displayLabel: String {
+        switch self {
+        case .v: "v."
+        case .n: "n."
+        case .adj: "adj."
+        case .adv: "adv."
+        case .prep: "prep."
+        case .conj: "conj."
+        case .phr: "phr."
+        case .idiom: "idiom."
+        }
+    }
 }
