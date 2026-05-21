@@ -109,7 +109,7 @@ struct ShelfView: View {
                 BookCard(
                     book: book,
                     isCurrent: book.id == currentBookID,
-                    open: { openBook(book) },
+                    openFromBeginning: { openBook(book) },
                     continueReading: { continueReading(book) },
                     revealInFinder: { revealInFinder(book) },
                     clearCache: { requestClearCache(book) },
