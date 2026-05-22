@@ -7,6 +7,8 @@ struct ParaView: View {
     let transMode: ReaderTranslationMode
     let layout: ReaderParagraphLayout
     let preferences: ReaderRuntimePreferences
+    let translationHighlight: ReaderTranslationHighlight?
+    let onSourceSelectionChange: (SelectedTextContext?, ReaderParagraph, String?) -> Void
     let onSelectionChange: (SelectedTextContext?) -> Void
     let retry: () -> Void
 
@@ -61,7 +63,10 @@ struct ParaView: View {
             selectionContext: {
                 SentenceContext(fullSentence: paragraph.en)
             },
-            onSelectionChange: onSelectionChange
+            onSelectionChange: { context in
+                onSourceSelectionChange(context, paragraph, cachedTranslation)
+                onSelectionChange(context)
+            }
         )
     }
 
@@ -132,11 +137,30 @@ struct ParaView: View {
             lineSpacing: zhSize * preferences.lineHeight.chineseSpacingRatio,
             foregroundColor: preferences.theme.ink2,
             selectionColor: preferences.accent.primary.opacity(0.28),
+            highlightRange: translationHighlightRange(in: zh),
+            highlightColor: preferences.accent.primary.opacity(0.16),
             selectionContext: {
                 SentenceContext(fullSentence: paragraph.en)
             },
-            onSelectionChange: onSelectionChange
+            onSelectionChange: { context in
+                onSourceSelectionChange(nil, paragraph, nil)
+                onSelectionChange(context)
+            }
         )
+    }
+
+    private var cachedTranslation: String? {
+        guard case .cached(let zh) = state else {
+            return nil
+        }
+        return zh
+    }
+
+    private func translationHighlightRange(in zh: String) -> NSRange? {
+        guard translationHighlight?.translatedText == zh else {
+            return nil
+        }
+        return translationHighlight?.nsRange
     }
 
     private var estimatedDualColumnLineCount: Int {

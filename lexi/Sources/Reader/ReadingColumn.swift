@@ -16,6 +16,7 @@ struct ReadingColumn: View {
     let onParagraphChange: (Int64) -> Void
     let retryParagraph: (ReaderParagraph) -> Void
     @State private var isReportingVisibleParagraph = false
+    @State private var translationHighlight: ReaderTranslationHighlight?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -32,6 +33,8 @@ struct ReadingColumn: View {
                             transMode: transMode,
                             layout: activeParagraphLayout,
                             preferences: preferences,
+                            translationHighlight: highlight(for: paragraph.id),
+                            onSourceSelectionChange: handleSourceSelection,
                             onSelectionChange: { context in
                                 selectedTextContext = context.map {
                                     SelectedTextContext(
@@ -94,6 +97,14 @@ struct ReadingColumn: View {
                 }
                 proxy.scrollTo(nextId, anchor: .top)
             }
+            .onChange(of: chapter.id) { _, _ in
+                translationHighlight = nil
+            }
+            .onChange(of: transMode) { _, _ in
+                if transMode == .en {
+                    translationHighlight = nil
+                }
+            }
         }
     }
 
@@ -107,6 +118,37 @@ struct ReadingColumn: View {
 
     private var windowPad: CGFloat {
         activeParagraphLayout == .dual ? LexiSpacing.windowPadDual : LexiSpacing.windowPad
+    }
+
+    private func highlight(for paragraphId: Int64) -> ReaderTranslationHighlight? {
+        guard transMode != .en,
+              translationHighlight?.paragraphId == paragraphId else {
+            return nil
+        }
+        return translationHighlight
+    }
+
+    private func handleSourceSelection(
+        _ context: SelectedTextContext?,
+        paragraph: ReaderParagraph,
+        cachedTranslation: String?
+    ) {
+        guard let context,
+              let cachedTranslation,
+              let range = ReaderTranslationHighlighter.targetRange(
+                sourceText: paragraph.en,
+                selectedText: context.text,
+                translatedText: cachedTranslation
+              ) else {
+            translationHighlight = nil
+            return
+        }
+
+        translationHighlight = ReaderTranslationHighlight(
+            paragraphId: paragraph.id,
+            translatedText: cachedTranslation,
+            nsRange: NSRange(range, in: cachedTranslation)
+        )
     }
 
     private func reportVisibleParagraph(from offsets: [Int64: CGFloat]) {

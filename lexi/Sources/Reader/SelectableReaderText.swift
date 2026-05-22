@@ -7,6 +7,8 @@ struct SelectableReaderText: NSViewRepresentable {
     let lineSpacing: CGFloat
     let foregroundColor: Color
     let selectionColor: Color
+    var highlightRange: NSRange?
+    var highlightColor: Color?
     var selectionContext: (() -> SentenceContext?)?
     var onSelectionChange: ((SelectedTextContext?) -> Void)?
 
@@ -61,7 +63,16 @@ struct SelectableReaderText: NSViewRepresentable {
     }
 
     private func attributedString() -> NSAttributedString {
-        NSAttributedString(string: text, attributes: attributes())
+        let attributed = NSMutableAttributedString(string: text, attributes: attributes())
+        if let highlightRange,
+           let highlightColor {
+            attributed.addAttribute(
+                .backgroundColor,
+                value: NSColor(highlightColor),
+                range: highlightRange
+            )
+        }
+        return attributed
     }
 
     private func attributes() -> [NSAttributedString.Key: Any] {
