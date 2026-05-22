@@ -43,21 +43,46 @@ struct ReaderResumeTarget: Equatable, Sendable {
             return ReaderResumeTarget(chapterIndex: 0, paragraphIndex: nil)
         }
 
-        let paragraphIndex = validParagraphIndex(from: progress.scrollPct, in: chapters[progress.chapterIdx])
+        let paragraphIndex = ReaderScrollProgressResolver.validParagraphIndex(
+            from: progress.scrollPct,
+            paragraphCount: chapters[progress.chapterIdx].paragraphs.count
+        )
         return ReaderResumeTarget(chapterIndex: progress.chapterIdx, paragraphIndex: paragraphIndex)
     }
+}
 
-    private static func validParagraphIndex(from rawValue: Double, in chapter: ReaderChapter) -> Int? {
+struct ReaderScrollProgressResolver {
+    static func validParagraphIndex(from rawValue: Double, paragraphCount: Int) -> Int? {
         guard rawValue.isFinite, rawValue >= 0 else {
             return nil
         }
 
         let index = Int(rawValue)
-        guard chapter.paragraphs.indices.contains(index) else {
+        guard (0..<paragraphCount).contains(index) else {
             return nil
         }
 
         return index
+    }
+
+    static func preferredParagraphIndex(
+        visibleIndex: Int?,
+        lastKnownIndex: Int?,
+        pendingIndex: Int?,
+        paragraphCount: Int
+    ) -> Int {
+        if paragraphCount <= 0 {
+            return 0
+        }
+
+        for candidate in [visibleIndex, lastKnownIndex, pendingIndex] {
+            guard let candidate, (0..<paragraphCount).contains(candidate) else {
+                continue
+            }
+            return candidate
+        }
+
+        return 0
     }
 }
 
@@ -83,6 +108,7 @@ private struct ReaderWindowContent: View {
     @State private var vocabBookFilter = VocabBookFilter.all
     @State private var visibleParagraphId: Int64?
     @State private var pendingScrollParagraphIdx: Int?
+    @State private var lastKnownScrollParagraphIndex: Int?
     @State private var selectedTextContext: SelectedTextContext?
     @State private var scrollWriteTask: Task<Void, Never>?
     @AppStorage("reader.fontSize") private var fontSize = 17.0
@@ -425,6 +451,7 @@ private struct ReaderWindowContent: View {
             let nextController = ChapterTranslationController(database: database, engineConfig: engineConfig)
             visibleParagraphId = nil
             pendingScrollParagraphIdx = nil
+            lastKnownScrollParagraphIndex = nil
             book = loaded.0
             chapters = loaded.1
             controller = nextController
@@ -436,6 +463,7 @@ private struct ReaderWindowContent: View {
             )
             selectedChapterIndex = target.chapterIndex
             pendingScrollParagraphIdx = target.paragraphIndex
+            lastKnownScrollParagraphIndex = target.paragraphIndex
 
             try await database.touchBook(id: nextBook.id)
             await nextController.prepare(chapters: loaded.1)
@@ -522,6 +550,7 @@ private struct ReaderWindowContent: View {
                     scrollWriteTask?.cancel()
                     visibleParagraphId = nil
                     pendingScrollParagraphIdx = nil
+                    lastKnownScrollParagraphIndex = nil
                     book = nil
                     chapters = []
                     controller = nil
@@ -571,6 +600,7 @@ private struct ReaderWindowContent: View {
         guard let context = scrollPersistenceContext(paragraphId: paragraphId) else {
             return
         }
+        lastKnownScrollParagraphIndex = context.paragraphIndex
 
         scrollWriteTask = Task {
             try? await Task.sleep(nanoseconds: 800_000_000)
@@ -618,12 +648,21 @@ private struct ReaderWindowContent: View {
     }
 
     private func currentScrollPersistenceContext() -> ScrollPersistenceContext? {
-        guard let visibleParagraphId,
-              let context = scrollPersistenceContext(paragraphId: visibleParagraphId) else {
-            return scrollPersistenceContext(paragraphIndex: 0)
+        guard let selectedChapter else {
+            return nil
         }
 
-        return context
+        let visibleIndex = visibleParagraphId.flatMap { paragraphId in
+            selectedChapter.paragraphs.firstIndex(where: { $0.id == paragraphId })
+        }
+        let paragraphIndex = ReaderScrollProgressResolver.preferredParagraphIndex(
+            visibleIndex: visibleIndex,
+            lastKnownIndex: lastKnownScrollParagraphIndex,
+            pendingIndex: pendingScrollParagraphIdx,
+            paragraphCount: selectedChapter.paragraphs.count
+        )
+
+        return scrollPersistenceContext(paragraphIndex: paragraphIndex)
     }
 
     private func scrollPersistenceContext(paragraphIndex: Int) -> ScrollPersistenceContext? {
@@ -661,12 +700,15 @@ private struct ReaderWindowContent: View {
     }
 
     private func currentParagraphIndex(in chapter: ReaderChapter) -> Int {
-        guard let visibleParagraphId,
-              let paragraphIndex = chapter.paragraphs.firstIndex(where: { $0.id == visibleParagraphId }) else {
-            return 0
+        let visibleIndex = visibleParagraphId.flatMap { paragraphId in
+            chapter.paragraphs.firstIndex(where: { $0.id == paragraphId })
         }
-
-        return paragraphIndex
+        return ReaderScrollProgressResolver.preferredParagraphIndex(
+            visibleIndex: visibleIndex,
+            lastKnownIndex: lastKnownScrollParagraphIndex,
+            pendingIndex: pendingScrollParagraphIdx,
+            paragraphCount: chapter.paragraphs.count
+        )
     }
 
     private func restorePendingScrollTarget() {
@@ -677,13 +719,18 @@ private struct ReaderWindowContent: View {
             return
         }
 
+        lastKnownScrollParagraphIndex = pendingIndex
         let targetId = chapter.paragraphs[pendingIndex].id
+        let targetChapterId = chapter.id
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 200_000_000)
-            guard pendingScrollParagraphIdx != nil else {
+            guard surface == .reader,
+                  pendingScrollParagraphIdx == pendingIndex,
+                  chapters[safe: selectedChapterIndex]?.id == targetChapterId else {
                 return
             }
             visibleParagraphId = targetId
+            lastKnownScrollParagraphIndex = pendingIndex
             pendingScrollParagraphIdx = nil
         }
     }
@@ -726,6 +773,9 @@ private struct ReaderWindowContent: View {
         }
 
         flushVisibleScrollProgress()
+        visibleParagraphId = nil
+        pendingScrollParagraphIdx = nil
+        lastKnownScrollParagraphIndex = nil
         selectedChapterIndex = nextIndex
     }
 

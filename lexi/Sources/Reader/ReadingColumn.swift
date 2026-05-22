@@ -55,6 +55,7 @@ struct ReadingColumn: View {
                     goToNextChapter: goToNextChapter
                 )
             }
+            .scrollTargetLayout()
             .frame(maxWidth: LexiSpacing.contentMax, alignment: .leading)
             .frame(maxWidth: .infinity)
             .background(ReaderScrollViewStyler(preferences: preferences))
