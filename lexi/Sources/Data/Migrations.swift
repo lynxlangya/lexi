@@ -5,6 +5,7 @@ enum Migrations {
     static func register(in migrator: inout DatabaseMigrator) {
         registerV1Initial(in: &migrator)
         registerV2VocabEnrichment(in: &migrator)
+        registerV3VocabGlobalSource(in: &migrator)
     }
 
     static func registerV1Initial(in migrator: inout DatabaseMigrator) {
@@ -147,6 +148,22 @@ enum Migrations {
             try db.rename(table: "vocab_new", to: "vocab")
             try db.create(index: "vocab_mastered_updated_idx", on: "vocab", columns: ["mastered", "updatedAt"])
             try db.create(index: "vocab_added_idx", on: "vocab", columns: ["addedAt"])
+        }
+    }
+
+    private static func registerV3VocabGlobalSource(in migrator: inout DatabaseMigrator) {
+        migrator.registerMigration("v3_vocab_global_source") { db in
+            try db.alter(table: "vocab") { table in
+                table.add(column: "seenGlobally", .integer).notNull().defaults(to: 0)
+            }
+            try db.execute(
+                sql: """
+                UPDATE vocab
+                SET seenGlobally = 1
+                WHERE seenInBooks = '[]' OR seenInBooks = ''
+                """
+            )
+            try db.create(index: "vocab_seen_global_idx", on: "vocab", columns: ["seenGlobally"])
         }
     }
 }

@@ -132,7 +132,34 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(rows[0]["primaryZh"] as String, "")
         XCTAssertEqual(rows[0]["sensesJSON"] as String, "[]")
         XCTAssertEqual(rows[0]["seenInBooks"] as String, "[\"book-a\",\"book-b\"]")
+        XCTAssertEqual(rows[0]["seenGlobally"] as Int64, 0)
         XCTAssertEqual(rows[0]["updatedAt"] as Int64, 1_800_000_002)
+    }
+
+    func testV3VocabGlobalSourceBackfillsGlobalOnlyRows() throws {
+        let pool = try DatabasePool(path: temporaryDatabaseURL().path)
+        var v2Migrator = DatabaseMigrator()
+        Migrations.registerV1Initial(in: &v2Migrator)
+        try v2Migrator.migrate(pool)
+
+        try pool.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO vocab (word, context, bookId, addedAt)
+                VALUES ('Global', 'outside app', NULL, 1800000001)
+                """
+            )
+        }
+
+        var fullMigrator = DatabaseMigrator()
+        Migrations.register(in: &fullMigrator)
+        try fullMigrator.migrate(pool)
+
+        let row = try pool.read { db in
+            try Row.fetchOne(db, sql: "SELECT seenInBooks, seenGlobally FROM vocab WHERE normalizedWord = 'global'")
+        }
+        XCTAssertEqual(row?["seenInBooks"] as String?, "[]")
+        XCTAssertEqual(row?["seenGlobally"] as Int64?, 1)
     }
 
     func testUpsertNewWordInsertsFullRow() async throws {
@@ -163,6 +190,7 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(entry?.exampleEN, "They observe quietly.")
         XCTAssertEqual(entry?.exampleZH, "他们静静观察。")
         XCTAssertEqual(entry?.seenInBookIds, ["book-a"])
+        XCTAssertFalse(entry?.seenGlobally ?? true)
         XCTAssertEqual(entry?.mastered, false)
     }
 
@@ -209,6 +237,45 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(entry.seenInBookIds, ["book-a", "book-b"])
         XCTAssertEqual(entry.addedAt, Date(lexiTimestamp: 1_800_000_010))
         XCTAssertEqual(entry.updatedAt, Date(lexiTimestamp: 1_800_000_020))
+        XCTAssertFalse(entry.seenGlobally)
+    }
+
+    func testGlobalSourceSurvivesLaterBookSourceMerge() async throws {
+        let database = try AppDatabase.makeTransient()
+        _ = try await database.upsertVocabEntry(
+            word: "Observe",
+            context: "global context",
+            primaryZh: "观察",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: nil,
+            exampleEN: nil,
+            exampleZH: nil,
+            bookId: nil,
+            now: Date(lexiTimestamp: 1_800_000_010)
+        )
+
+        _ = try await database.upsertVocabEntry(
+            word: "observe",
+            context: "book context",
+            primaryZh: "不覆盖",
+            sensesJSON: "[]",
+            ukIPA: nil,
+            usIPA: nil,
+            exampleEN: nil,
+            exampleZH: nil,
+            bookId: "book-a",
+            now: Date(lexiTimestamp: 1_800_000_020)
+        )
+
+        let storedEntry = try await database.vocabEntry(normalizedWord: "observe")
+        let entry = try XCTUnwrap(storedEntry)
+        XCTAssertTrue(entry.seenGlobally)
+        XCTAssertEqual(entry.seenInBookIds, ["book-a"])
+        let globalWords = try await database.vocabEntries(bookId: nil).map(\.normalizedWord)
+        let bookWords = try await database.vocabEntries(bookId: "book-a").map(\.normalizedWord)
+        XCTAssertEqual(globalWords, ["observe"])
+        XCTAssertEqual(bookWords, ["observe"])
     }
 
     func testUpsertExistingWordDoesNotOverwriteSnapshot() async throws {
@@ -503,6 +570,7 @@ final class DataTests: XCTestCase {
             exampleEN: nil,
             exampleZH: nil,
             seenInBooks: "[\"book-a\"]",
+            seenGlobally: false,
             mastered: false,
             addedAt: Date(lexiTimestamp: 1_800_000_000),
             updatedAt: Date(lexiTimestamp: 1_800_000_000),
