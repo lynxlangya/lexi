@@ -142,6 +142,31 @@ final class ReaderResumeTargetTests: XCTestCase {
         XCTAssertEqual(index, 3)
     }
 
+    func testVisibleParagraphResolverChoosesNearestParagraphAtReaderTop() {
+        let id = ReaderVisibleParagraphResolver.visibleParagraphId(
+            offsets: [
+                10: -180,
+                11: 24,
+                12: 180,
+            ],
+            paragraphIds: [10, 11, 12]
+        )
+
+        XCTAssertEqual(id, 11)
+    }
+
+    func testVisibleParagraphResolverFallsBackToFirstPositiveParagraphNearTop() {
+        let id = ReaderVisibleParagraphResolver.visibleParagraphId(
+            offsets: [
+                10: 120,
+                11: 320,
+            ],
+            paragraphIds: [10, 11]
+        )
+
+        XCTAssertEqual(id, 10)
+    }
+
     private func makeChapters() -> [ReaderChapter] {
         [
             ReaderChapter(
