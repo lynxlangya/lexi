@@ -133,6 +133,7 @@ private struct ReaderWindowContent: View {
     @AppStorage(LexiDefaultsKey.readerTheme) private var theme = ReaderThemeMode.system.storageValue
     @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
     @AppStorage(LexiDefaultsKey.readerTranslationStyle) private var translationStyle = ReaderTranslationStyle.demote.rawValue
+    @AppStorage(LexiDefaultsKey.readerParagraphLayout) private var paragraphLayoutRaw = ReaderParagraphLayout.defaultValue.rawValue
     @AppStorage(LexiDefaultsKey.generalStartup) private var startupBehavior = "last"
 
     private var preferences: ReaderRuntimePreferences {
@@ -142,6 +143,7 @@ private struct ReaderWindowContent: View {
             theme: themeMode.storageValue,
             accent: accent,
             translationStyle: translationStyle,
+            paragraphLayout: paragraphLayoutRaw,
             systemColorScheme: systemAppearance.colorScheme
         )
     }
@@ -154,11 +156,23 @@ private struct ReaderWindowContent: View {
         ReaderTranslationMode(rawValue: transModeRaw) ?? .both
     }
 
+    private var paragraphLayout: ReaderParagraphLayout {
+        ReaderParagraphLayout(storageValue: paragraphLayoutRaw)
+    }
+
     private var transModeBinding: Binding<ReaderTranslationMode> {
         Binding {
             transMode
         } set: { next in
             transModeRaw = next.rawValue
+        }
+    }
+
+    private var paragraphLayoutBinding: Binding<ReaderParagraphLayout> {
+        Binding {
+            paragraphLayout
+        } set: { next in
+            paragraphLayoutRaw = next.rawValue
         }
     }
 
@@ -363,6 +377,7 @@ private struct ReaderWindowContent: View {
                         columnVisibility: $columnVisibility,
                         bookTitle: book.title,
                         transMode: transModeBinding,
+                        paragraphLayout: paragraphLayoutBinding,
                         themeMode: themeMode,
                         preferences: preferences,
                         cycleThemeMode: cycleThemeMode,

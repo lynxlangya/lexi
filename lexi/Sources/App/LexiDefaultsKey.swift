@@ -15,6 +15,7 @@ enum LexiDefaultsKey {
     static let readerTheme = "reader.theme"
     static let readerAccent = "reader.accent"
     static let readerTranslationStyle = "reader.translationStyle"
+    static let readerParagraphLayout = "reader.paragraphLayout"
 
     static let shortcutsConflictDetect = "shortcuts.conflictDetect"
 }

@@ -30,6 +30,7 @@ struct SettingsSheet: View {
     @AppStorage(LexiDefaultsKey.readerSerif) private var serif = "New York"
     @AppStorage(LexiDefaultsKey.readerLineHeight) private var lineHeight = "normal"
     @AppStorage(LexiDefaultsKey.readerTranslationMode) private var transMode = ReaderTranslationMode.both.rawValue
+    @AppStorage(LexiDefaultsKey.readerParagraphLayout) private var paragraphLayout = ReaderParagraphLayout.defaultValue.rawValue
     @AppStorage(LexiDefaultsKey.readerTheme) private var theme = ReaderThemeMode.system.storageValue
     @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
     @AppStorage(LexiDefaultsKey.readerPrefetch) private var prefetch = 1
@@ -52,6 +53,14 @@ struct SettingsSheet: View {
             themeMode.storageValue
         } set: { next in
             theme = ReaderThemeMode(storageValue: next).storageValue
+        }
+    }
+
+    private var paragraphLayoutBinding: Binding<String> {
+        Binding {
+            ReaderParagraphLayout(storageValue: paragraphLayout).rawValue
+        } set: { next in
+            paragraphLayout = ReaderParagraphLayout(storageValue: next).rawValue
         }
     }
 
@@ -426,6 +435,15 @@ struct SettingsSheet: View {
                             ("both", "原文+译文"),
                             ("en", "仅原文"),
                             ("zh", "仅译文"),
+                        ]
+                    )
+                }
+                SettingsRow(label: "段落布局") {
+                    SettingsSegmented(
+                        value: paragraphLayoutBinding,
+                        options: [
+                            (ReaderParagraphLayout.stacked.rawValue, "上下堆叠"),
+                            (ReaderParagraphLayout.dual.rawValue, "左右双栏"),
                         ]
                     )
                 }
