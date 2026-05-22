@@ -56,11 +56,111 @@
       </div>
     </section>
 
-    <!-- ====== HERO IMAGE ====== -->
-    <figure class="hero-image">
-      <img src="https://img.wangyun.fan/lexi.png"
-           alt="Lexi reader window showing English original alongside Chinese translation"
-           loading="eager">
+    <!-- ====== HERO MOCKUP — CSS-rendered Lexi window ====== -->
+    <figure class="hero-stage" aria-label="A live render of Lexi's reader window, in HTML and CSS">
+      <div class="mock-window">
+
+        <!-- Window chrome -->
+        <div class="mock-chrome">
+          <div class="mock-lights" aria-hidden="true">
+            <span class="mock-light close"></span>
+            <span class="mock-light min"></span>
+            <span class="mock-light max"></span>
+          </div>
+          <div class="mock-title">Pride and Prejudice</div>
+          <div class="mock-toolbar" aria-hidden="true">
+            <span class="mock-tb" title="Translation mode">
+              <svg viewBox="0 0 16 16"><path d="M2.5 4h4M4.5 4v7M3 9l3-5 3 5M13.5 7v6M11 10l2.5-3 2.5 3" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="mock-tb active" title="Dual-column layout">
+              <svg viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="4.5" height="9" rx="0.6" fill="currentColor"/><rect x="9" y="3.5" width="4.5" height="9" rx="0.6" fill="currentColor"/></svg>
+            </span>
+            <span class="mock-tb" title="Theme">
+              <svg viewBox="0 0 16 16"><path d="M8 2.2A5.8 5.8 0 1 0 8 13.8z" fill="currentColor"/><circle cx="8" cy="8" r="5.8" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+            </span>
+            <span class="mock-tb" title="Vocabulary">
+              <svg viewBox="0 0 16 16"><path d="M3.6 2.8h8.8a.5.5 0 0 1 .5.5v10.4l-2.6-1.8-2.3 1.6-2.3-1.6-2.6 1.8V3.3a.5.5 0 0 1 .5-.5z" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="mock-tb" title="Settings">
+              <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.05"/><path d="M8 1.4v2.4M8 12.2v2.4M1.4 8h2.4M12.2 8h2.4M3.2 3.2l1.7 1.7M11.1 11.1l1.7 1.7M3.2 12.8l1.7-1.7M11.1 4.9l1.7-1.7" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <!-- Window body -->
+        <div class="mock-body">
+          <aside class="mock-sidebar">
+            <div class="mock-book">
+              <div class="mock-book-title">Pride and Prejudice</div>
+              <div class="mock-book-author">Austen, Jane</div>
+            </div>
+            <div class="mock-divider"></div>
+            <nav class="mock-toc">
+              <div class="mock-toc-item active">
+                <span class="mock-toc-num">I</span>
+                <span class="mock-toc-name">A Single Man of…</span>
+                <span class="mock-toc-dot full"></span>
+              </div>
+              <div class="mock-toc-item">
+                <span class="mock-toc-num">II</span>
+                <span class="mock-toc-name">A Visit Returned</span>
+                <span class="mock-toc-dot half"></span>
+              </div>
+              <div class="mock-toc-item">
+                <span class="mock-toc-num">III</span>
+                <span class="mock-toc-name">The Ball at Meryton</span>
+                <span class="mock-toc-dot"></span>
+              </div>
+              <div class="mock-toc-item">
+                <span class="mock-toc-num">IV</span>
+                <span class="mock-toc-name">Jane &amp; Bingley</span>
+                <span class="mock-toc-dot"></span>
+              </div>
+              <div class="mock-toc-item">
+                <span class="mock-toc-num">V</span>
+                <span class="mock-toc-name">Sir William Lucas</span>
+                <span class="mock-toc-dot"></span>
+              </div>
+              <div class="mock-toc-item">
+                <span class="mock-toc-num">VI</span>
+                <span class="mock-toc-name">An Unwelcome Visitor</span>
+                <span class="mock-toc-dot"></span>
+              </div>
+            </nav>
+          </aside>
+
+          <div class="mock-reading">
+            <div class="mock-chapter-meta">Chapter I</div>
+            <h3 class="mock-chapter">A Single Man of Good Fortune</h3>
+            <div class="mock-rule" aria-hidden="true"></div>
+
+            <div class="mock-paragraph">
+              <div class="mock-en">It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife. However little known the feelings or views of such a man may be on his first entering a neighbourhood, this truth is so well fixed in the minds of the surrounding families, that he is considered the rightful property of some one or other of their daughters.</div>
+              <div class="mock-zh">凡是有钱的单身汉，总想娶位太太，这已经成了一条举世公认的真理。这样的单身汉，每逢初到一个地方，四邻八舍虽然完全不了解他的性情如何，见解如何，可是，既然这样的一条真理早已在人们心目中根深蒂固，因此人们总是把他看作自己某一个女儿的合法财产。</div>
+            </div>
+
+            <div class="mock-paragraph">
+              <div class="mock-en">&ldquo;My dear Mr. Bennet,&rdquo; said his lady to him one day, &ldquo;have you heard that Netherfield Park is let at last?&rdquo;</div>
+              <div class="mock-zh">有一天班纳特太太对她的丈夫说：&ldquo;我的好老爷，尼日斐花园终于租出去了，你听说过没有？&rdquo;</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status bar -->
+        <div class="mock-status">
+          <span class="mock-status-left">Chapter I · 1 / 14</span>
+          <span class="mock-progress" aria-hidden="true">
+            <span class="mock-progress-fill"></span>
+          </span>
+          <span class="mock-status-right">2% · Cached</span>
+        </div>
+
+      </div>
+
+      <figcaption class="hero-stage-caption">
+        A live render — every glyph, every rule, every shadow is HTML and CSS.
+        <span class="hero-stage-caption-zh">没有截图，只有标签。</span>
+      </figcaption>
     </figure>
 
     <!-- ====== WHY ====== -->
