@@ -60,6 +60,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     @Published var unmasteredCount = 0
     @Published var todayQueryCount = 0
     @Published var popupVisible = false
+    @Published private(set) var hasPendingVocabOpenRequest = false
 
     private let panel = PopupPanel()
     private let speech = Speech()
@@ -178,25 +179,50 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     func toggleReaderWindow() {
-        if let window = NSApp.windows.first(where: { $0.title == "Lexi" || $0.title == "书架" || $0.title.contains(" · Chapter ") }) {
+        if let window = readerWindow {
             if window.isVisible && window.isKeyWindow {
                 window.orderOut(nil)
             } else {
-                NSApp.setActivationPolicy(.regular)
-                NSApp.activate()
-                window.makeKeyAndOrderFront(nil)
+                show(window)
             }
             return
         }
 
+        openReaderWindow()
+    }
+
+    func openVocab() {
+        hasPendingVocabOpenRequest = true
+        if let window = readerWindow {
+            show(window)
+        } else {
+            openReaderWindow()
+        }
+    }
+
+    func consumePendingVocabOpenRequest() -> Bool {
+        guard hasPendingVocabOpenRequest else {
+            return false
+        }
+
+        hasPendingVocabOpenRequest = false
+        return true
+    }
+
+    private var readerWindow: NSWindow? {
+        NSApp.windows.first(where: { $0.title == "Lexi" || $0.title == "书架" || $0.title.contains(" · Chapter ") })
+    }
+
+    private func openReaderWindow() {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         openReaderAction?()
     }
 
-    func openVocab() {
-        toggleReaderWindow()
-        NotificationCenter.default.post(name: .lexiOpenVocab, object: nil)
+    private func show(_ window: NSWindow) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
     }
 
     func openSettings() {

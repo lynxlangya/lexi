@@ -254,8 +254,13 @@ private struct ReaderWindowContent: View {
             showsSettings = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .lexiOpenVocab)) { _ in
-            vocabBookFilter = .all
-            showsVocab = true
+            openAllVocab()
+        }
+        .onChange(of: coordinator.hasPendingVocabOpenRequest) { _, pending in
+            guard pending else {
+                return
+            }
+            presentPendingVocabIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .lexiEngineSettingsChanged)) { _ in
             applyEngineSettings()
@@ -290,6 +295,7 @@ private struct ReaderWindowContent: View {
                     openBook: { openBook($0, continueReading: false) },
                     continueReading: { openBook($0, continueReading: true) },
                     openVocab: openVocab,
+                    openAllVocab: openAllVocab,
                     revealInFinder: revealInFinder,
                     requestClearCache: requestClearCache,
                     requestRemove: { removeCandidate = $0 },
@@ -355,6 +361,7 @@ private struct ReaderWindowContent: View {
                         themeMode: themeMode,
                         preferences: preferences,
                         cycleThemeMode: cycleThemeMode,
+                        openVocab: openAllVocab,
                         openSettings: { showsSettings = true },
                         sidebarVisible: columnVisibility != .detailOnly
                     )
@@ -438,6 +445,7 @@ private struct ReaderWindowContent: View {
                     surface = .shelf
                 }
             }
+            presentPendingVocabIfNeeded()
         } catch {
             loadError = error.localizedDescription
         }
@@ -522,6 +530,19 @@ private struct ReaderWindowContent: View {
     private func openVocab(for target: ReaderBook) {
         vocabBookFilter = .specific(target.id)
         showsVocab = true
+    }
+
+    private func openAllVocab() {
+        vocabBookFilter = .all
+        showsVocab = true
+    }
+
+    private func presentPendingVocabIfNeeded() {
+        guard database != nil,
+              coordinator.consumePendingVocabOpenRequest() else {
+            return
+        }
+        openAllVocab()
     }
 
     private func requestClearCache(_ target: ReaderBook) {
