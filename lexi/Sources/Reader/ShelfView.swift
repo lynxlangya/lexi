@@ -25,7 +25,7 @@ struct ShelfView: View {
     @State private var query = ""
     @State private var sort = ShelfSort.recent
     @State private var isDropTargeted = false
-    @AppStorage("reader.accent") private var accent = "copper"
+    @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
 
     private var accentChoice: ReaderAccentChoice {
         ReaderAccentChoice(storageValue: accent)

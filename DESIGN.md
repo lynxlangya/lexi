@@ -450,40 +450,32 @@ struct EngineConfig {
 
 ### 10.2 Reader · Quiet（默认方向）
 
-> ⚠️ **2026-05-19 修订**：原 hint 是 "fullSizeContentView + 自绘 toolbar"，PR 6 验证下来会跟 macOS 系统 title bar 区视觉打架（双层 header，侧栏 padding 也被推开）。**改用 macOS 原生 toolbar API**：
+> ⚠️ **2026-05-22 修订**：Reader chrome 以已验收实现为准。当前方向是保留 macOS 原生红绿灯，但隐藏系统标题栏并使用 `ReaderChromeOverlay` 绘制紧凑 header：展开/收起按钮贴近红绿灯右侧，书名位于内容区左上角，右侧只保留译文模式、主题、生词本、设置四个小图标按钮。
 
 ```swift
 WindowGroup("Lexi") {
-    NavigationSplitView(columnVisibility: $columnVisibility) {
-        TOCSidebar(...)
-            .navigationSplitViewColumnWidth(232)
-    } detail: {
-        ReadingColumn(...)                          // max-width 660pt 居中
-    }
-    .toolbar {
-        ToolbarItem(placement: .navigation) {
-            Button { /* toggle sidebar */ } label: {
-                Image(systemName: "sidebar.leading")
-            }
-        }
-        ToolbarItem(placement: .principal) {
-            // 书名 · 章节 · 进度
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
-            // A- / A+ / 译文模式 / engine / 主题 / 更多
-        }
-    }
+    ReaderWindowContent(...)
 }
-.windowStyle(.titleBar)            // 系统标题栏，不要 .hiddenTitleBar
-.windowToolbarStyle(.unified)      // toolbar 与 title bar 同行（紧凑布局）
+.windowStyle(.hiddenTitleBar)
+.windowToolbarStyle(.unified)
+
+NavigationSplitView(columnVisibility: $columnVisibility) {
+    TOCSidebar(...)
+        .navigationSplitViewColumnWidth(232)
+} detail: {
+    ReadingColumn(...)                              // max-width 660pt 居中
+}
+.overlay(alignment: .top) {
+    ReaderChromeOverlay(...)
+}
 ```
 
 **不要**：
-- `.windowStyle(.hiddenTitleBar)` — 红绿灯会漂浮在内容上
-- `fullSizeContentView` + `titlebarAppearsTransparent` — 双层 header 问题的根源
-- 自绘 `HStack { TrafficLights(); ... }` 当作 toolbar
+- `fullSizeContentView` + `titlebarAppearsTransparent` — 会重新引入双层 header / 系统材质冲突
+- 自绘 `HStack { TrafficLights(); ... }` 或任何自定义红绿灯 — 红绿灯必须继续由系统接管
+- 恢复旧 `ReaderToolbar` 的 A-/A+ 字号按钮或未验收的 native toolbar 布局
 
-底栏进度 = 1pt Rectangle hairline；字号 `@AppStorage("reader.fontSize")`。
+底栏进度 = 1pt Rectangle hairline；字号持久化使用 `LexiDefaultsKey.readerFontSize`。
 
 ### 10.3 ~~Reader · Composed（已砍，v1 不做）~~
 按 §0 决议 1，v1 只做 Quiet 方向，Composed 整段路径不实现。

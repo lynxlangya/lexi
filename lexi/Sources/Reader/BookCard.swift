@@ -11,7 +11,7 @@ struct BookCard: View {
     let remove: () -> Void
 
     @State private var isHovering = false
-    @AppStorage("reader.accent") private var accent = "copper"
+    @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
 
     private var accentChoice: ReaderAccentChoice {
         ReaderAccentChoice(storageValue: accent)

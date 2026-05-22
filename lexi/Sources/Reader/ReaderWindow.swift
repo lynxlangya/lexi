@@ -125,15 +125,15 @@ private struct ReaderWindowContent: View {
     @State private var lastKnownScrollParagraphIndex: Int?
     @State private var selectedTextContext: SelectedTextContext?
     @State private var scrollWriteTask: Task<Void, Never>?
-    @AppStorage("reader.fontSize") private var fontSize = 17.0
-    @AppStorage("reader.transMode") private var transModeRaw = ReaderTranslationMode.both.rawValue
-    @AppStorage("reader.prefetch") private var prefetchCount = 1
-    @AppStorage("reader.serif") private var serif = "New York"
-    @AppStorage("reader.lineHeight") private var lineHeight = "normal"
-    @AppStorage("reader.theme") private var theme = ReaderThemeMode.system.storageValue
-    @AppStorage("reader.accent") private var accent = "copper"
-    @AppStorage("reader.translationStyle") private var translationStyle = ReaderTranslationStyle.demote.rawValue
-    @AppStorage("general.startup") private var startupBehavior = "last"
+    @AppStorage(LexiDefaultsKey.readerFontSize) private var fontSize = 17.0
+    @AppStorage(LexiDefaultsKey.readerTranslationMode) private var transModeRaw = ReaderTranslationMode.both.rawValue
+    @AppStorage(LexiDefaultsKey.readerPrefetch) private var prefetchCount = 1
+    @AppStorage(LexiDefaultsKey.readerSerif) private var serif = "New York"
+    @AppStorage(LexiDefaultsKey.readerLineHeight) private var lineHeight = "normal"
+    @AppStorage(LexiDefaultsKey.readerTheme) private var theme = ReaderThemeMode.system.storageValue
+    @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
+    @AppStorage(LexiDefaultsKey.readerTranslationStyle) private var translationStyle = ReaderTranslationStyle.demote.rawValue
+    @AppStorage(LexiDefaultsKey.generalStartup) private var startupBehavior = "last"
 
     private var preferences: ReaderRuntimePreferences {
         ReaderRuntimePreferences(
@@ -1029,7 +1029,7 @@ private struct ReaderWindowCloseBehavior: NSViewRepresentable {
                 return true
             }
 
-            if UserDefaults.standard.string(forKey: "general.onClose") == "quit" {
+            if UserDefaults.standard.string(forKey: LexiDefaultsKey.generalOnClose) == "quit" {
                 willClose {
                     self.isTerminatingAfterFlush = true
                     NSApp.terminate(nil)

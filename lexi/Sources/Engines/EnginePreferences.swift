@@ -2,11 +2,11 @@ import Foundation
 
 enum EnginePreferences {
     static func chapterConfig(database: AppDatabase?) async -> EngineConfig {
-        await config(storageKey: "engine.default.chapter", database: database)
+        await config(storageKey: LexiDefaultsKey.engineDefaultChapter, database: database)
     }
 
     static func popupConfig(database: AppDatabase?) async -> EngineConfig {
-        await config(storageKey: "engine.default.popup", database: database)
+        await config(storageKey: LexiDefaultsKey.engineDefaultPopup, database: database)
     }
 
     private static func config(storageKey: String, database: AppDatabase?) async -> EngineConfig {

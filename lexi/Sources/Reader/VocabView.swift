@@ -8,7 +8,7 @@ struct VocabView: View {
     let showToast: (String) -> Void
     let onChanged: () -> Void
 
-    @AppStorage("reader.accent") private var accent = "copper"
+    @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
     @State private var entries: [VocabEntry] = []
     @State private var bookTitles: [String: String] = [:]
     @State private var search = ""

@@ -4,7 +4,7 @@ import SwiftUI
 
 struct LexiMenuBarExtra: Scene {
     @ObservedObject var coordinator: LexiMenuBarCoordinator
-    @AppStorage("reader.accent") private var accent = "copper"
+    @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
 
     private var accentChoice: ReaderAccentChoice {
         ReaderAccentChoice(storageValue: accent)
