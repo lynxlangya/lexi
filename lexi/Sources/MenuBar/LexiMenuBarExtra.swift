@@ -551,6 +551,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func showPermissionError() {
+        cancelActiveLookup()
         let reason = "需要在系统设置 → 隐私与安全 → 辅助功能中允许 Lexi。"
         show(kind: .permissionError(reason: reason), near: activeAnchor)
     }
@@ -562,6 +563,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func showEmptySelection() {
+        cancelActiveLookup()
         showToast("请先选中要翻译的文字")
     }
 
