@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://img.wangyun.fan/lexi.png" alt="Lexi — bilingual macOS reader" width="900">
+</p>
+
 # Lexi
 
 **English** · [简体中文](README.zh-CN.md)
