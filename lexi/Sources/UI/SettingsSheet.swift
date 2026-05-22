@@ -20,20 +20,20 @@ struct SettingsSheet: View {
     @State private var books: [Book] = []
     @State private var localToast: String?
 
-    @AppStorage("general.startup") private var startupBehavior = "last"
-    @AppStorage("general.onClose") private var closeBehavior = "menubar"
-    @AppStorage("general.autoUpdate") private var autoUpdate = true
-    @AppStorage("general.crashLogs") private var crashLogs = true
-    @AppStorage("engine.default.chapter") private var defaultChapterEngine = EngineID.deepseek.rawValue
-    @AppStorage("engine.default.popup") private var defaultPopupEngine = EngineID.deepseek.rawValue
-    @AppStorage("reader.fontSize") private var fontSize = 17.0
-    @AppStorage("reader.serif") private var serif = "New York"
-    @AppStorage("reader.lineHeight") private var lineHeight = "normal"
-    @AppStorage("reader.transMode") private var transMode = ReaderTranslationMode.both.rawValue
-    @AppStorage("reader.theme") private var theme = ReaderThemeMode.system.storageValue
-    @AppStorage("reader.accent") private var accent = "copper"
-    @AppStorage("reader.prefetch") private var prefetch = 1
-    @AppStorage("shortcuts.conflictDetect") private var conflictDetect = true
+    @AppStorage(LexiDefaultsKey.generalStartup) private var startupBehavior = "last"
+    @AppStorage(LexiDefaultsKey.generalOnClose) private var closeBehavior = "menubar"
+    @AppStorage(LexiDefaultsKey.generalAutoUpdate) private var autoUpdate = true
+    @AppStorage(LexiDefaultsKey.generalCrashLogs) private var crashLogs = true
+    @AppStorage(LexiDefaultsKey.engineDefaultChapter) private var defaultChapterEngine = EngineID.deepseek.rawValue
+    @AppStorage(LexiDefaultsKey.engineDefaultPopup) private var defaultPopupEngine = EngineID.deepseek.rawValue
+    @AppStorage(LexiDefaultsKey.readerFontSize) private var fontSize = 17.0
+    @AppStorage(LexiDefaultsKey.readerSerif) private var serif = "New York"
+    @AppStorage(LexiDefaultsKey.readerLineHeight) private var lineHeight = "normal"
+    @AppStorage(LexiDefaultsKey.readerTranslationMode) private var transMode = ReaderTranslationMode.both.rawValue
+    @AppStorage(LexiDefaultsKey.readerTheme) private var theme = ReaderThemeMode.system.storageValue
+    @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
+    @AppStorage(LexiDefaultsKey.readerPrefetch) private var prefetch = 1
+    @AppStorage(LexiDefaultsKey.shortcutsConflictDetect) private var conflictDetect = true
 
     private var settingsAccent: ReaderAccentChoice {
         ReaderAccentChoice(storageValue: accent)

@@ -317,15 +317,15 @@ actor AppDatabase {
     }
 
     func bookCount() throws -> Int {
-        try countRows(in: "books")
+        try countRows(in: .books)
     }
 
     func chapterCount() throws -> Int {
-        try countRows(in: "chapters")
+        try countRows(in: .chapters)
     }
 
     func paragraphCount() throws -> Int {
-        try countRows(in: "paragraphs")
+        try countRows(in: .paragraphs)
     }
 
     func upsertTranslation(_ translation: Translation) throws {
@@ -524,7 +524,7 @@ actor AppDatabase {
     }
 
     func vocabCount() throws -> Int {
-        try countRows(in: "vocab")
+        try countRows(in: .vocab)
     }
 
     func unmasteredVocabCount() throws -> Int {
@@ -685,9 +685,16 @@ actor AppDatabase {
         return directory.appending(path: "Lexi", directoryHint: .isDirectory).appending(path: "lexi.sqlite")
     }
 
-    private func countRows(in table: String) throws -> Int {
+    private enum CountedTable: String {
+        case books
+        case chapters
+        case paragraphs
+        case vocab
+    }
+
+    private func countRows(in table: CountedTable) throws -> Int {
         try pool.read { db in
-            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)") ?? 0
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table.rawValue)") ?? 0
         }
     }
 }

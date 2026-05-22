@@ -10,7 +10,7 @@ struct LexiMenuPanel: View {
     let openVocab: () -> Void
     let openSettings: () -> Void
     let quit: () -> Void
-    @AppStorage("reader.accent") private var accent = "copper"
+    @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
 
     private var accentChoice: ReaderAccentChoice {
         ReaderAccentChoice(storageValue: accent)

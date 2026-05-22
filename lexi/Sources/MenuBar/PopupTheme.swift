@@ -74,8 +74,8 @@ struct PopupTheme {
 
 struct PopupThemeReader<Content: View>: View {
     @StateObject private var systemAppearance = SystemColorSchemeObserver()
-    @AppStorage("reader.theme") private var theme = ReaderThemeMode.system.storageValue
-    @AppStorage("reader.accent") private var accent = "copper"
+    @AppStorage(LexiDefaultsKey.readerTheme) private var theme = ReaderThemeMode.system.storageValue
+    @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
     @ViewBuilder var content: (PopupTheme) -> Content
 
     var body: some View {

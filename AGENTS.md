@@ -63,7 +63,8 @@ xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDat
 - Keep generated Xcode project edits narrow. Avoid unnecessary churn in `project.pbxproj`.
 - Store business data in `AppDatabase`/SQLite and API keys in Keychain. API keys must not be persisted in SQLite.
 - Runtime engine configuration must come from Settings → 引擎: API keys in Keychain, model/status in SQLite `EngineConfig`. Do not add `.env.local`, `DevSecrets`, or DEBUG-only key/model overrides.
-- Reader window chrome uses native `.toolbar`, `.windowStyle(.titleBar)`, and `.windowToolbarStyle(.unified)`. Do not bring back Reader `fullSizeContentView`, `titlebarAppearsTransparent`, hidden title bars, or custom traffic lights.
+- NSUserDefaults / `@AppStorage` keys live in `LexiDefaultsKey`; do not add new naked defaults strings in Reader, Settings, MenuBar, or Engines.
+- Reader window chrome currently uses `.windowStyle(.hiddenTitleBar)` plus `ReaderChromeOverlay` so the sidebar, title, and compact controls match the accepted Reader UI. Keep the system traffic lights native; do not bring back `fullSizeContentView`, `titlebarAppearsTransparent`, custom traffic lights, or the removed legacy toolbar without a design update.
 - MenuBar translation popup is the exception that intentionally uses `NSPanel` with `.nonactivatingPanel`, `.borderless`, and `.fullSizeContentView` so it does not steal focus.
 - Global shortcuts use `sindresorhus/KeyboardShortcuts`: `⌘⇧L` translate selection, `⌘⇧T` translate and replace selection, `⌘⇧K` show/hide Reader.
 
