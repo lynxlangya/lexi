@@ -6,7 +6,7 @@ struct SettingsSheet: View {
     let close: () -> Void
     let showToast: (String) -> Void
 
-    @Environment(\.colorScheme) private var systemColorScheme
+    @StateObject private var systemAppearance = SystemColorSchemeObserver()
     @State private var selectedTab: SettingsTab = .general
     @State private var apiKeys: [EngineID: String] = [:]
     @State private var loadedAPIKeys: [EngineID: String] = [:]
@@ -40,7 +40,7 @@ struct SettingsSheet: View {
     }
 
     private var settingsTheme: ReaderThemeChoice {
-        ReaderThemeChoice(mode: themeMode, systemColorScheme: systemColorScheme)
+        ReaderThemeChoice(mode: themeMode, systemColorScheme: systemAppearance.colorScheme)
     }
 
     private var themeMode: ReaderThemeMode {
@@ -96,7 +96,11 @@ struct SettingsSheet: View {
         .frame(width: 720, height: 580)
         .background(settingsTheme.paper)
         .tint(settingsAccent.primary)
+        .background(WindowAppearanceUpdater(colorScheme: themeMode.preferredColorScheme))
         .preferredColorScheme(themeMode.preferredColorScheme)
+        .onChange(of: theme) { _, _ in
+            systemAppearance.refresh()
+        }
         .clipShape(RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: LexiRadius.window, style: .continuous)

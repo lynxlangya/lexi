@@ -73,7 +73,7 @@ struct PopupTheme {
 }
 
 struct PopupThemeReader<Content: View>: View {
-    @Environment(\.colorScheme) private var systemColorScheme
+    @StateObject private var systemAppearance = SystemColorSchemeObserver()
     @AppStorage("reader.theme") private var theme = ReaderThemeMode.system.storageValue
     @AppStorage("reader.accent") private var accent = "copper"
     @ViewBuilder var content: (PopupTheme) -> Content
@@ -83,9 +83,12 @@ struct PopupThemeReader<Content: View>: View {
             PopupTheme(
                 theme: ReaderThemeMode(storageValue: theme),
                 accent: ReaderAccentChoice(storageValue: accent),
-                systemColorScheme: systemColorScheme
+                systemColorScheme: systemAppearance.colorScheme
             )
         )
+        .onChange(of: theme) { _, _ in
+            systemAppearance.refresh()
+        }
     }
 }
 

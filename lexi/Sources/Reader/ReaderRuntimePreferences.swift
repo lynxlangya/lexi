@@ -167,6 +167,7 @@ private enum ReaderThemePalette {
 }
 
 struct ReaderThemeChoice {
+    let isDark: Bool
     let paper: Color
     let raised: Color
     let chrome: Color
@@ -193,6 +194,8 @@ struct ReaderThemeChoice {
         case .night:
             palette = .night
         }
+
+        isDark = palette == .night
 
         if palette == .night {
             paper = Color(red: 0.105, green: 0.092, blue: 0.075)

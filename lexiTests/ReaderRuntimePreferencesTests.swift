@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import lexi
 
 final class ReaderRuntimePreferencesTests: XCTestCase {
@@ -15,5 +16,23 @@ final class ReaderRuntimePreferencesTests: XCTestCase {
 
     func testReaderLineHeightChoiceFallsBackToNormalForUnknownStorageValue() {
         XCTAssertEqual(ReaderLineHeightChoice(storageValue: "unknown"), .normal)
+    }
+
+    func testSystemColorSchemeResolverTreatsMissingGlobalStyleAsLight() {
+        XCTAssertEqual(SystemColorSchemeResolver.colorScheme(appleInterfaceStyle: nil), .light)
+    }
+
+    func testSystemColorSchemeResolverMapsDarkGlobalStyleToDark() {
+        XCTAssertEqual(SystemColorSchemeResolver.colorScheme(appleInterfaceStyle: "Dark"), .dark)
+    }
+
+    func testSystemThemeUsesResolvedSystemScheme() {
+        XCTAssertFalse(ReaderThemeChoice(mode: .system, systemColorScheme: .light).isDark)
+        XCTAssertTrue(ReaderThemeChoice(mode: .system, systemColorScheme: .dark).isDark)
+    }
+
+    func testExplicitThemeIgnoresResolvedSystemScheme() {
+        XCTAssertFalse(ReaderThemeChoice(mode: .day, systemColorScheme: .dark).isDark)
+        XCTAssertTrue(ReaderThemeChoice(mode: .night, systemColorScheme: .light).isDark)
     }
 }

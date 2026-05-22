@@ -102,8 +102,8 @@ struct ReaderScrollProgressResolver {
 
 private struct ReaderWindowContent: View {
     @ObservedObject var coordinator: LexiMenuBarCoordinator
-    @Environment(\.colorScheme) private var systemColorScheme
     @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var systemAppearance = SystemColorSchemeObserver()
     @State private var selectedChapterIndex = 2
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var surface = ReaderSurface.shelf
@@ -142,7 +142,7 @@ private struct ReaderWindowContent: View {
             theme: themeMode.storageValue,
             accent: accent,
             translationStyle: translationStyle,
-            systemColorScheme: systemColorScheme
+            systemColorScheme: systemAppearance.colorScheme
         )
     }
 
@@ -200,9 +200,13 @@ private struct ReaderWindowContent: View {
                 isReaderSurface: surface == .reader
             )
         )
+        .background(WindowAppearanceUpdater(colorScheme: themeMode.preferredColorScheme))
         .background(ReaderWindowCloseBehavior(willClose: flushVisibleScrollProgress))
         .background(preferences.theme.paper)
         .preferredColorScheme(themeMode.preferredColorScheme)
+        .onChange(of: theme) { _, _ in
+            systemAppearance.refresh()
+        }
         .frame(minWidth: 920, minHeight: 620)
         .confirmationDialog(
             "清除翻译缓存？",

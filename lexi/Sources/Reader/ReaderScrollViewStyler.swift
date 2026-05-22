@@ -23,8 +23,7 @@ struct ReaderScrollViewStyler: NSViewRepresentable {
     }
 
     private var knobStyle: NSScroller.KnobStyle {
-        let appearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])
-        return appearance == .darkAqua ? .light : .dark
+        preferences.theme.isDark ? .light : .dark
     }
 }
 
