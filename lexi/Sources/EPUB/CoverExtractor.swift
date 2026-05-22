@@ -22,14 +22,24 @@ enum CoverExtractor {
         FallbackCover(bg: "#7a3a2a", ink: "#f5f1e8"),
     ]
 
-    static func cover(for opf: OPFDocument, baseURL: URL, rootURL: URL, bookID: String) throws -> Cover {
+    static func cover(
+        for opf: OPFDocument,
+        baseURL: URL,
+        rootURL: URL,
+        bookID: String,
+        limits: EPUBResourceLimits = .standard
+    ) throws -> Cover {
         let coverItem = opf.manifest.values.first { $0.properties.contains("cover-image") }
             ?? opf.epub2CoverID.flatMap { opf.manifest[$0] }
 
         if let coverItem {
             let coverURL = try EPUBPath.resolve(coverItem.href, relativeTo: baseURL, root: rootURL)
             if FileManager.default.fileExists(atPath: coverURL.path) {
-                return Cover(data: try Data(contentsOf: coverURL), fallback: nil)
+                do {
+                    return Cover(data: try EPUBResourceReader.data(contentsOf: coverURL, maxBytes: limits.maxCoverBytes), fallback: nil)
+                } catch EPUBParserError.resourceLimitExceeded {
+                    return Cover(data: nil, fallback: fallback(for: bookID))
+                }
             }
         }
 
