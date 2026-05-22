@@ -25,9 +25,19 @@ enum ReaderTranslationHighlighter {
             return sentenceRange
         }
 
-        if let literalRange = translatedText.range(of: selection, options: [.caseInsensitive, .diacriticInsensitive]),
-           isHighConfidenceLiteral(selection) {
+        if let literalRange = translatedText.range(
+            of: selection,
+            options: [.caseInsensitive, .diacriticInsensitive]
+        ), isHighConfidenceLiteral(selection) {
             return literalRange
+        }
+
+        if let phraseRange = phraseMatchRange(
+            sourceText: sourceText,
+            selectedText: selection,
+            translatedText: translatedText
+        ) {
+            return phraseRange
         }
 
         return nil
@@ -165,6 +175,128 @@ enum ReaderTranslationHighlighter {
         return translatedSentences[estimatedIndex]
     }
 
+    private static func phraseMatchRange(
+        sourceText: String,
+        selectedText: String,
+        translatedText: String
+    ) -> Range<String.Index>? {
+        let sourceSentences = sentenceRanges(in: sourceText)
+        let translatedSentences = sentenceRanges(in: translatedText)
+        guard isLikelyPhrase(selectedText),
+              let selectedRange = sourceText.range(
+                of: selectedText,
+                options: [.caseInsensitive, .diacriticInsensitive]
+              ),
+              let sourceSentenceIndex = sentenceIndex(containing: selectedRange, in: sourceSentences),
+              sourceSentences.indices.contains(sourceSentenceIndex),
+              translatedSentences.indices.contains(sourceSentenceIndex) else {
+            return nil
+        }
+
+        let sourceSentenceRange = sourceSentences[sourceSentenceIndex]
+        guard isClauseOpening(selectedRange.lowerBound, in: sourceText, sentenceRange: sourceSentenceRange) else {
+            return nil
+        }
+
+        let translatedSentenceRange = translatedSentences[sourceSentenceIndex]
+        let segment = phraseSegment(
+            sourceSentence: String(sourceText[sourceSentenceRange]),
+            selectedText: selectedText,
+            translatedSentence: String(translatedText[translatedSentenceRange])
+        )
+        guard !segment.isEmpty else {
+            return nil
+        }
+
+        let lower = translatedText.index(translatedSentenceRange.lowerBound, offsetBy: segment.lowerBound)
+        let upper = translatedText.index(translatedSentenceRange.lowerBound, offsetBy: segment.upperBound)
+        return trimmedRange(lower..<upper, in: translatedText)
+    }
+
+    private static func isClauseOpening(
+        _ index: String.Index,
+        in text: String,
+        sentenceRange: Range<String.Index>
+    ) -> Bool {
+        if index == sentenceRange.lowerBound {
+            return true
+        }
+
+        var cursor = index
+        while cursor > sentenceRange.lowerBound {
+            let previous = text.index(before: cursor)
+            if text[previous].isWhitespace {
+                cursor = previous
+                continue
+            }
+            return "，,;；:：—-".contains(text[previous])
+        }
+        return true
+    }
+
+    private static func sentenceIndex(
+        containing selectedRange: Range<String.Index>,
+        in sentenceRanges: [Range<String.Index>]
+    ) -> Int? {
+        sentenceRanges.firstIndex { sentenceRange in
+            sentenceRange.contains(selectedRange.lowerBound)
+                || selectedRange.upperBound <= sentenceRange.upperBound && selectedRange.upperBound > sentenceRange.lowerBound
+        }
+    }
+
+    private static func phraseSegment(
+        sourceSentence: String,
+        selectedText: String,
+        translatedSentence: String
+    ) -> Range<Int> {
+        guard !sourceSentence.isEmpty,
+              !translatedSentence.isEmpty,
+              let selectedRange = sourceSentence.range(
+                of: selectedText,
+                options: [.caseInsensitive, .diacriticInsensitive]
+              ) else {
+            return 0..<0
+        }
+
+        let sourceLength = max(sourceSentence.count, 1)
+        let selectedStart = sourceSentence.distance(from: sourceSentence.startIndex, to: selectedRange.lowerBound)
+        let selectedLength = max(selectedText.count, 1)
+        let translatedLength = translatedSentence.count
+        let normalizedStart = Double(selectedStart) / Double(sourceLength)
+        let normalizedLength = max(0.16, min(0.38, Double(selectedLength) / Double(sourceLength)))
+
+        let segmentStart = Int((normalizedStart * Double(translatedLength)).rounded(.down))
+        let segmentLength = max(2, Int((normalizedLength * Double(translatedLength)).rounded(.up)))
+        let segmentEnd = min(translatedLength, segmentStart + segmentLength)
+
+        return adjustedChineseSegment(segmentStart..<segmentEnd, in: translatedSentence)
+    }
+
+    private static func adjustedChineseSegment(_ range: Range<Int>, in text: String) -> Range<Int> {
+        let characters = Array(text)
+        guard !characters.isEmpty else {
+            return 0..<0
+        }
+
+        var lower = max(0, min(range.lowerBound, characters.count - 1))
+        var upper = max(lower + 1, min(range.upperBound, characters.count))
+
+        while lower > 0, !isSegmentBoundary(characters[lower - 1]) {
+            lower -= 1
+        }
+        while upper < characters.count, !isSegmentBoundary(characters[upper]) {
+            upper += 1
+        }
+        while lower < upper, isSegmentBoundary(characters[lower]) {
+            lower += 1
+        }
+        while lower < upper, isSegmentBoundary(characters[upper - 1]) {
+            upper -= 1
+        }
+
+        return lower..<upper
+    }
+
     private static func sentenceRanges(in text: String) -> [Range<String.Index>] {
         var ranges: [Range<String.Index>] = []
         var start = text.startIndex
@@ -212,8 +344,24 @@ enum ReaderTranslationHighlighter {
         text.count >= 40 || text.contains(where: { ".!?。！？；;".contains($0) })
     }
 
+    private static func isLikelyPhrase(_ text: String) -> Bool {
+        let words = text.split(whereSeparator: { $0.isWhitespace })
+        guard (2...8).contains(words.count),
+              text.count >= 6,
+              !text.contains(where: { ".!?。！？；;".contains($0) }) else {
+            return false
+        }
+        return words.allSatisfy { word in
+            word.contains(where: \.isLetter)
+        }
+    }
+
     private static func isHighConfidenceLiteral(_ text: String) -> Bool {
         text.contains(where: { !$0.isLetter && !$0.isNumber }) || text.contains(where: \.isUppercaseLetter)
+    }
+
+    private static func isSegmentBoundary(_ character: Character) -> Bool {
+        character.isWhitespace || "，。！？；：、,.!?;:—-".contains(character)
     }
 }
 
