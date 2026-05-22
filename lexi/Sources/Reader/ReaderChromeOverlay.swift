@@ -12,6 +12,7 @@ struct ReaderChromeOverlay: View {
     let themeMode: ReaderThemeMode
     let preferences: ReaderRuntimePreferences
     let cycleThemeMode: () -> Void
+    let openVocab: () -> Void
     let openSettings: () -> Void
     let sidebarVisible: Bool
 
@@ -91,6 +92,8 @@ struct ReaderChromeOverlay: View {
             }
 
             chromeButton(themeMode.iconName, help: themeModeHelp, action: cycleThemeMode)
+
+            chromeButton("text.book.closed", help: "生词本", action: openVocab)
 
             chromeButton("gearshape", help: "设置", action: openSettings)
         }

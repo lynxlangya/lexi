@@ -16,6 +16,7 @@ struct ShelfView: View {
     let openBook: (ReaderBook) -> Void
     let continueReading: (ReaderBook) -> Void
     let openVocab: (ReaderBook) -> Void
+    let openAllVocab: () -> Void
     let revealInFinder: (ReaderBook) -> Void
     let requestClearCache: (ReaderBook) -> Void
     let requestRemove: (ReaderBook) -> Void
@@ -67,6 +68,23 @@ struct ShelfView: View {
             ShelfSortControl(selection: $sort, accent: accentChoice)
 
             Spacer()
+
+            Button(action: openAllVocab) {
+                Label("生词本", systemImage: "text.book.closed")
+                    .font(LexiFont.sans(12))
+                    .fontWeight(.medium)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.lexiInk2)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(Color.lexiRaised)
+            .clipShape(RoundedRectangle(cornerRadius: LexiRadius.control, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: LexiRadius.control, style: .continuous)
+                    .stroke(Color.lexiRule, lineWidth: 1)
+            }
+            .focusable(false)
 
             Button {
                 openPanel()
