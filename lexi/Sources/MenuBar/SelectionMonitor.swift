@@ -79,17 +79,15 @@ final class SelectionMonitor {
         var focusedElement: CFTypeRef?
         AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &focusedApp)
 
-        let appElement: AXUIElement = if let focusedApp {
-            focusedApp as! AXUIElement
-        } else {
-            systemWide
-        }
+        let appElement = axElement(from: focusedApp) ?? systemWide
         let source = selectionSource(from: focusedApp)
         AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
         guard let focusedElement else {
             return fallbackSelectionContext(source: source, anchor: fallbackAnchor())
         }
-        let element = focusedElement as! AXUIElement
+        guard let element = axElement(from: focusedElement) else {
+            return fallbackSelectionContext(source: source, anchor: fallbackAnchor())
+        }
 
         var selectedText: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedText)
@@ -224,9 +222,7 @@ final class SelectionMonitor {
             return nil
         }
 
-        let axRange = rangeValue as! AXValue
-        var range = CFRange()
-        return AXValueGetValue(axRange, .cfRange, &range) ? range : nil
+        return cfRange(from: rangeValue)
     }
 
     private static func stringForExpandedRange(from element: AXUIElement, selectedRange: CFRange) -> String? {
@@ -262,7 +258,10 @@ final class SelectionMonitor {
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else {
             return nil
         }
-        return value as? Int
+        if let int = value as? Int {
+            return int
+        }
+        return (value as? NSNumber)?.intValue
     }
 
     private static func sentenceBoundaryBefore(_ index: String.Index, in text: String) -> String.Index {
@@ -344,24 +343,22 @@ final class SelectionMonitor {
     private static func selectionFrame(from element: AXUIElement) -> CGRect {
         var rangeValue: CFTypeRef?
         let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeValue)
-        if rangeResult == .success, let rangeValue {
-            let axRange = rangeValue as! AXValue
-            var range = CFRange()
-            if AXValueGetValue(axRange, .cfRange, &range) {
-                var boundsValue: CFTypeRef?
-                let parameter = AXValueCreate(.cfRange, &range)
-                let boundsResult = AXUIElementCopyParameterizedAttributeValue(
-                    element,
-                    kAXBoundsForRangeParameterizedAttribute as CFString,
-                    parameter!,
-                    &boundsValue
-                )
-                if boundsResult == .success, let boundsValue {
-                    let axBounds = boundsValue as! AXValue
-                    var rect = CGRect.zero
-                    if AXValueGetValue(axBounds, .cgRect, &rect) {
-                        return screenAnchor(fromAccessibilityBounds: rect)
-                    }
+        if rangeResult == .success, let range = cfRange(from: rangeValue) {
+            var boundsValue: CFTypeRef?
+            var requestedRange = range
+            let parameter = AXValueCreate(.cfRange, &requestedRange)
+            guard let parameter else {
+                return fallbackAnchor()
+            }
+            let boundsResult = AXUIElementCopyParameterizedAttributeValue(
+                element,
+                kAXBoundsForRangeParameterizedAttribute as CFString,
+                parameter,
+                &boundsValue
+            )
+            if boundsResult == .success {
+                if let rect = cgRect(from: boundsValue) {
+                    return screenAnchor(fromAccessibilityBounds: rect)
                 }
             }
         }
@@ -381,7 +378,9 @@ final class SelectionMonitor {
             return .global
         }
 
-        let app = focusedApp as! AXUIElement
+        guard let app = axElement(from: focusedApp) else {
+            return .global
+        }
         var pid = pid_t()
         guard AXUIElementGetPid(app, &pid) == .success,
               pid == NSRunningApplication.current.processIdentifier else {
@@ -389,6 +388,42 @@ final class SelectionMonitor {
         }
 
         return .reader
+    }
+
+    static func cfRange(from value: CFTypeRef?) -> CFRange? {
+        guard let axValue = axValue(from: value),
+              AXValueGetType(axValue) == .cfRange else {
+            return nil
+        }
+
+        var range = CFRange()
+        return AXValueGetValue(axValue, .cfRange, &range) ? range : nil
+    }
+
+    static func cgRect(from value: CFTypeRef?) -> CGRect? {
+        guard let axValue = axValue(from: value),
+              AXValueGetType(axValue) == .cgRect else {
+            return nil
+        }
+
+        var rect = CGRect.zero
+        return AXValueGetValue(axValue, .cgRect, &rect) ? rect : nil
+    }
+
+    static func axElement(from value: CFTypeRef?) -> AXUIElement? {
+        guard let value,
+              CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        return unsafeBitCast(value, to: AXUIElement.self)
+    }
+
+    private static func axValue(from value: CFTypeRef?) -> AXValue? {
+        guard let value,
+              CFGetTypeID(value) == AXValueGetTypeID() else {
+            return nil
+        }
+        return unsafeBitCast(value, to: AXValue.self)
     }
 
     private static func screen(containingAccessibilityBounds rect: CGRect) -> NSScreen? {

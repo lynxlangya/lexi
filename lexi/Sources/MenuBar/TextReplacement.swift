@@ -15,16 +15,14 @@ enum TextReplacement {
         var focusedElement: CFTypeRef?
         AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &focusedApp)
 
-        let appElement: AXUIElement = if let focusedApp {
-            focusedApp as! AXUIElement
-        } else {
-            systemWide
-        }
+        let appElement = SelectionMonitor.axElement(from: focusedApp) ?? systemWide
         AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
         guard let focusedElement else {
             return false
         }
-        let element = focusedElement as! AXUIElement
+        guard let element = SelectionMonitor.axElement(from: focusedElement) else {
+            return false
+        }
 
         let result = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFTypeRef)
         if result == .success {

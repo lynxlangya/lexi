@@ -1,4 +1,5 @@
 import XCTest
+import ApplicationServices
 @testable import lexi
 
 final class SelectionContextTests: XCTestCase {
@@ -45,5 +46,33 @@ final class SelectionContextTests: XCTestCase {
         XCTAssertEqual(anchor.width, bounds.width, accuracy: 0.1)
         XCTAssertEqual(anchor.height, bounds.height, accuracy: 0.1)
         XCTAssertEqual(anchor.minY, screen.frame.maxY - bounds.maxY, accuracy: 0.1)
+    }
+
+    func testAXValueHelpersDecodeExpectedTypes() throws {
+        var range = CFRange(location: 7, length: 4)
+        let rangeValue = try XCTUnwrap(AXValueCreate(.cfRange, &range))
+        let decodedRange = try XCTUnwrap(SelectionMonitor.cfRange(from: rangeValue))
+
+        XCTAssertEqual(decodedRange.location, 7)
+        XCTAssertEqual(decodedRange.length, 4)
+
+        var rect = CGRect(x: 12, y: 24, width: 48, height: 16)
+        let rectValue = try XCTUnwrap(AXValueCreate(.cgRect, &rect))
+        let decodedRect = try XCTUnwrap(SelectionMonitor.cgRect(from: rectValue))
+
+        XCTAssertEqual(decodedRect, rect)
+    }
+
+    func testAXValueHelpersRejectUnexpectedTypes() throws {
+        var rect = CGRect(x: 12, y: 24, width: 48, height: 16)
+        let rectValue = try XCTUnwrap(AXValueCreate(.cgRect, &rect))
+        XCTAssertNil(SelectionMonitor.cfRange(from: rectValue))
+
+        var range = CFRange(location: 7, length: 4)
+        let rangeValue = try XCTUnwrap(AXValueCreate(.cfRange, &range))
+        XCTAssertNil(SelectionMonitor.cgRect(from: rangeValue))
+
+        XCTAssertNil(SelectionMonitor.cfRange(from: "not an AXValue" as CFTypeRef))
+        XCTAssertNil(SelectionMonitor.cgRect(from: "not an AXValue" as CFTypeRef))
     }
 }
