@@ -142,6 +142,28 @@ final class ReaderResumeTargetTests: XCTestCase {
         XCTAssertEqual(index, 3)
     }
 
+    func testReaderReentryKeepsKnownParagraphAsRestoreTarget() {
+        let index = ReaderScrollProgressResolver.bestKnownParagraphIndex(
+            visibleIndex: 4,
+            lastKnownIndex: 8,
+            pendingIndex: nil,
+            paragraphCount: 12
+        )
+
+        XCTAssertEqual(index, 4)
+    }
+
+    func testReaderReentrySkipsRestoreWhenNoParagraphIsKnown() {
+        let index = ReaderScrollProgressResolver.bestKnownParagraphIndex(
+            visibleIndex: nil,
+            lastKnownIndex: nil,
+            pendingIndex: nil,
+            paragraphCount: 12
+        )
+
+        XCTAssertNil(index)
+    }
+
     func testVisibleParagraphResolverChoosesNearestParagraphAtReaderTop() {
         let id = ReaderVisibleParagraphResolver.visibleParagraphId(
             offsets: [

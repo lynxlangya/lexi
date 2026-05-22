@@ -71,8 +71,22 @@ struct ReaderScrollProgressResolver {
         pendingIndex: Int?,
         paragraphCount: Int
     ) -> Int {
-        if paragraphCount <= 0 {
-            return 0
+        bestKnownParagraphIndex(
+            visibleIndex: visibleIndex,
+            lastKnownIndex: lastKnownIndex,
+            pendingIndex: pendingIndex,
+            paragraphCount: paragraphCount
+        ) ?? 0
+    }
+
+    static func bestKnownParagraphIndex(
+        visibleIndex: Int?,
+        lastKnownIndex: Int?,
+        pendingIndex: Int?,
+        paragraphCount: Int
+    ) -> Int? {
+        guard paragraphCount > 0 else {
+            return nil
         }
 
         for candidate in [visibleIndex, lastKnownIndex, pendingIndex] {
@@ -82,7 +96,7 @@ struct ReaderScrollProgressResolver {
             return candidate
         }
 
-        return 0
+        return nil
     }
 }
 
@@ -284,7 +298,7 @@ private struct ReaderWindowContent: View {
                 .toolbar {
                     ShelfTitleBar(
                         canReturnToReader: book != nil,
-                        returnToReader: { surface = .reader }
+                        returnToReader: resumeReaderFromShelf
                     )
                 }
 
@@ -634,6 +648,32 @@ private struct ReaderWindowContent: View {
         flushVisibleScrollProgress {
             surface = .shelf
         }
+    }
+
+    private func resumeReaderFromShelf() {
+        guard let selectedChapter else {
+            surface = .reader
+            return
+        }
+
+        let visibleIndex = visibleParagraphId.flatMap { paragraphId in
+            selectedChapter.paragraphs.firstIndex(where: { $0.id == paragraphId })
+        }
+        guard let paragraphIndex = ReaderScrollProgressResolver.bestKnownParagraphIndex(
+            visibleIndex: visibleIndex,
+            lastKnownIndex: lastKnownScrollParagraphIndex,
+            pendingIndex: pendingScrollParagraphIdx,
+            paragraphCount: selectedChapter.paragraphs.count
+        ) else {
+            surface = .reader
+            return
+        }
+
+        pendingScrollParagraphIdx = paragraphIndex
+        lastKnownScrollParagraphIndex = paragraphIndex
+        visibleParagraphId = nil
+        surface = .reader
+        restorePendingScrollTarget()
     }
 
     private func scrollPersistenceContext(paragraphId: Int64) -> ScrollPersistenceContext? {
