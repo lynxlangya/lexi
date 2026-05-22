@@ -215,16 +215,6 @@ final class ChapterTranslationController {
                     for try await chunk in engine.translate([task], model: config.model) {
                         try Task.checkCancellation()
                         zh += chunk.text
-                        try await database.upsertTranslation(
-                            Translation(
-                                id: nil,
-                                paragraphId: paragraph.id,
-                                engine: config.id,
-                                model: config.model,
-                                zh: zh,
-                                createdAt: Date()
-                            )
-                        )
                         snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
                         reconcileChapterState(for: chapter)
                     }
@@ -238,6 +228,16 @@ final class ChapterTranslationController {
                         reconcileChapterState(for: chapter)
                         return
                     }
+                    try await database.upsertTranslation(
+                        Translation(
+                            id: nil,
+                            paragraphId: paragraph.id,
+                            engine: config.id,
+                            model: config.model,
+                            zh: zh,
+                            createdAt: Date()
+                        )
+                    )
                     exactCached[paragraph.id] = zh
                 } catch is CancellationError {
                     return
@@ -295,24 +295,29 @@ final class ChapterTranslationController {
             for try await chunk in engine.translate([task], model: config.model) {
                 try Task.checkCancellation()
                 zh += chunk.text
-                try await database.upsertTranslation(
-                    Translation(
-                        id: nil,
-                        paragraphId: paragraph.id,
-                        engine: config.id,
-                        model: config.model,
-                        zh: zh,
-                        createdAt: Date()
-                    )
-                )
                 snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
                 reconcileChapterState(for: chapter)
             }
 
-            markTranslatingParagraphsAsError(
-                in: chapter,
-                candidates: [paragraph],
-                reason: "翻译流提前结束，本段未译"
+            if case .translating = snapshots[chapter.id]?.paragraphStates[paragraph.id] {
+                markTranslatingParagraphsAsError(
+                    in: chapter,
+                    candidates: [paragraph],
+                    reason: "翻译流提前结束，本段未译"
+                )
+                reconcileChapterState(for: chapter)
+                return
+            }
+
+            try await database.upsertTranslation(
+                Translation(
+                    id: nil,
+                    paragraphId: paragraph.id,
+                    engine: config.id,
+                    model: config.model,
+                    zh: zh,
+                    createdAt: Date()
+                )
             )
             reconcileChapterState(for: chapter)
         } catch is CancellationError {
@@ -495,6 +500,8 @@ actor ChapterPrefetchWorker {
                 for try await chunk in engine.translate([task], model: config.model) {
                     try Task.checkCancellation()
                     zh += chunk.text
+                }
+                if !zh.isEmpty {
                     try await database.upsertTranslation(
                         Translation(
                             id: nil,
@@ -505,8 +512,6 @@ actor ChapterPrefetchWorker {
                             createdAt: Date()
                         )
                     )
-                }
-                if !zh.isEmpty {
                     exactCached[paragraph.id] = zh
                 }
             }
