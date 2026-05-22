@@ -28,6 +28,7 @@ struct SelectableReaderText: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         textView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        textView.delegate = textView
         textView.selectionContext = selectionContext
         textView.onSelectionChange = onSelectionChange
         return textView
@@ -40,7 +41,13 @@ struct SelectableReaderText: NSViewRepresentable {
         }
         let attributed = attributedString()
         if textView.attributedString() != attributed {
-            textView.textStorage?.setAttributedString(attributed)
+            if let textView = textView as? ContextTextView {
+                textView.performWithoutSelectionNotification {
+                    textView.textStorage?.setAttributedString(attributed)
+                }
+            } else {
+                textView.textStorage?.setAttributedString(attributed)
+            }
         }
         textView.typingAttributes = attributes()
         textView.selectedTextAttributes = [
@@ -105,6 +112,7 @@ struct SelectableReaderText: NSViewRepresentable {
 final class ContextTextView: NSTextView {
     var selectionContext: (() -> SentenceContext?)?
     var onSelectionChange: ((SelectedTextContext?) -> Void)?
+    private var suppressSelectionNotification = false
 
     override func accessibilityHelp() -> String? {
         selectionContext?()?.fullSentence ?? super.accessibilityHelp()
@@ -120,7 +128,17 @@ final class ContextTextView: NSTextView {
         notifySelectionChange()
     }
 
+    func performWithoutSelectionNotification(_ update: () -> Void) {
+        suppressSelectionNotification = true
+        update()
+        suppressSelectionNotification = false
+    }
+
     private func notifySelectionChange() {
+        guard !suppressSelectionNotification else {
+            return
+        }
+
         let range = selectedRange()
         guard range.location != NSNotFound,
               range.length > 0,
@@ -143,5 +161,11 @@ final class ContextTextView: NSTextView {
                 sentenceContext: selectionContext?()
             )
         )
+    }
+}
+
+extension ContextTextView: NSTextViewDelegate {
+    func textViewDidChangeSelection(_ notification: Notification) {
+        notifySelectionChange()
     }
 }
