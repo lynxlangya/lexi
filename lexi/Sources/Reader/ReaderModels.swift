@@ -41,4 +41,19 @@ extension ReaderBook {
         coverBg = book.coverBg
         coverInk = book.coverInk
     }
+
+    func updatingProgress(_ nextProgress: Double, lastReadAt nextLastReadAt: Date) -> ReaderBook {
+        ReaderBook(
+            id: id,
+            title: title,
+            author: author,
+            fileURL: fileURL,
+            addedAt: addedAt,
+            lastReadAt: nextLastReadAt,
+            progress: nextProgress,
+            coverData: coverData,
+            coverBg: coverBg,
+            coverInk: coverInk
+        )
+    }
 }

@@ -763,16 +763,27 @@ private struct ReaderWindowContent: View {
     }
 
     private func persistScroll(_ context: ScrollPersistenceContext) async {
-        try? await context.database.updateBookProgress(id: context.bookId, progress: context.bookProgress)
+        let updatedAt = Date()
+        try? await context.database.updateBookProgress(id: context.bookId, progress: context.bookProgress, at: updatedAt)
         try? await context.database.upsertProgress(
             ProgressRecord(
                 bookId: context.bookId,
                 chapterIdx: context.chapterIndex,
                 scrollPct: Double(context.paragraphIndex),
-                updatedAt: Date()
+                updatedAt: updatedAt
             )
         )
-        try? await reloadShelf(from: context.database)
+        updateInMemoryProgress(bookId: context.bookId, progress: context.bookProgress, at: updatedAt)
+    }
+
+    private func updateInMemoryProgress(bookId: String, progress: Double, at updatedAt: Date) {
+        let clampedProgress = max(0, min(1, progress))
+        if let currentBook = book, currentBook.id == bookId {
+            book = currentBook.updatingProgress(clampedProgress, lastReadAt: updatedAt)
+        }
+        if let index = shelfBooks.firstIndex(where: { $0.id == bookId }) {
+            shelfBooks[index] = shelfBooks[index].updatingProgress(clampedProgress, lastReadAt: updatedAt)
+        }
     }
 
     private func currentParagraphIndex(in chapter: ReaderChapter) -> Int {

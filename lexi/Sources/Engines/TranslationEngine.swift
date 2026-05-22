@@ -120,8 +120,16 @@ nonisolated protocol EngineHTTPClient: Sendable {
 nonisolated struct URLSessionEngineHTTPClient: EngineHTTPClient {
     private let session: URLSession
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil) {
+        if let session {
+            self.session = session
+        } else {
+            let configuration = URLSessionConfiguration.default
+            configuration.waitsForConnectivity = true
+            configuration.timeoutIntervalForRequest = 30
+            configuration.timeoutIntervalForResource = 180
+            self.session = URLSession(configuration: configuration)
+        }
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {

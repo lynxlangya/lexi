@@ -42,6 +42,44 @@ final class ReaderTranslationControllerTests: XCTestCase {
         XCTAssertEqual(client.requestCount, 2)
     }
 
+    func testStreamingParagraphPersistsOnlyAfterStreamFinishes() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["streaming"])
+        let client = ControlledReaderEngineHTTPClient()
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+        await waitUntil("stream starts") {
+            client.hasStream
+        }
+
+        client.yield(#"data: {"choices":[{"delta":{"content":"partial "}}]}"#)
+        await waitUntil("partial text is visible in memory") {
+            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) == .cached("partial ")
+        }
+
+        let partialTranslation = try await database.cachedTranslation(
+            paragraphId: chapter.paragraphs[0].id,
+            engine: .deepseek,
+            model: "deepseek-chat"
+        )
+        XCTAssertNil(partialTranslation)
+
+        client.yield(#"data: {"choices":[{"delta":{"content":"done"}}]}"#)
+        client.yield("data: [DONE]")
+        client.finish()
+
+        await waitUntilAsync("final translation is persisted") {
+            let stored = try? await database.cachedTranslation(
+                paragraphId: chapter.paragraphs[0].id,
+                engine: .deepseek,
+                model: "deepseek-chat"
+            )
+            return stored == "partial done"
+        }
+    }
+
     func testCachedChapterDoesNotCallEngine() async throws {
         let database = try AppDatabase.makeTransient()
         let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["cached"])
@@ -476,6 +514,21 @@ final class ReaderTranslationControllerTests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if condition() {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Timed out waiting for \(description)")
+    }
+
+    private func waitUntilAsync(
+        _ description: String,
+        timeout: TimeInterval = 2,
+        condition: @escaping () async -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() {
                 return
             }
             try? await Task.sleep(nanoseconds: 20_000_000)
