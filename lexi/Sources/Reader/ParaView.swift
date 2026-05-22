@@ -54,7 +54,7 @@ struct ParaView: View {
     private var englishText: some View {
         SelectableReaderText(
             text: paragraph.en,
-            font: preferences.font.nsSerif(enSize),
+            font: preferences.sourceFont.nsSerif(enSize),
             lineSpacing: enSize * preferences.lineHeight.englishSpacingRatio,
             foregroundColor: preferences.theme.ink,
             selectionColor: preferences.accent.primary.opacity(0.28),
@@ -128,7 +128,7 @@ struct ParaView: View {
     private func selectableTranslation(_ zh: String) -> some View {
         SelectableReaderText(
             text: zh,
-            font: LexiFont.nsSans(zhSize),
+            font: preferences.targetFont.nsFont(zhSize),
             lineSpacing: zhSize * preferences.lineHeight.chineseSpacingRatio,
             foregroundColor: preferences.theme.ink2,
             selectionColor: preferences.accent.primary.opacity(0.28),

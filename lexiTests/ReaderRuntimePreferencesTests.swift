@@ -7,6 +7,23 @@ final class ReaderRuntimePreferencesTests: XCTestCase {
         XCTAssertEqual(ReaderFontChoice(storageValue: "unknown"), .newYork)
     }
 
+    func testReaderTargetFontChoiceFallsBackToSystemForUnknownStorageValue() {
+        XCTAssertEqual(ReaderTargetFontChoice(storageValue: "unknown"), .system)
+    }
+
+    func testRuntimePreferencesKeepSourceAndTargetFontsSeparate() {
+        let preferences = ReaderRuntimePreferences(
+            sourceFont: ReaderFontChoice.georgia.rawValue,
+            targetFont: ReaderTargetFontChoice.songtiSC.rawValue,
+            lineHeight: "normal",
+            theme: ReaderThemeMode.day.storageValue,
+            accent: "copper"
+        )
+
+        XCTAssertEqual(preferences.sourceFont, .georgia)
+        XCTAssertEqual(preferences.targetFont, .songtiSC)
+    }
+
     func testReaderLineHeightChoiceKeepsNormalSpacingAsCurrentDefault() {
         let lineHeight = ReaderLineHeightChoice(storageValue: "normal")
 

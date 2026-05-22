@@ -75,7 +75,7 @@ struct TOCSidebar: View {
     private var bookHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(book.title)
-                .font(preferences.font.serif(14))
+                .font(preferences.sourceFont.serif(14))
                 .foregroundStyle(preferences.theme.ink)
                 .lineSpacing(14 * 0.3)
                 .fixedSize(horizontal: false, vertical: true)

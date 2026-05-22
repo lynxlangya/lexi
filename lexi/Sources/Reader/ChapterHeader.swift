@@ -12,7 +12,7 @@ struct ChapterHeader: View {
                 .textCase(.uppercase)
 
             Text(chapter.title)
-                .font(preferences.font.serif(24))
+                .font(preferences.sourceFont.serif(24))
                 .foregroundStyle(preferences.theme.ink)
                 .lineSpacing(24 * 0.32)
                 .fixedSize(horizontal: false, vertical: true)
