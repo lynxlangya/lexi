@@ -50,7 +50,7 @@ struct VocabView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.lexiPaper)
             } else {
-                List(filteredEntries, selection: $selection) { entry in
+                List(filteredEntries) { entry in
                     VocabRow(
                         entry: entry,
                         source: source(for: entry),
@@ -59,8 +59,9 @@ struct VocabView: View {
                         requery: { requery(entry) },
                         toggleMastered: { toggleMastered(entry) }
                     )
-                        .tag(entry.id ?? -1)
-                        .listRowBackground(isSelected(entry) ? Color.lexiAccent.opacity(0.10) : Color.lexiPaper)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.lexiPaper)
                 }
                 .listStyle(.inset)
                 .scrollContentBackground(.hidden)
@@ -393,11 +394,19 @@ private struct VocabRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Button(action: toggleSelection) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 15, weight: .medium))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(isSelected ? Color.lexiAccent : Color.lexiInk4)
-                    .frame(width: 18, height: 18)
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? Color.lexiAccent : Color.clear)
+                    Circle()
+                        .stroke(isSelected ? Color.lexiAccent : Color.lexiInk4, lineWidth: isSelected ? 0 : 1.4)
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 8.5, weight: .bold))
+                            .foregroundStyle(Color.white)
+                    }
+                }
+                .frame(width: 17, height: 17)
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .padding(.top, 3)
@@ -454,7 +463,24 @@ private struct VocabRow: View {
                 .padding(.top, 3)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(alignment: .leading) {
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? Color.lexiAccentFaint : Color.clear)
+                if isSelected {
+                    Capsule()
+                        .fill(Color.lexiAccent)
+                        .frame(width: 3)
+                        .padding(.vertical, 8)
+                }
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(isSelected ? Color.lexiAccentSoft : Color.clear, lineWidth: 1)
+        }
     }
 
     private var exampleLine: String? {
