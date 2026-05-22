@@ -77,6 +77,8 @@ final class LexiMenuBarCoordinator: ObservableObject {
     private var activeReaderBookTitle: String?
     private var currentEngine = EngineConfig(id: .deepseek, model: ReaderFixtureStore.defaultModel(for: .deepseek), lastTestedOK: false, lastTestedAt: nil)
     private var popupEngineOverride: EngineConfig?
+    private var activeLookupTask: Task<Void, Never>?
+    private var lookupGeneration: UInt64 = 0
     private var recentWords: [String] = []
     private var openReaderAction: (() -> Void)?
     private var popupEngineSettingsObserver: NSObjectProtocol?
@@ -89,6 +91,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     deinit {
+        activeLookupTask?.cancel()
         if let popupEngineSettingsObserver {
             NotificationCenter.default.removeObserver(popupEngineSettingsObserver)
         }
@@ -175,11 +178,16 @@ final class LexiMenuBarCoordinator: ObservableObject {
 
             let anchor = context.anchor
             popupEngineOverride = nil
-            Task {
+            let generation = beginLookupTask()
+            activeLookupTask = Task {
+                defer { clearLookupTask(generation) }
                 do {
-                    currentEngine = await popupEngineConfig()
+                    let engineConfig = await popupEngineConfig()
+                    guard isCurrentLookup(generation) else { return }
+                    currentEngine = engineConfig
                     show(kind: .loading(text: context.text, isWord: false, engine: currentEngine.id), near: anchor)
                     let translated = try await translateText(context.text, sentenceContext: context.sentenceContext)
+                    guard isCurrentLookup(generation) else { return }
                     if TextReplacement.replaceSelection(with: translated) {
                         closePopup()
                     } else {
@@ -191,7 +199,10 @@ final class LexiMenuBarCoordinator: ObservableObject {
                         )
                         showToast("已复制译文")
                     }
+                } catch is CancellationError {
+                    return
                 } catch {
+                    guard isCurrentLookup(generation) else { return }
                     show(kind: .error(text: context.text, reason: error.localizedDescription), near: anchor)
                 }
             }
@@ -273,9 +284,13 @@ final class LexiMenuBarCoordinator: ObservableObject {
         activeSelectionSource = source
         activeVocabBookId = source == .reader ? activeReaderBookId : nil
         let word = SelectionLookupClassifier.isWord(trimmed)
-        Task {
+        let generation = beginLookupTask()
+        activeLookupTask = Task {
+            defer { clearLookupTask(generation) }
             do {
-                currentEngine = await popupEngineConfig()
+                let engineConfig = await popupEngineConfig()
+                guard isCurrentLookup(generation) else { return }
+                currentEngine = engineConfig
                 show(kind: .loading(text: trimmed, isWord: word, engine: currentEngine.id), near: anchor)
                 let localEntry = word ? LocalDictionary.lookup(trimmed) : nil
                 let enrichedContext = SentenceContext(
@@ -283,11 +298,14 @@ final class LexiMenuBarCoordinator: ObservableObject {
                     bookTitle: sentenceContext?.bookTitle ?? (source == .reader ? activeReaderBookTitle : nil),
                     localDictionary: localEntry
                 )
+                guard isCurrentLookup(generation) else { return }
                 activeSentenceContext = enrichedContext
                 todayQueryCount += 1
                 if word {
                     let result = try await lookupTask(.wordLookup(word: trimmed, context: enrichedContext))
+                    guard isCurrentLookup(generation) else { return }
                     let masteredStatus = await vocabStatus(for: trimmed)
+                    guard isCurrentLookup(generation) else { return }
                     let lookup = makeWordLookup(
                         word: trimmed,
                         result: result,
@@ -298,12 +316,16 @@ final class LexiMenuBarCoordinator: ObservableObject {
                     show(kind: .word(lookup), near: anchor)
                 } else {
                     let translated = try await translateTask(.sentence(text: trimmed, context: enrichedContext))
+                    guard isCurrentLookup(generation) else { return }
                     show(
                         kind: .sentence(SentenceLookup(text: trimmed, zh: translated, engine: currentEngine.id, model: currentEngine.model)),
                         near: anchor
                     )
                 }
+            } catch is CancellationError {
+                return
             } catch {
+                guard isCurrentLookup(generation) else { return }
                 show(kind: .error(text: trimmed, reason: error.localizedDescription), near: anchor)
             }
         }
@@ -376,6 +398,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func closePopup() {
+        cancelActiveLookup()
         panel.close()
         popupVisible = false
     }
@@ -398,6 +421,28 @@ final class LexiMenuBarCoordinator: ObservableObject {
             translate(lookup.word, anchor: activeAnchor, sentenceContext: activeSentenceContext, source: activeSelectionSource)
         default:
             break
+        }
+    }
+
+    private func beginLookupTask() -> UInt64 {
+        activeLookupTask?.cancel()
+        lookupGeneration &+= 1
+        return lookupGeneration
+    }
+
+    private func cancelActiveLookup() {
+        activeLookupTask?.cancel()
+        activeLookupTask = nil
+        lookupGeneration &+= 1
+    }
+
+    private func isCurrentLookup(_ generation: UInt64) -> Bool {
+        generation == lookupGeneration && !Task.isCancelled
+    }
+
+    private func clearLookupTask(_ generation: UInt64) {
+        if generation == lookupGeneration {
+            activeLookupTask = nil
         }
     }
 
@@ -506,6 +551,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func showPermissionError() {
+        cancelActiveLookup()
         let reason = "需要在系统设置 → 隐私与安全 → 辅助功能中允许 Lexi。"
         show(kind: .permissionError(reason: reason), near: activeAnchor)
     }
@@ -517,6 +563,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private func showEmptySelection() {
+        cancelActiveLookup()
         showToast("请先选中要翻译的文字")
     }
 
