@@ -128,7 +128,8 @@ private struct ReaderWindowContent: View {
     @AppStorage(LexiDefaultsKey.readerFontSize) private var fontSize = 17.0
     @AppStorage(LexiDefaultsKey.readerTranslationMode) private var transModeRaw = ReaderTranslationMode.both.rawValue
     @AppStorage(LexiDefaultsKey.readerPrefetch) private var prefetchCount = 1
-    @AppStorage(LexiDefaultsKey.readerSerif) private var serif = "New York"
+    @AppStorage(LexiDefaultsKey.readerSourceFont) private var sourceFont = ReaderFontChoice.defaultValue.rawValue
+    @AppStorage(LexiDefaultsKey.readerTargetFont) private var targetFont = ReaderTargetFontChoice.defaultValue.rawValue
     @AppStorage(LexiDefaultsKey.readerLineHeight) private var lineHeight = "normal"
     @AppStorage(LexiDefaultsKey.readerTheme) private var theme = ReaderThemeMode.system.storageValue
     @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
@@ -138,7 +139,8 @@ private struct ReaderWindowContent: View {
 
     private var preferences: ReaderRuntimePreferences {
         ReaderRuntimePreferences(
-            serif: serif,
+            sourceFont: sourceFont,
+            targetFont: targetFont,
             lineHeight: lineHeight,
             theme: themeMode.storageValue,
             accent: accent,

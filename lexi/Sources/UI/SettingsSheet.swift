@@ -27,7 +27,8 @@ struct SettingsSheet: View {
     @AppStorage(LexiDefaultsKey.engineDefaultChapter) private var defaultChapterEngine = EngineID.deepseek.rawValue
     @AppStorage(LexiDefaultsKey.engineDefaultPopup) private var defaultPopupEngine = EngineID.deepseek.rawValue
     @AppStorage(LexiDefaultsKey.readerFontSize) private var fontSize = 17.0
-    @AppStorage(LexiDefaultsKey.readerSerif) private var serif = "New York"
+    @AppStorage(LexiDefaultsKey.readerSourceFont) private var sourceFont = ReaderFontChoice.defaultValue.rawValue
+    @AppStorage(LexiDefaultsKey.readerTargetFont) private var targetFont = ReaderTargetFontChoice.defaultValue.rawValue
     @AppStorage(LexiDefaultsKey.readerLineHeight) private var lineHeight = "normal"
     @AppStorage(LexiDefaultsKey.readerTranslationMode) private var transMode = ReaderTranslationMode.both.rawValue
     @AppStorage(LexiDefaultsKey.readerParagraphLayout) private var paragraphLayout = ReaderParagraphLayout.defaultValue.rawValue
@@ -404,15 +405,16 @@ struct SettingsSheet: View {
                             .frame(width: 200)
                     }
                 }
-                SettingsRow(label: "衬线字体") {
+                SettingsRow(label: "原文字体", hint: "用于章节标题和原文段落") {
                     SettingsSelect(
-                        value: $serif,
-                        options: [
-                            ("New York", "New York"),
-                            ("Charter", "Charter"),
-                            ("Iowan Old Style", "Iowan Old Style"),
-                            ("Georgia", "Georgia"),
-                        ]
+                        value: $sourceFont,
+                        options: sourceFontOptions
+                    )
+                }
+                SettingsRow(label: "译文字体", hint: "用于目标语言段落") {
+                    SettingsSelect(
+                        value: $targetFont,
+                        options: targetFontOptions
                     )
                 }
                 SettingsRow(label: "行距", hint: "影响 EN 正文，ZH 自动 +6%", isLast: true) {
@@ -494,6 +496,25 @@ struct SettingsSheet: View {
 
     private var engineOptions: [(String, String)] {
         EngineID.allCases.map { ($0.rawValue, $0.displayName) }
+    }
+
+    private var sourceFontOptions: [(String, String)] {
+        [
+            (ReaderFontChoice.newYork.rawValue, "New York"),
+            (ReaderFontChoice.charter.rawValue, "Charter"),
+            (ReaderFontChoice.iowanOldStyle.rawValue, "Iowan Old Style"),
+            (ReaderFontChoice.georgia.rawValue, "Georgia"),
+        ]
+    }
+
+    private var targetFontOptions: [(String, String)] {
+        [
+            (ReaderTargetFontChoice.system.rawValue, "系统默认"),
+            (ReaderTargetFontChoice.pingFangSC.rawValue, "苹方"),
+            (ReaderTargetFontChoice.songtiSC.rawValue, "宋体"),
+            (ReaderTargetFontChoice.kaitiSC.rawValue, "楷体"),
+            (ReaderTargetFontChoice.hiraginoSansGB.rawValue, "冬青黑体"),
+        ]
     }
 
     private var accentOptions: [(String, Color)] {

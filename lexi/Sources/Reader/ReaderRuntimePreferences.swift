@@ -7,8 +7,10 @@ enum ReaderFontChoice: String, Equatable {
     case iowanOldStyle = "Iowan Old Style"
     case georgia = "Georgia"
 
+    static let defaultValue: ReaderFontChoice = .newYork
+
     init(storageValue: String) {
-        self = Self(rawValue: storageValue) ?? .newYork
+        self = Self(rawValue: storageValue) ?? Self.defaultValue
     }
 
     func serif(_ size: CGFloat) -> Font {
@@ -51,6 +53,44 @@ enum ReaderFontChoice: String, Equatable {
             }
         }
         return LexiFont.nsSerif(size)
+    }
+}
+
+enum ReaderTargetFontChoice: String, Equatable {
+    case system = "system"
+    case pingFangSC = "PingFang SC"
+    case songtiSC = "Songti SC"
+    case kaitiSC = "Kaiti SC"
+    case hiraginoSansGB = "Hiragino Sans GB"
+
+    static let defaultValue: ReaderTargetFontChoice = .system
+
+    init(storageValue: String) {
+        self = Self(rawValue: storageValue) ?? Self.defaultValue
+    }
+
+    func nsFont(_ size: CGFloat) -> NSFont {
+        switch self {
+        case .system:
+            return LexiFont.nsSans(size)
+        case .pingFangSC:
+            return customNSFont(["PingFangSC-Regular", "PingFang SC"], size: size)
+        case .songtiSC:
+            return customNSFont(["STSongti-SC-Regular", "STSongti-SC-Light", "Songti SC"], size: size)
+        case .kaitiSC:
+            return customNSFont(["STKaitiSC-Regular", "Kaiti SC"], size: size)
+        case .hiraginoSansGB:
+            return customNSFont(["HiraginoSansGB-W3", "Hiragino Sans GB"], size: size)
+        }
+    }
+
+    private func customNSFont(_ names: [String], size: CGFloat) -> NSFont {
+        for name in names {
+            if let font = NSFont(name: name, size: size) {
+                return font
+            }
+        }
+        return LexiFont.nsSans(size)
     }
 }
 
@@ -295,7 +335,8 @@ struct ReaderAccentChoice {
 }
 
 struct ReaderRuntimePreferences {
-    let font: ReaderFontChoice
+    let sourceFont: ReaderFontChoice
+    let targetFont: ReaderTargetFontChoice
     let lineHeight: ReaderLineHeightChoice
     let theme: ReaderThemeChoice
     let accent: ReaderAccentChoice
@@ -303,7 +344,8 @@ struct ReaderRuntimePreferences {
     let paragraphLayout: ReaderParagraphLayout
 
     init(
-        serif: String,
+        sourceFont: String,
+        targetFont: String,
         lineHeight: String,
         theme: String,
         accent: String,
@@ -311,7 +353,8 @@ struct ReaderRuntimePreferences {
         paragraphLayout: String = ReaderParagraphLayout.defaultValue.rawValue,
         systemColorScheme: ColorScheme = .light
     ) {
-        font = ReaderFontChoice(storageValue: serif)
+        self.sourceFont = ReaderFontChoice(storageValue: sourceFont)
+        self.targetFont = ReaderTargetFontChoice(storageValue: targetFont)
         self.lineHeight = ReaderLineHeightChoice(storageValue: lineHeight)
         self.theme = ReaderThemeChoice(
             mode: ReaderThemeMode(storageValue: theme),
