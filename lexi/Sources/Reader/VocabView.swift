@@ -8,6 +8,7 @@ struct VocabView: View {
     let showToast: (String) -> Void
     let onChanged: () -> Void
 
+    @AppStorage("reader.accent") private var accent = "copper"
     @State private var entries: [VocabEntry] = []
     @State private var bookTitles: [String: String] = [:]
     @State private var search = ""
@@ -55,6 +56,7 @@ struct VocabView: View {
                         entry: entry,
                         source: source(for: entry),
                         isSelected: isSelected(entry),
+                        accent: accentChoice,
                         toggleSelection: { toggleSelection(entry) },
                         requery: { requery(entry) },
                         toggleMastered: { toggleMastered(entry) }
@@ -232,6 +234,10 @@ struct VocabView: View {
         Set(filteredEntries.compactMap(\.id))
     }
 
+    private var accentChoice: ReaderAccentChoice {
+        ReaderAccentChoice(storageValue: accent)
+    }
+
     private var allVisibleSelected: Bool {
         !visibleEntryIDs.isEmpty && visibleEntryIDs.isSubset(of: selection)
     }
@@ -387,6 +393,7 @@ private struct VocabRow: View {
     let entry: VocabEntry
     let source: String
     let isSelected: Bool
+    let accent: ReaderAccentChoice
     let toggleSelection: () -> Void
     let requery: () -> Void
     let toggleMastered: () -> Void
@@ -396,9 +403,9 @@ private struct VocabRow: View {
             Button(action: toggleSelection) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? Color.lexiAccent : Color.clear)
+                        .fill(isSelected ? accent.primary : Color.clear)
                     Circle()
-                        .stroke(isSelected ? Color.lexiAccent : Color.lexiInk4, lineWidth: isSelected ? 0 : 1.4)
+                        .stroke(isSelected ? accent.primary : Color.lexiInk4, lineWidth: isSelected ? 0 : 1.4)
                     if isSelected {
                         Image(systemName: "checkmark")
                             .font(.system(size: 8.5, weight: .bold))
@@ -468,10 +475,10 @@ private struct VocabRow: View {
         .background(alignment: .leading) {
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? Color.lexiAccentFaint : Color.clear)
+                    .fill(isSelected ? accent.faint : Color.clear)
                 if isSelected {
                     Capsule()
-                        .fill(Color.lexiAccent)
+                        .fill(accent.primary)
                         .frame(width: 3)
                         .padding(.vertical, 8)
                 }
@@ -479,7 +486,7 @@ private struct VocabRow: View {
         }
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isSelected ? Color.lexiAccentSoft : Color.clear, lineWidth: 1)
+                .stroke(isSelected ? accent.soft : Color.clear, lineWidth: 1)
         }
     }
 
