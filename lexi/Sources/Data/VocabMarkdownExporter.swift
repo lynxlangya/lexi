@@ -40,7 +40,7 @@ nonisolated enum VocabMarkdownExporter {
 
     private static func source(for entry: VocabEntry, bookTitles: [String: String]) -> String {
         guard let bookId = entry.seenInBookIds.first else {
-            return "MenuBar"
+            return entry.seenGlobally ? "全局划词" : "未知来源"
         }
         return bookTitles[bookId] ?? bookId
     }

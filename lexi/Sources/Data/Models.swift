@@ -55,6 +55,7 @@ struct VocabEntry: Codable, Equatable, Identifiable, Sendable {
     var exampleEN: String?
     var exampleZH: String?
     var seenInBooks: String
+    var seenGlobally: Bool
     var mastered: Bool
     var addedAt: Date
     var updatedAt: Date
@@ -77,8 +78,12 @@ extension VocabEntry {
         word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    var seenInBookIds: [String] {
+    nonisolated var seenInBookIds: [String] {
         (try? JSONDecoder().decode([String].self, from: Data(seenInBooks.utf8))) ?? []
+    }
+
+    nonisolated var isGlobalSource: Bool {
+        seenGlobally
     }
 }
 

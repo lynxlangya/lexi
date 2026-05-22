@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ReadingColumn: View {
+    let bookTitle: String
     let chapter: ReaderChapter
     let previousChapter: ReaderChapter?
     let nextChapter: ReaderChapter?
@@ -38,7 +39,7 @@ struct ReadingColumn: View {
                                         source: .reader,
                                         sentenceContext: SentenceContext(
                                             fullSentence: paragraph.en,
-                                            bookTitle: chapter.title
+                                            bookTitle: bookTitle
                                         )
                                     )
                                 }

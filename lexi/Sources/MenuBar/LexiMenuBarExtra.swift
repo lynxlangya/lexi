@@ -71,6 +71,10 @@ final class LexiMenuBarCoordinator: ObservableObject {
     private var activeKind: PopupKind?
     private var activeAnchor = CGRect(x: 600, y: 480, width: 36, height: 24)
     private var activeSentenceContext: SentenceContext?
+    private var activeSelectionSource = SelectionSource.global
+    private var activeVocabBookId: String?
+    private var activeReaderBookId: String?
+    private var activeReaderBookTitle: String?
     private var currentEngine = EngineConfig(id: .deepseek, model: ReaderFixtureStore.defaultModel(for: .deepseek), lastTestedOK: false, lastTestedAt: nil)
     private var popupEngineOverride: EngineConfig?
     private var recentWords: [String] = []
@@ -127,11 +131,26 @@ final class LexiMenuBarCoordinator: ObservableObject {
         openReaderAction = action
     }
 
+    func setActiveReaderBook(id: String, title: String) {
+        activeReaderBookId = id
+        activeReaderBookTitle = title
+    }
+
+    func clearActiveReaderBook() {
+        activeReaderBookId = nil
+        activeReaderBookTitle = nil
+    }
+
     func translateCurrentSelection() {
         switch selectedTextContext(promptForPermission: true) {
         case .success(let context):
             popupEngineOverride = nil
-            translate(context.text, anchor: context.anchor, sentenceContext: context.sentenceContext)
+            translate(
+                context.text,
+                anchor: context.anchor,
+                sentenceContext: context.sentenceContext,
+                source: context.source
+            )
         case .failure(.accessibilityDenied):
             showPermissionError()
         case .failure(.emptySelection):
@@ -144,7 +163,12 @@ final class LexiMenuBarCoordinator: ObservableObject {
         case .success(let context):
             guard context.source != .reader else {
                 popupEngineOverride = nil
-                translate(context.text, anchor: context.anchor, sentenceContext: context.sentenceContext)
+                translate(
+                    context.text,
+                    anchor: context.anchor,
+                    sentenceContext: context.sentenceContext,
+                    source: context.source
+                )
                 showToast("阅读器正文不可替换，已改为划词翻译")
                 return
             }
@@ -234,13 +258,20 @@ final class LexiMenuBarCoordinator: ObservableObject {
         SelectionMonitor.currentSelectionResult(promptForPermission: promptForPermission)
     }
 
-    private func translate(_ text: String, anchor: CGRect, sentenceContext: SentenceContext? = nil) {
+    private func translate(
+        _ text: String,
+        anchor: CGRect,
+        sentenceContext: SentenceContext? = nil,
+        source: SelectionSource = .global
+    ) {
         let trimmed = SelectionLookupClassifier.normalizedText(text)
         guard SelectionLookupClassifier.canTranslate(trimmed) else {
             showEmptySelection()
             return
         }
 
+        activeSelectionSource = source
+        activeVocabBookId = source == .reader ? activeReaderBookId : nil
         let word = SelectionLookupClassifier.isWord(trimmed)
         Task {
             do {
@@ -249,7 +280,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
                 let localEntry = word ? LocalDictionary.lookup(trimmed) : nil
                 let enrichedContext = SentenceContext(
                     fullSentence: sentenceContext?.fullSentence,
-                    bookTitle: sentenceContext?.bookTitle,
+                    bookTitle: sentenceContext?.bookTitle ?? (source == .reader ? activeReaderBookTitle : nil),
                     localDictionary: localEntry
                 )
                 activeSentenceContext = enrichedContext
@@ -360,11 +391,11 @@ final class LexiMenuBarCoordinator: ObservableObject {
     private func retryActive() {
         switch activeKind {
         case .error(let text, _):
-            translate(text, anchor: activeAnchor, sentenceContext: activeSentenceContext)
+            translate(text, anchor: activeAnchor, sentenceContext: activeSentenceContext, source: activeSelectionSource)
         case .sentence(let lookup):
-            translate(lookup.text, anchor: activeAnchor, sentenceContext: activeSentenceContext)
+            translate(lookup.text, anchor: activeAnchor, sentenceContext: activeSentenceContext, source: activeSelectionSource)
         case .word(let lookup):
-            translate(lookup.word, anchor: activeAnchor, sentenceContext: activeSentenceContext)
+            translate(lookup.word, anchor: activeAnchor, sentenceContext: activeSentenceContext, source: activeSelectionSource)
         default:
             break
         }
@@ -399,7 +430,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
                 usIPA: snapshot.usIPA,
                 exampleEN: snapshot.exampleEN,
                 exampleZH: snapshot.exampleZH,
-                bookId: nil
+                bookId: activeVocabBookId
             )
             refreshVocabCount()
             switch result {

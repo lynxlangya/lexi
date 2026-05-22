@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct VocabView: View {
     let database: AppDatabase?
@@ -17,7 +16,6 @@ struct VocabView: View {
     @State private var masteryFilter = VocabMasteryFilter.unmastered
     @State private var todayOnly = false
     @State private var stats = VocabStats(total: 0, addedToday: 0, unmastered: 0)
-    @State private var exportDocument: VocabMarkdownDocument?
 
     init(
         database: AppDatabase?,
@@ -56,11 +54,13 @@ struct VocabView: View {
                     VocabRow(
                         entry: entry,
                         source: source(for: entry),
+                        isSelected: isSelected(entry),
+                        toggleSelection: { toggleSelection(entry) },
                         requery: { requery(entry) },
                         toggleMastered: { toggleMastered(entry) }
                     )
                         .tag(entry.id ?? -1)
-                        .listRowBackground(Color.lexiPaper)
+                        .listRowBackground(isSelected(entry) ? Color.lexiAccent.opacity(0.10) : Color.lexiPaper)
                 }
                 .listStyle(.inset)
                 .scrollContentBackground(.hidden)
@@ -75,18 +75,8 @@ struct VocabView: View {
                 .stroke(Color.lexiRule, lineWidth: 1)
         }
         .task(load)
-        .fileExporter(
-            isPresented: Binding(
-                get: { exportDocument != nil },
-                set: { if !$0 { exportDocument = nil } }
-            ),
-            document: exportDocument,
-            contentType: .plainText,
-            defaultFilename: exportFilename
-        ) { result in
-            if case .failure(let error) = result {
-                showToast("导出失败 · \(error.localizedDescription)")
-            }
+        .onChange(of: visibleEntryIDs) { _, ids in
+            selection.formIntersection(ids)
         }
     }
 
@@ -130,8 +120,8 @@ struct VocabView: View {
                 .textFieldStyle(.plain)
                 .font(LexiFont.zh(12.5))
             Picker("来源", selection: $bookFilter) {
-                Text("全部书").tag(VocabBookFilter.all)
-                Text("MenuBar").tag(VocabBookFilter.menuBarOnly)
+                Text("全部来源").tag(VocabBookFilter.all)
+                Text("全局划词").tag(VocabBookFilter.global)
                 ForEach(bookFilterOptions, id: \.id) { option in
                     Text(option.title).tag(VocabBookFilter.specific(option.id))
                 }
@@ -147,17 +137,18 @@ struct VocabView: View {
             .frame(width: 120)
             Spacer()
             Button {
-                exportVisibleEntries()
+                toggleAllVisibleSelection()
             } label: {
-                Label("导出", systemImage: "square.and.arrow.up")
+                Label(allVisibleSelected ? "取消全选" : "全选", systemImage: allVisibleSelected ? "checkmark.circle" : "checkmark.circle.fill")
                     .font(LexiFont.zh(12))
             }
             .buttonStyle(.plain)
             .disabled(filteredEntries.isEmpty)
+
             Button(role: .destructive) {
                 deleteSelected()
             } label: {
-                Label("删除选中", systemImage: "trash")
+                Label(selection.isEmpty ? "删除选中" : "删除选中 \(selection.count)", systemImage: "trash")
                     .font(LexiFont.zh(12))
             }
             .disabled(selection.isEmpty)
@@ -236,6 +227,14 @@ struct VocabView: View {
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
+    private var visibleEntryIDs: Set<Int64> {
+        Set(filteredEntries.compactMap(\.id))
+    }
+
+    private var allVisibleSelected: Bool {
+        !visibleEntryIDs.isEmpty && visibleEntryIDs.isSubset(of: selection)
+    }
+
     private func load() async {
         entries = (try? await database?.allVocabEntries()) ?? []
         bookTitles = (try? await database?.bookTitlesById()) ?? [:]
@@ -243,18 +242,26 @@ struct VocabView: View {
     }
 
     private func source(for entry: VocabEntry) -> String {
-        guard let bookId = entry.seenInBookIds.first else {
-            return "MenuBar"
+        var parts: [String] = []
+        if entry.seenGlobally {
+            parts.append("全局划词")
         }
-        return bookTitles[bookId] ?? bookId
+
+        let bookNames = entry.seenInBookIds.map { bookTitles[$0] ?? $0 }
+        parts.append(contentsOf: bookNames.prefix(2))
+        if bookNames.count > 2 {
+            parts.append("+\(bookNames.count - 2)")
+        }
+
+        return parts.isEmpty ? "未知来源" : parts.joined(separator: " · ")
     }
 
     private func matchesBookFilter(_ entry: VocabEntry) -> Bool {
         switch bookFilter {
         case .all:
             return true
-        case .menuBarOnly:
-            return entry.seenInBookIds.isEmpty
+        case .global:
+            return entry.seenGlobally
         case .specific(let bookId):
             return entry.seenInBookIds.contains(bookId)
         }
@@ -308,6 +315,32 @@ struct VocabView: View {
         }
     }
 
+    private func isSelected(_ entry: VocabEntry) -> Bool {
+        guard let id = entry.id else {
+            return false
+        }
+        return selection.contains(id)
+    }
+
+    private func toggleSelection(_ entry: VocabEntry) {
+        guard let id = entry.id else {
+            return
+        }
+        if selection.contains(id) {
+            selection.remove(id)
+        } else {
+            selection.insert(id)
+        }
+    }
+
+    private func toggleAllVisibleSelection() {
+        if allVisibleSelected {
+            selection.subtract(visibleEntryIDs)
+        } else {
+            selection.formUnion(visibleEntryIDs)
+        }
+    }
+
     private func requery(_ entry: VocabEntry) {
         guard let id = entry.id, let database else {
             return
@@ -347,45 +380,28 @@ struct VocabView: View {
         alert.addButton(withTitle: "删除")
         return alert.runModal() == .alertSecondButtonReturn
     }
-
-    private func exportVisibleEntries() {
-        let markdown = VocabMarkdownExporter.markdown(
-            entries: filteredEntries,
-            bookTitles: bookTitles,
-            filterDescription: exportFilterDescription
-        )
-        exportDocument = VocabMarkdownDocument(markdown: markdown)
-    }
-
-    private var exportFilterDescription: String {
-        let datePart = todayOnly ? "今日新增" : masteryFilter.title
-        let sourcePart: String
-        switch bookFilter {
-        case .all:
-            sourcePart = "全部书"
-        case .menuBarOnly:
-            sourcePart = "MenuBar"
-        case .specific(let id):
-            sourcePart = bookTitles[id] ?? id
-        }
-        return "\(datePart) · \(sourcePart)"
-    }
-
-    private var exportFilename: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd"
-        return "Lexi-Vocab-\(formatter.string(from: Date())).md"
-    }
 }
 
 private struct VocabRow: View {
     let entry: VocabEntry
     let source: String
+    let isSelected: Bool
+    let toggleSelection: () -> Void
     let requery: () -> Void
     let toggleMastered: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
+            Button(action: toggleSelection) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 15, weight: .medium))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(isSelected ? Color.lexiAccent : Color.lexiInk4)
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 3)
+
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(entry.word)
@@ -417,6 +433,7 @@ private struct VocabRow: View {
                 Text(source)
                     .font(LexiFont.zh(11.5))
                     .foregroundStyle(Color.lexiInk2)
+                    .lineLimit(1)
                 Text(entry.addedAt.formatted(date: .abbreviated, time: .omitted))
                     .font(LexiFont.mono(10.5))
                     .foregroundStyle(Color.lexiInk3)
@@ -454,7 +471,7 @@ private struct VocabRow: View {
 enum VocabBookFilter: Equatable, Hashable {
     case all
     case specific(String)
-    case menuBarOnly
+    case global
 }
 
 enum VocabMasteryFilter: CaseIterable, Equatable, Hashable {
@@ -471,23 +488,5 @@ enum VocabMasteryFilter: CaseIterable, Equatable, Hashable {
         case .all:
             return "全部"
         }
-    }
-}
-
-struct VocabMarkdownDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.plainText] }
-
-    var markdown: String
-
-    init(markdown: String) {
-        self.markdown = markdown
-    }
-
-    init(configuration: ReadConfiguration) throws {
-        markdown = ""
-    }
-
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: Data(markdown.utf8))
     }
 }

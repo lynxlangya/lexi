@@ -254,7 +254,7 @@ private struct ReaderWindowContent: View {
             showsSettings = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .lexiOpenVocab)) { _ in
-            openAllVocab()
+            openGlobalVocab()
         }
         .onChange(of: coordinator.hasPendingVocabOpenRequest) { _, pending in
             guard pending else {
@@ -334,6 +334,7 @@ private struct ReaderWindowContent: View {
                         }
 
                         ReadingColumn(
+                            bookTitle: book.title,
                             chapter: selectedChapter,
                             previousChapter: chapters[safe: selectedChapterIndex - 1],
                             nextChapter: chapters[safe: selectedChapterIndex + 1],
@@ -361,7 +362,7 @@ private struct ReaderWindowContent: View {
                         themeMode: themeMode,
                         preferences: preferences,
                         cycleThemeMode: cycleThemeMode,
-                        openVocab: openAllVocab,
+                        openVocab: { openVocab(for: book) },
                         openSettings: { showsSettings = true },
                         sidebarVisible: columnVisibility != .detailOnly
                     )
@@ -477,6 +478,7 @@ private struct ReaderWindowContent: View {
             book = loaded.0
             chapters = loaded.1
             controller = nextController
+            coordinator.setActiveReaderBook(id: loaded.0.id, title: loaded.0.title)
 
             let target = ReaderResumeTarget.resolve(
                 continueReading: continueReading,
@@ -537,12 +539,17 @@ private struct ReaderWindowContent: View {
         showsVocab = true
     }
 
+    private func openGlobalVocab() {
+        vocabBookFilter = .global
+        showsVocab = true
+    }
+
     private func presentPendingVocabIfNeeded() {
         guard database != nil,
               coordinator.consumePendingVocabOpenRequest() else {
             return
         }
-        openAllVocab()
+        openGlobalVocab()
     }
 
     private func requestClearCache(_ target: ReaderBook) {
@@ -668,10 +675,14 @@ private struct ReaderWindowContent: View {
     private func returnToShelf() {
         flushVisibleScrollProgress {
             surface = .shelf
+            coordinator.clearActiveReaderBook()
         }
     }
 
     private func resumeReaderFromShelf() {
+        if let book {
+            coordinator.setActiveReaderBook(id: book.id, title: book.title)
+        }
         guard let selectedChapter else {
             surface = .reader
             return

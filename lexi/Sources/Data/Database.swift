@@ -377,27 +377,31 @@ actor AppDatabase {
                 let id: Int64 = existing["id"]
                 let seenInBooks: String = existing["seenInBooks"]
                 let booksJSON = Self.mergedSeenInBooks(existing: seenInBooks, adding: bookId)
+                let markGlobal = bookId == nil ? 1 : 0
 
                 try db.execute(
                     sql: """
                     UPDATE vocab
-                    SET updatedAt = ?, seenInBooks = ?
+                    SET updatedAt = ?,
+                        seenInBooks = ?,
+                        seenGlobally = CASE WHEN ? THEN 1 ELSE seenGlobally END
                     WHERE id = ?
                     """,
-                    arguments: [now.lexiTimestamp, booksJSON, id]
+                    arguments: [now.lexiTimestamp, booksJSON, markGlobal, id]
                 )
                 return .updated(id: id)
             }
 
             let booksJSON = Self.mergedSeenInBooks(existing: "[]", adding: bookId)
+            let seenGlobally = bookId == nil ? 1 : 0
             try db.execute(
                 sql: """
                 INSERT INTO vocab (
                     word, normalizedWord, context, primaryZh, sensesJSON,
                     ukIPA, usIPA, exampleEN, exampleZH, seenInBooks,
-                    mastered, addedAt, updatedAt
+                    seenGlobally, mastered, addedAt, updatedAt
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
                 arguments: [
                     displayWord,
@@ -410,6 +414,7 @@ actor AppDatabase {
                     exampleEN,
                     exampleZH,
                     booksJSON,
+                    seenGlobally,
                     now.lexiTimestamp,
                     now.lexiTimestamp,
                 ]
@@ -489,7 +494,7 @@ actor AppDatabase {
                 return entries.filter { $0.seenInBookIds.contains(bookId) }
             }
 
-            return entries.filter { $0.seenInBookIds.isEmpty }
+            return entries.filter(\.seenGlobally)
         }
     }
 
@@ -725,6 +730,7 @@ private extension VocabEntry {
         exampleEN = row["exampleEN"]
         exampleZH = row["exampleZH"]
         seenInBooks = row["seenInBooks"]
+        seenGlobally = row["seenGlobally"] != 0
         mastered = row["mastered"] != 0
         addedAt = Date(lexiTimestamp: row["addedAt"])
         updatedAt = Date(lexiTimestamp: row["updatedAt"])
