@@ -96,6 +96,48 @@ enum ReaderTranslationStyle: String, Equatable {
     }
 }
 
+enum ReaderParagraphLayout: String, Equatable {
+    case stacked
+    case dual
+
+    static let defaultValue: ReaderParagraphLayout = .dual
+
+    init(storageValue: String) {
+        self = Self(rawValue: storageValue) ?? Self.defaultValue
+    }
+
+    var next: ReaderParagraphLayout {
+        switch self {
+        case .stacked:
+            return .dual
+        case .dual:
+            return .stacked
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .stacked:
+            return "rectangle.split.1x2"
+        case .dual:
+            return "rectangle.split.2x1"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .stacked:
+            return "上下堆叠"
+        case .dual:
+            return "左右双栏"
+        }
+    }
+
+    var nextLabel: String {
+        next.label
+    }
+}
+
 enum ReaderThemeMode: String, Equatable {
     case system
     case day
@@ -258,6 +300,7 @@ struct ReaderRuntimePreferences {
     let theme: ReaderThemeChoice
     let accent: ReaderAccentChoice
     let translationStyle: ReaderTranslationStyle
+    let paragraphLayout: ReaderParagraphLayout
 
     init(
         serif: String,
@@ -265,6 +308,7 @@ struct ReaderRuntimePreferences {
         theme: String,
         accent: String,
         translationStyle: String = ReaderTranslationStyle.demote.rawValue,
+        paragraphLayout: String = ReaderParagraphLayout.defaultValue.rawValue,
         systemColorScheme: ColorScheme = .light
     ) {
         font = ReaderFontChoice(storageValue: serif)
@@ -275,5 +319,6 @@ struct ReaderRuntimePreferences {
         )
         self.accent = ReaderAccentChoice(storageValue: accent)
         self.translationStyle = ReaderTranslationStyle(storageValue: translationStyle)
+        self.paragraphLayout = ReaderParagraphLayout(storageValue: paragraphLayout)
     }
 }

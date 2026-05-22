@@ -3,6 +3,7 @@ import SwiftUI
 struct ShimmerLines: View {
     let fontSize: CGFloat
     let theme: ReaderThemeChoice
+    var preferredLineCount: Int? = nil
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 60)) { context in
@@ -10,10 +11,22 @@ struct ShimmerLines: View {
                 .truncatingRemainder(dividingBy: 1.6) / 1.6
 
             VStack(alignment: .leading, spacing: 6) {
-                shimmerLine(width: 0.92, phase: phase)
-                shimmerLine(width: 0.64, phase: phase + 0.12)
+                ForEach(0..<lineCount, id: \.self) { index in
+                    shimmerLine(
+                        width: width(for: index),
+                        phase: phase + Double(index) * 0.06
+                    )
+                }
             }
         }
+    }
+
+    private var lineCount: Int {
+        max(1, preferredLineCount ?? 2)
+    }
+
+    private func width(for index: Int) -> CGFloat {
+        index == lineCount - 1 ? 0.64 : 0.92
     }
 
     private func shimmerLine(width: CGFloat, phase: Double) -> some View {

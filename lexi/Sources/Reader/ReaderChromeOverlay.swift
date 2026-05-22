@@ -9,6 +9,7 @@ struct ReaderChromeOverlay: View {
     @Binding var columnVisibility: NavigationSplitViewVisibility
     let bookTitle: String
     @Binding var transMode: ReaderTranslationMode
+    @Binding var paragraphLayout: ReaderParagraphLayout
     let themeMode: ReaderThemeMode
     let preferences: ReaderRuntimePreferences
     let cycleThemeMode: () -> Void
@@ -91,6 +92,12 @@ struct ReaderChromeOverlay: View {
                 transMode = transMode.next
             }
 
+            chromeButton(paragraphLayout.iconName, help: paragraphLayoutHelp) {
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    paragraphLayout = paragraphLayout.next
+                }
+            }
+
             chromeButton(themeMode.iconName, help: themeModeHelp, action: cycleThemeMode)
 
             chromeButton("text.book.closed", help: "生词本", action: openVocab)
@@ -125,6 +132,10 @@ struct ReaderChromeOverlay: View {
 
     private var themeModeHelp: String {
         "主题：\(themeMode.label)，点击切换到 \(themeMode.next.label)"
+    }
+
+    private var paragraphLayoutHelp: String {
+        "段落布局：\(paragraphLayout.label)，点击切换到 \(paragraphLayout.nextLabel)"
     }
 }
 

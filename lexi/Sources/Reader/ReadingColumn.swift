@@ -30,6 +30,7 @@ struct ReadingColumn: View {
                             fontSize: fontSize,
                             state: snapshot.paragraphStates[paragraph.id] ?? .translating,
                             transMode: transMode,
+                            layout: activeParagraphLayout,
                             preferences: preferences,
                             onSelectionChange: { context in
                                 selectedTextContext = context.map {
@@ -69,12 +70,13 @@ struct ReadingColumn: View {
                     )
                 }
                 .scrollTargetLayout()
-                .frame(maxWidth: LexiSpacing.contentMax, alignment: .leading)
+                .frame(maxWidth: contentMax, alignment: .leading)
                 .frame(maxWidth: .infinity)
                 .background(ReaderScrollViewStyler(preferences: preferences))
                 .padding(.top, 56)
-                .padding(.horizontal, LexiSpacing.windowPad)
+                .padding(.horizontal, windowPad)
                 .padding(.bottom, 96)
+                .animation(.easeInOut(duration: 0.16), value: activeParagraphLayout)
             }
             .id(chapter.id)
             .coordinateSpace(name: ReaderScrollCoordinateSpace.name)
@@ -93,6 +95,18 @@ struct ReadingColumn: View {
                 proxy.scrollTo(nextId, anchor: .top)
             }
         }
+    }
+
+    private var activeParagraphLayout: ReaderParagraphLayout {
+        transMode == .both ? preferences.paragraphLayout : .stacked
+    }
+
+    private var contentMax: CGFloat {
+        activeParagraphLayout == .dual ? LexiSpacing.contentMaxDual : LexiSpacing.contentMax
+    }
+
+    private var windowPad: CGFloat {
+        activeParagraphLayout == .dual ? LexiSpacing.windowPadDual : LexiSpacing.windowPad
     }
 
     private func reportVisibleParagraph(from offsets: [Int64: CGFloat]) {

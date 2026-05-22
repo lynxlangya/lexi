@@ -5,6 +5,8 @@ enum LexiSpacing {
     static let enZhGap: CGFloat = 6
     static let contentMax: CGFloat = 660
     static let windowPad: CGFloat = 80
+    static let contentMaxDual: CGFloat = 1280
+    static let windowPadDual: CGFloat = 48
 }
 
 enum LexiRadius {

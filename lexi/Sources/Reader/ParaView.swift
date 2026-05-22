@@ -5,6 +5,7 @@ struct ParaView: View {
     let fontSize: Double
     let state: ParagraphTranslationState
     let transMode: ReaderTranslationMode
+    let layout: ReaderParagraphLayout
     let preferences: ReaderRuntimePreferences
     let onSelectionChange: (SelectedTextContext?) -> Void
     let retry: () -> Void
@@ -14,31 +15,58 @@ struct ParaView: View {
     }
 
     private var zhSize: CGFloat {
-        CGFloat(fontSize * 13.5 / 17.0)
+        activeLayout == .dual ? CGFloat(fontSize) : CGFloat(fontSize * 13.5 / 17.0)
     }
 
     var body: some View {
+        content
+            .tint(preferences.accent.primary)
+            .padding(.bottom, LexiSpacing.paraGap)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if transMode == .both, activeLayout == .dual {
+            HStack(alignment: .top, spacing: 40) {
+                englishText
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                translation
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            stackedContent
+        }
+    }
+
+    private var stackedContent: some View {
         VStack(alignment: .leading, spacing: LexiSpacing.enZhGap) {
             if transMode != .zh {
-                SelectableReaderText(
-                    text: paragraph.en,
-                    font: preferences.font.nsSerif(enSize),
-                    lineSpacing: enSize * preferences.lineHeight.englishSpacingRatio,
-                    foregroundColor: preferences.theme.ink,
-                    selectionColor: preferences.accent.primary.opacity(0.28),
-                    selectionContext: {
-                        SentenceContext(fullSentence: paragraph.en)
-                    },
-                    onSelectionChange: onSelectionChange
-                )
+                englishText
             }
 
             if transMode != .en {
                 translation
             }
         }
-        .tint(preferences.accent.primary)
-        .padding(.bottom, LexiSpacing.paraGap)
+    }
+
+    private var englishText: some View {
+        SelectableReaderText(
+            text: paragraph.en,
+            font: preferences.font.nsSerif(enSize),
+            lineSpacing: enSize * preferences.lineHeight.englishSpacingRatio,
+            foregroundColor: preferences.theme.ink,
+            selectionColor: preferences.accent.primary.opacity(0.28),
+            selectionContext: {
+                SentenceContext(fullSentence: paragraph.en)
+            },
+            onSelectionChange: onSelectionChange
+        )
+    }
+
+    private var activeLayout: ReaderParagraphLayout {
+        transMode == .both ? layout : .stacked
     }
 
     @ViewBuilder
@@ -47,7 +75,11 @@ struct ParaView: View {
         case .cached(let zh):
             translatedText(zh)
         case .translating:
-            ShimmerLines(fontSize: zhSize, theme: preferences.theme)
+            ShimmerLines(
+                fontSize: zhSize,
+                theme: preferences.theme,
+                preferredLineCount: activeLayout == .dual ? estimatedDualColumnLineCount : nil
+            )
         case .error:
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -105,5 +137,10 @@ struct ParaView: View {
             },
             onSelectionChange: onSelectionChange
         )
+    }
+
+    private var estimatedDualColumnLineCount: Int {
+        let estimatedChineseCharacters = Double(paragraph.en.count) * 0.55
+        return max(2, Int(ceil(estimatedChineseCharacters / 28.0)))
     }
 }
