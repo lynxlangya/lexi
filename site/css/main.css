@@ -1,0 +1,761 @@
+/* ============================================================
+   Lexi — site/css/main.css
+   Editorial typography, warm paper, sage accent.
+   Fraunces (Latin) + Noto Serif SC (Han) + JetBrains Mono.
+   ============================================================ */
+
+:root {
+  /* Paper & ink */
+  --paper:        #f5efe2;
+  --paper-2:      #ede5d2;
+  --paper-3:      #e6dcc4;
+  --ink:          #2b2620;
+  --ink-2:        #4a4238;
+  --ink-3:        #7a6f5e;
+  --ink-4:        #b5a994;
+
+  /* Rules & dividers */
+  --rule:         #d4c9b1;
+  --rule-2:       #bfb29a;
+
+  /* Sage accent */
+  --accent:       #7d8e5a;
+  --accent-deep:  #5f6e44;
+  --accent-soft:  #d6dfbf;
+  --accent-faint: #ebf0dd;
+
+  /* Type stacks */
+  --serif:    "Fraunces", "Iowan Old Style", "Charter", Georgia, serif;
+  --serif-zh: "Noto Serif SC", "Songti SC", "STSong", "宋体", serif;
+  --mono:     "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Rhythm */
+  --measure:  64ch;
+  --gutter:   clamp(20px, 5vw, 56px);
+}
+
+/* ============================================================
+   Reset / base
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-feature-settings: "kern", "liga", "calt", "onum";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+
+  /* Subtle paper grain + warm radial glow */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 30% 0%, rgba(125, 142, 90, 0.045), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(125, 142, 90, 0.03), transparent 60%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.169 0 0 0 0 0.149 0 0 0 0 0.125 0 0 0 0.035 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-attachment: fixed, fixed, fixed;
+  background-size: auto, auto, 240px 240px;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+em {
+  font-style: italic;
+  font-feature-settings: "kern", "liga";
+}
+
+/* ============================================================
+   Masthead
+   ============================================================ */
+.masthead {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px var(--gutter) 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.wordmark {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 600;
+  font-style: italic;
+  font-variation-settings: "opsz" 144, "wght" 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  transition: color 220ms;
+}
+
+.wordmark:hover {
+  color: var(--accent-deep);
+}
+
+.masthead-nav {
+  display: flex;
+  gap: 28px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.masthead-nav a {
+  font-family: var(--serif);
+  font-size: 13.5px;
+  font-variation-settings: "opsz" 14, "wght" 400;
+  color: var(--ink-2);
+  letter-spacing: 0.005em;
+  transition: color 200ms;
+  position: relative;
+}
+
+.masthead-nav a:hover {
+  color: var(--accent-deep);
+}
+
+.masthead-nav a.external {
+  font-style: italic;
+  color: var(--ink-3);
+}
+
+.masthead-nav a.external:hover {
+  color: var(--accent-deep);
+}
+
+/* ============================================================
+   Hero
+   ============================================================ */
+.hero {
+  max-width: 1180px;
+  margin: clamp(48px, 9vw, 120px) auto clamp(32px, 6vw, 64px);
+  padding: 0 var(--gutter);
+}
+
+.display {
+  font-family: var(--serif);
+  font-size: clamp(56px, 11vw, 152px);
+  line-height: 0.94;
+  font-weight: 400;
+  font-variation-settings: "opsz" 144, "wght" 400;
+  letter-spacing: -0.035em;
+  color: var(--ink);
+  max-width: 14ch;
+}
+
+.display .line {
+  display: block;
+}
+
+.display em {
+  font-style: italic;
+  color: var(--accent-deep);
+  font-variation-settings: "opsz" 144, "wght" 400;
+}
+
+.hero-sub {
+  font-family: var(--serif);
+  font-size: clamp(18px, 1.7vw, 22px);
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 38em;
+  margin-top: clamp(28px, 4vw, 40px);
+  font-variation-settings: "opsz" 24, "wght" 400;
+}
+
+.hero-gloss {
+  font-family: var(--serif-zh);
+  font-size: clamp(13px, 1.1vw, 15px);
+  color: var(--accent-deep);
+  margin-top: 16px;
+  letter-spacing: 0.12em;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.hero-actions {
+  margin-top: clamp(36px, 5vw, 56px);
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.action.primary {
+  font-family: var(--serif);
+  font-size: clamp(17px, 1.5vw, 19px);
+  font-weight: 500;
+  font-variation-settings: "opsz" 24, "wght" 500;
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 2px;
+  transition: color 220ms, border-color 220ms, transform 220ms;
+  display: inline-block;
+}
+
+.action.primary:hover {
+  color: var(--accent-deep);
+  border-color: var(--accent-deep);
+  transform: translateX(2px);
+}
+
+.action-note {
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--ink-3);
+  font-style: italic;
+  font-variation-settings: "opsz" 14;
+}
+
+/* ============================================================
+   Hero image
+   ============================================================ */
+.hero-image {
+  max-width: 1080px;
+  margin: 0 auto clamp(80px, 12vw, 140px);
+  padding: 0 var(--gutter);
+}
+
+.hero-image img {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow:
+    0 1px 2px rgba(43, 38, 32, 0.06),
+    0 8px 32px rgba(43, 38, 32, 0.08),
+    0 32px 96px rgba(43, 38, 32, 0.07);
+  transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hero-image img:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 2px 4px rgba(43, 38, 32, 0.06),
+    0 16px 56px rgba(43, 38, 32, 0.10),
+    0 48px 128px rgba(43, 38, 32, 0.08);
+}
+
+/* ============================================================
+   Prose sections
+   ============================================================ */
+.prose {
+  max-width: 720px;
+  margin: 0 auto clamp(80px, 10vw, 120px);
+  padding: 0 var(--gutter);
+}
+
+.prose p {
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.65;
+  color: var(--ink);
+  margin-bottom: 22px;
+  font-variation-settings: "opsz" 18, "wght" 400;
+  hyphens: auto;
+}
+
+.prose .lead {
+  font-size: clamp(18px, 1.8vw, 21px);
+  line-height: 1.55;
+  color: var(--ink);
+  margin-bottom: 28px;
+  font-variation-settings: "opsz" 24, "wght" 400;
+}
+
+.prose .aside {
+  font-style: italic;
+  color: var(--ink-3);
+  font-size: 16px;
+  line-height: 1.6;
+  margin-top: 32px;
+  padding-left: 20px;
+  border-left: 1px solid var(--rule);
+  max-width: 56ch;
+}
+
+/* ============================================================
+   Section heading: § ‣ Title ‣ Chinese gloss
+   ============================================================ */
+.section-heading {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: clamp(28px, 4vw, 44px);
+  font-family: var(--serif);
+  font-size: clamp(26px, 3.2vw, 36px);
+  font-weight: 500;
+  font-variation-settings: "opsz" 72, "wght" 500;
+  letter-spacing: -0.018em;
+  line-height: 1.1;
+  color: var(--ink);
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.section-heading .mark {
+  font-family: var(--serif);
+  font-style: italic;
+  color: var(--accent-deep);
+  font-size: 0.7em;
+  font-variation-settings: "opsz" 24, "wght" 400;
+  opacity: 0.75;
+}
+
+.section-heading .title {
+  font-variation-settings: "opsz" 72, "wght" 500;
+}
+
+.section-heading .gloss {
+  font-family: var(--serif-zh);
+  font-size: 0.4em;
+  color: var(--ink-3);
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  text-align: right;
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Drop cap
+   ============================================================ */
+.dropcap {
+  float: left;
+  font-family: var(--serif);
+  font-size: 5.4em;
+  line-height: 0.82;
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: "opsz" 144, "wght" 500;
+  color: var(--accent-deep);
+  padding: 0.08em 0.10em 0 0;
+  shape-outside: margin-box;
+}
+
+/* ============================================================
+   Pull quote
+   ============================================================ */
+.pullquote {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: clamp(22px, 2.6vw, 30px);
+  line-height: 1.3;
+  color: var(--ink);
+  font-variation-settings: "opsz" 60, "wght" 400;
+  margin: clamp(40px, 6vw, 64px) auto;
+  padding: 0 0 0 28px;
+  border-left: 3px solid var(--accent);
+  max-width: 28ch;
+  letter-spacing: -0.005em;
+}
+
+.pullquote-zh {
+  display: block;
+  font-family: var(--serif-zh);
+  font-style: normal;
+  font-size: 0.5em;
+  color: var(--ink-3);
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  margin-top: 12px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   Reading demo (the centrepiece)
+   ============================================================ */
+.reading-demo {
+  position: relative;
+  margin: clamp(32px, 5vw, 48px) calc(var(--gutter) * -0.5);
+  padding: clamp(28px, 4vw, 44px) clamp(28px, 4vw, 44px);
+  background: linear-gradient(180deg, var(--paper-2), var(--paper));
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 1px rgba(125, 142, 90, 0.08),
+    0 1px 0 rgba(43, 38, 32, 0.04),
+    0 12px 36px rgba(43, 38, 32, 0.05);
+}
+
+.reading-demo-rule {
+  position: absolute;
+  left: 0;
+  top: 12%;
+  bottom: 12%;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+  opacity: 0.85;
+}
+
+.reading-demo-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(28px, 4vw, 44px);
+  align-items: start;
+}
+
+.reading-demo .en {
+  font-family: var(--serif);
+  font-size: clamp(15px, 1.4vw, 17px);
+  line-height: 1.72;
+  color: var(--ink);
+  font-variation-settings: "opsz" 18, "wght" 400;
+  hyphens: auto;
+}
+
+.reading-demo .zh {
+  font-family: var(--serif-zh);
+  font-size: clamp(15px, 1.4vw, 17px);
+  line-height: 1.85;
+  color: var(--ink-2);
+  font-weight: 400;
+  letter-spacing: 0.005em;
+}
+
+.reading-demo-caption {
+  margin-top: clamp(20px, 3vw, 28px);
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  text-align: right;
+  font-family: var(--serif);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-3);
+  font-variation-settings: "opsz" 14;
+}
+
+.reading-demo-caption em {
+  color: var(--ink-2);
+  font-style: italic;
+}
+
+/* ============================================================
+   Surfaces (what's inside · 3 sub-blocks)
+   ============================================================ */
+.surface {
+  margin-bottom: clamp(40px, 5vw, 56px);
+  position: relative;
+}
+
+.surface:last-child {
+  margin-bottom: 0;
+}
+
+.surface-label {
+  font-family: var(--serif);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+  margin-bottom: 12px;
+  font-weight: 500;
+  font-variation-settings: "opsz" 14, "wght" 500;
+  font-style: italic;
+}
+
+.surface-title {
+  font-family: var(--serif);
+  font-size: clamp(22px, 2.2vw, 26px);
+  font-weight: 500;
+  font-variation-settings: "opsz" 36, "wght" 500;
+  line-height: 1.28;
+  letter-spacing: -0.012em;
+  margin-bottom: 14px;
+  color: var(--ink);
+}
+
+.surface p {
+  font-size: 16.5px;
+  line-height: 1.68;
+  color: var(--ink-2);
+  margin-bottom: 0;
+  font-variation-settings: "opsz" 18, "wght" 400;
+}
+
+/* ============================================================
+   Inline atoms
+   ============================================================ */
+kbd {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.78em;
+  padding: 1px 6px;
+  margin: 0 1px;
+  background: var(--paper);
+  border: 1px solid var(--rule-2);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: var(--ink);
+  vertical-align: 1.5px;
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+
+.code {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  padding: 1px 5px;
+  background: var(--paper-2);
+  border-radius: 3px;
+  color: var(--ink-2);
+}
+
+/* ============================================================
+   Colophon
+   ============================================================ */
+.colophon p {
+  font-family: var(--serif);
+  font-size: 15px;
+  font-style: italic;
+  color: var(--ink-3);
+  line-height: 1.72;
+  margin-bottom: 18px;
+  font-variation-settings: "opsz" 14, "wght" 400;
+}
+
+.colophon em {
+  font-style: italic;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.colophon .requirements {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--ink-4);
+  letter-spacing: 0.04em;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.colophon a {
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--rule-2);
+  transition: color 220ms, border-color 220ms;
+}
+
+.colophon a:hover {
+  color: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+footer {
+  margin-top: clamp(80px, 10vw, 120px);
+  padding-bottom: clamp(40px, 5vw, 64px);
+}
+
+.footer-rule {
+  max-width: 1180px;
+  margin: 0 auto 32px;
+  padding: 0 var(--gutter);
+  height: 1px;
+  background: var(--rule);
+  position: relative;
+}
+
+.footer-rule::before {
+  content: "✦";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -55%);
+  background: var(--paper);
+  padding: 0 16px;
+  color: var(--accent);
+  font-family: var(--serif);
+  font-size: 14px;
+  font-style: italic;
+}
+
+.footer-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.footer-mark {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.footer-wordmark {
+  font-family: var(--serif);
+  font-size: 16px;
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: "opsz" 60, "wght" 500;
+  color: var(--ink-2);
+}
+
+.footer-copy {
+  font-family: var(--serif);
+  font-size: 12.5px;
+  color: var(--ink-3);
+  font-style: italic;
+  font-variation-settings: "opsz" 12;
+}
+
+.footer-nav {
+  display: flex;
+  gap: 24px;
+}
+
+.footer-nav a {
+  font-family: var(--serif);
+  font-size: 12.5px;
+  color: var(--ink-3);
+  font-variation-settings: "opsz" 12, "wght" 400;
+  transition: color 220ms;
+  font-style: italic;
+}
+
+.footer-nav a:hover {
+  color: var(--accent-deep);
+}
+
+/* ============================================================
+   Responsive — dual column collapses on mobile
+   ============================================================ */
+@media (max-width: 720px) {
+  .reading-demo {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .reading-demo-rule {
+    top: 0;
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 3px;
+    border-radius: 2px 2px 0 0;
+  }
+
+  .reading-demo-inner {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .reading-demo .en {
+    padding-bottom: 24px;
+    border-bottom: 1px dashed var(--rule-2);
+  }
+
+  .section-heading {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    gap: 12px 14px;
+  }
+
+  .section-heading .gloss {
+    grid-column: 1 / -1;
+    text-align: left;
+    font-size: 0.5em;
+    color: var(--ink-3);
+    letter-spacing: 0.1em;
+  }
+
+  .masthead {
+    padding-top: 20px;
+  }
+
+  .masthead-nav {
+    gap: 18px;
+  }
+
+  .display {
+    max-width: 100%;
+  }
+
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .masthead-nav a:not(.external) {
+    display: none;
+  }
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   Hero entrance — staggered fade-up
+   ============================================================ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.masthead       { animation: fadeIn 600ms ease-out both; }
+.hero .display  { animation: fadeUp 900ms cubic-bezier(0.16, 1, 0.3, 1) 100ms both; }
+.hero-sub       { animation: fadeUp 900ms cubic-bezier(0.16, 1, 0.3, 1) 280ms both; }
+.hero-gloss     { animation: fadeUp 900ms cubic-bezier(0.16, 1, 0.3, 1) 420ms both; }
+.hero-actions   { animation: fadeUp 900ms cubic-bezier(0.16, 1, 0.3, 1) 560ms both; }
+.hero-image     { animation: fadeUp 1200ms cubic-bezier(0.16, 1, 0.3, 1) 700ms both; }

@@ -1,44 +1,238 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lexi</title>
-  <style>
-    :root {
-      color-scheme: light dark;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lexi — A quiet macOS reader for English literature</title>
+  <meta name="description" content="Native macOS EPUB reader with streaming Chinese translation, side-by-side dual-column layout, and a global selection-translation popup. BYOK: OpenAI · Anthropic · DeepSeek.">
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      background: Canvas;
-      color: CanvasText;
-    }
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Noto+Serif+SC:wght@300;400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
 
-    main {
-      text-align: center;
-    }
+  <link rel="stylesheet" href="css/main.css">
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 32px;
-      font-weight: 650;
-    }
+  <meta property="og:title" content="Lexi — A quiet macOS reader for English literature">
+  <meta property="og:description" content="An English reader for Chinese eyes. macOS, BYOK.">
+  <meta property="og:image" content="https://img.wangyun.fan/lexi.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://github.com/lynxlangya/lexi">
+  <meta name="twitter:card" content="summary_large_image">
 
-    p {
-      margin: 0;
-      color: color-mix(in srgb, CanvasText 68%, transparent);
-    }
-  </style>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f5efe2'/%3E%3Ctext x='50' y='72' font-family='Georgia,serif' font-size='72' font-style='italic' font-weight='500' text-anchor='middle' fill='%237d8e5a'%3EL%3C/text%3E%3C/svg%3E">
 </head>
 <body>
+
+  <header class="masthead">
+    <a class="wordmark" href="#">Lexi</a>
+    <nav class="masthead-nav">
+      <a href="#why">Why</a>
+      <a href="#side-by-side">Reading</a>
+      <a href="#inside">Inside</a>
+      <a href="https://github.com/lynxlangya/lexi" class="external">GitHub ↗</a>
+    </nav>
+  </header>
+
   <main>
-    <h1>Lexi</h1>
-    <p>Placeholder page for Vercel.</p>
+
+    <!-- ====== HERO ====== -->
+    <section class="hero">
+      <h1 class="display">
+        <span class="line">An English reader</span>
+        <span class="line"><em>for Chinese eyes.</em></span>
+      </h1>
+
+      <p class="hero-sub">
+        Lexi is a quiet macOS reader for English literature. Chinese
+        translation lives on the edge of vision — ready when you need it,
+        easy to ignore when you don't.
+      </p>
+
+      <p class="hero-gloss">读英文 · 让中文留在视野边缘</p>
+
+      <div class="hero-actions">
+        <a class="action primary" href="https://github.com/lynxlangya/lexi">Read on GitHub →</a>
+        <span class="action-note">No public build yet · macOS 26.4</span>
+      </div>
+    </section>
+
+    <!-- ====== HERO IMAGE ====== -->
+    <figure class="hero-image">
+      <img src="https://img.wangyun.fan/lexi.png"
+           alt="Lexi reader window showing English original alongside Chinese translation"
+           loading="eager">
+    </figure>
+
+    <!-- ====== WHY ====== -->
+    <section id="why" class="prose">
+      <h2 class="section-heading">
+        <span class="mark">§</span>
+        <span class="title">Why another reader</span>
+        <span class="gloss">为什么再造一个</span>
+      </h2>
+
+      <p class="lead">
+        <span class="dropcap">M</span>ost &ldquo;AI&nbsp;translation&rdquo; tools treat the
+        translation as the final artifact. Lexi treats it as scaffolding —
+        the English original is what you&rsquo;re reading, and the Chinese
+        is meant to live at the edge of your vision. That single decision
+        shapes everything else: the typography, the layout, the way
+        translation streams in, the way you can ignore it.
+      </p>
+
+      <p>
+        Read with the translation visible if you want a safety net.
+        Read in English-only when you&rsquo;re warmed up. Switch to
+        Chinese-only when the page is hard. The mode toggles in one
+        keystroke.
+      </p>
+
+      <p>
+        None of this requires an account. There is no backend. Your API
+        keys live in the macOS Keychain — not in source, not in SQLite,
+        not on a server. You bring your own keys; Lexi never knows what
+        you read.
+      </p>
+
+      <blockquote class="pullquote">
+        Translation is scaffolding, not the building.
+        <span class="pullquote-zh">译文是脚手架，不是建筑本身。</span>
+      </blockquote>
+    </section>
+
+    <!-- ====== SIDE BY SIDE DEMO ====== -->
+    <section id="side-by-side" class="prose">
+      <h2 class="section-heading">
+        <span class="mark">§</span>
+        <span class="title">Side by side</span>
+        <span class="gloss">原文与译文并排</span>
+      </h2>
+
+      <p class="lead">
+        This is what reading looks like in Lexi&rsquo;s dual-column
+        layout. English on the left, Chinese on the right, top-aligned,
+        equal weight. The shorter side leaves whitespace below — by
+        design.
+      </p>
+
+      <figure class="reading-demo">
+        <div class="reading-demo-rule" aria-hidden="true"></div>
+        <div class="reading-demo-inner">
+          <div class="en">
+            Though I am not a computer scientist, I am an academic studying
+            innovation who has long been involved in work on the applications
+            of AI, especially for learning. Over the years, AI has promised
+            much more than it has delivered. For decades, AI research has
+            always seemed to be on the edge of a massive breakthrough, but
+            most practical uses, from self-driving cars to personalized
+            tutoring, always advanced grindingly slowly.
+          </div>
+          <div class="zh">
+            虽然我不是计算机科学家，但我是研究创新的学者，长期从事人工智能应用方面的工作，尤其是学习领域的应用。多年来，人工智能的承诺远多于兑现。几十年来，人工智能研究似乎总处在重大突破的边缘，但从自动驾驶汽车到个性化辅导，大多数实际应用始终进展极其缓慢。
+          </div>
+        </div>
+        <figcaption class="reading-demo-caption">
+          From Ethan Mollick, <em>Co-Intelligence</em>
+        </figcaption>
+      </figure>
+
+      <p class="aside">
+        Prefer the classical stacked layout? Toggle from the toolbar —
+        English paragraph above, demoted Chinese paragraph below. The
+        choice persists per reader, switchable at any keystroke.
+      </p>
+    </section>
+
+    <!-- ====== INSIDE ====== -->
+    <section id="inside" class="prose">
+      <h2 class="section-heading">
+        <span class="mark">§</span>
+        <span class="title">What&rsquo;s inside</span>
+        <span class="gloss">里面是什么</span>
+      </h2>
+
+      <div class="surface">
+        <div class="surface-label">i. The Reader</div>
+        <h3 class="surface-title">A focused window for the book at hand.</h3>
+        <p>
+          Import any EPUB. Translation streams paragraph by paragraph as you
+          read, with the previous EN/ZH pair used as few-shot context for
+          literary continuity. Switch between dual-column and stacked
+          layouts from the toolbar. Adjust font, line height, theme,
+          accent. Cache once, read forever.
+        </p>
+      </div>
+
+      <div class="surface">
+        <div class="surface-label">ii. The MenuBar Popup</div>
+        <h3 class="surface-title">Translation that follows you everywhere.</h3>
+        <p>
+          Select English text in Safari, Mail, Notes, or any macOS app, hit
+          <kbd>⌘</kbd><kbd>⇧</kbd><kbd>L</kbd>, and a non-activating panel
+          appears near your selection — a single-word dictionary card with
+          multiple senses, a phrase-aware idiom lookup, or a clean sentence
+          translation. Star a word to add it to your shared vocabulary list.
+        </p>
+      </div>
+
+      <div class="surface">
+        <div class="surface-label">iii. The Vocabulary</div>
+        <h3 class="surface-title">What you saved, in the context you saved it.</h3>
+        <p>
+          Each entry snapshots the LLM&rsquo;s lookup at the moment you saved
+          it — senses, IPA, example, source sentence. Filter by book or browse
+          the global pool. No spaced-repetition system, no review reminders.
+          Just a record of what stopped you.
+        </p>
+      </div>
+    </section>
+
+    <!-- ====== COLOPHON ====== -->
+    <section class="prose colophon">
+      <h2 class="section-heading">
+        <span class="mark">§</span>
+        <span class="title">Colophon</span>
+        <span class="gloss">版权与构造</span>
+      </h2>
+
+      <p>
+        Set in <em>Fraunces</em> for the Latin script and
+        <em>Noto Serif SC</em> for Simplified Chinese. The reader is
+        built in Swift and SwiftUI, persisted with <em>GRDB</em>,
+        EPUBs parsed with <em>SwiftSoup</em> and <em>ZIPFoundation</em>,
+        global shortcuts powered by <em>sindresorhus/KeyboardShortcuts</em>.
+        Speech via the system <em>AVSpeechSynthesizer</em>.
+      </p>
+
+      <p>
+        Engines you bring yourself — OpenAI, Anthropic, DeepSeek. Keys
+        live in the macOS Keychain (service <span class="code">com.lexi.engine.&lt;id&gt;</span>),
+        never written to SQLite or logs. No account, no telemetry,
+        no backend.
+      </p>
+
+      <p class="requirements">
+        macOS 26.4 or later · Swift 5 · No iOS target.
+        Source on <a href="https://github.com/lynxlangya/lexi">GitHub</a>.
+      </p>
+    </section>
+
   </main>
+
+  <footer>
+    <div class="footer-rule" aria-hidden="true"></div>
+    <div class="footer-inner">
+      <div class="footer-mark">
+        <span class="footer-wordmark">Lexi</span>
+        <span class="footer-copy">© 2026 · Made in Hangzhou</span>
+      </div>
+      <nav class="footer-nav">
+        <a href="https://github.com/lynxlangya/lexi">GitHub</a>
+        <a href="https://github.com/lynxlangya/lexi/blob/main/README.md">README</a>
+        <a href="https://github.com/lynxlangya/lexi/blob/main/README.zh-CN.md">中文</a>
+      </nav>
+    </div>
+  </footer>
+
 </body>
 </html>
