@@ -17,10 +17,11 @@ struct OPFDocument {
     var ncxID: String?
     var epub2CoverID: String?
 
-    static func rootfilePath(in containerURL: URL) throws -> String {
-        guard let data = try? Data(contentsOf: containerURL) else {
+    static func rootfilePath(in containerURL: URL, limits: EPUBResourceLimits = .standard) throws -> String {
+        guard FileManager.default.fileExists(atPath: containerURL.path) else {
             throw EPUBParserError.missingOPF
         }
+        let data = try EPUBResourceReader.data(contentsOf: containerURL, maxBytes: limits.maxDocumentBytes)
         let document = try SwiftSoup.parseXML(data, containerURL.absoluteString)
         guard let path = try document.select("rootfile[full-path]").first()?.attr("full-path"),
               !path.isEmpty else {
@@ -29,8 +30,8 @@ struct OPFDocument {
         return path
     }
 
-    static func parse(_ url: URL) throws -> OPFDocument {
-        let data = try Data(contentsOf: url)
+    static func parse(_ url: URL, limits: EPUBResourceLimits = .standard) throws -> OPFDocument {
+        let data = try EPUBResourceReader.data(contentsOf: url, maxBytes: limits.maxDocumentBytes)
         let document = try SwiftSoup.parseXML(data, url.absoluteString)
         let title = try firstText(in: document, tags: ["dc:title", "title"])
         let author = try firstText(in: document, tags: ["dc:creator", "creator"])

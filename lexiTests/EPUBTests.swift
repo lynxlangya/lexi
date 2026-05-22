@@ -40,6 +40,26 @@ final class EPUBTests: XCTestCase {
         XCTAssertNotNil(payload.book.coverInk)
     }
 
+    func testOversizedCoverUsesFallbackPalette() async throws {
+        let fixture = try makeEPUBFixture(hasCover: true)
+        let parser = EPUBParser(
+            resourceLimits: EPUBResourceLimits(
+                maxEntryCount: EPUBResourceLimits.standard.maxEntryCount,
+                maxEntryUncompressedBytes: EPUBResourceLimits.standard.maxEntryUncompressedBytes,
+                maxTotalUncompressedBytes: EPUBResourceLimits.standard.maxTotalUncompressedBytes,
+                maxDocumentBytes: EPUBResourceLimits.standard.maxDocumentBytes,
+                maxCoverBytes: 3
+            ),
+            now: { Date(lexiTimestamp: 1_800_000_100) }
+        )
+
+        let payload = try await parser.parse(fixture)
+
+        XCTAssertNil(payload.book.coverData)
+        XCTAssertNotNil(payload.book.coverBg)
+        XCTAssertNotNil(payload.book.coverInk)
+    }
+
     func testParserUsesContentsTOCWhenSpineIsSplitIntoInternalFiles() async throws {
         let fixture = try makeSplitSpineEPUBFixture()
         let parser = EPUBParser(now: { Date(lexiTimestamp: 1_800_000_100) })
@@ -120,6 +140,34 @@ final class EPUBTests: XCTestCase {
 
         await XCTAssertThrowsErrorAsync(try await EPUBParser().parse(fixture)) { error in
             XCTAssertEqual(error as? EPUBParserError, .corruptZip)
+        }
+    }
+
+    func testArchiveEntryCountLimitProducesSpecificError() async throws {
+        let fixture = try makeArchive(entries: baseEntries(opfBody: """
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <dc:title>The Great Gatsby</dc:title>
+          <dc:creator>F. Scott Fitzgerald</dc:creator>
+        </metadata>
+        <manifest>
+          <item id="chap1" href="chap1.xhtml" media-type="application/xhtml+xml"/>
+        </manifest>
+        <spine>
+          <itemref idref="chap1"/>
+        </spine>
+        """))
+        let parser = EPUBParser(
+            resourceLimits: EPUBResourceLimits(
+                maxEntryCount: 2,
+                maxEntryUncompressedBytes: EPUBResourceLimits.standard.maxEntryUncompressedBytes,
+                maxTotalUncompressedBytes: EPUBResourceLimits.standard.maxTotalUncompressedBytes,
+                maxDocumentBytes: EPUBResourceLimits.standard.maxDocumentBytes,
+                maxCoverBytes: EPUBResourceLimits.standard.maxCoverBytes
+            )
+        )
+
+        await XCTAssertThrowsErrorAsync(try await parser.parse(fixture)) { error in
+            XCTAssertEqual(error as? EPUBParserError, .resourceLimitExceeded)
         }
     }
 

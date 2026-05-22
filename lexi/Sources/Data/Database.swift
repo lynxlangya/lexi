@@ -180,23 +180,43 @@ actor AppDatabase {
 
     func importBook(_ payload: (book: Book, chapters: [(Chapter, [Paragraph])])) throws {
         try pool.write { db in
+            let alreadyImported = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM books WHERE id = ?)",
+                arguments: [payload.book.id]
+            ) ?? false
+
+            if alreadyImported {
+                try db.execute(
+                    sql: """
+                    UPDATE books
+                    SET title = ?,
+                        author = ?,
+                        fileURL = ?,
+                        coverData = ?,
+                        coverBg = ?,
+                        coverInk = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        payload.book.title,
+                        payload.book.author,
+                        payload.book.fileURL.absoluteString,
+                        payload.book.coverData,
+                        payload.book.coverBg,
+                        payload.book.coverInk,
+                        payload.book.id,
+                    ]
+                )
+                return
+            }
+
             try db.execute(
                 sql: """
                 INSERT INTO books (
                     id, title, author, fileURL, addedAt, lastReadAt, progress, coverData, coverBg, coverInk
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id)
-                DO UPDATE SET
-                    title = excluded.title,
-                    author = excluded.author,
-                    fileURL = excluded.fileURL,
-                    addedAt = excluded.addedAt,
-                    lastReadAt = excluded.lastReadAt,
-                    progress = excluded.progress,
-                    coverData = excluded.coverData,
-                    coverBg = excluded.coverBg,
-                    coverInk = excluded.coverInk
                 """,
                 arguments: [
                     payload.book.id,
@@ -211,8 +231,6 @@ actor AppDatabase {
                     payload.book.coverInk,
                 ]
             )
-
-            try db.execute(sql: "DELETE FROM chapters WHERE bookId = ?", arguments: [payload.book.id])
 
             for (chapter, paragraphs) in payload.chapters {
                 try db.execute(

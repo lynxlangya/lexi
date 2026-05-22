@@ -19,19 +19,24 @@ struct EPUBTOCEntry: Equatable {
 }
 
 enum NavDocument {
-    static func chapterEntries(opf: OPFDocument, baseURL: URL, rootURL: URL) throws -> [EPUBTOCEntry] {
+    static func chapterEntries(
+        opf: OPFDocument,
+        baseURL: URL,
+        rootURL: URL,
+        limits: EPUBResourceLimits = .standard
+    ) throws -> [EPUBTOCEntry] {
         var declaredEntries: [EPUBTOCEntry] = []
         if let navID = opf.navID, let navItem = opf.manifest[navID] {
             let navURL = try EPUBPath.resolve(navItem.href, relativeTo: baseURL, root: rootURL)
-            declaredEntries = try epub3Entries(navURL: navURL)
+            declaredEntries = try epub3Entries(navURL: navURL, limits: limits)
         }
 
         if declaredEntries.isEmpty, let ncxID = opf.ncxID, let ncxItem = opf.manifest[ncxID] {
             let ncxURL = try EPUBPath.resolve(ncxItem.href, relativeTo: baseURL, root: rootURL)
-            declaredEntries = try epub2Entries(ncxURL: ncxURL)
+            declaredEntries = try epub2Entries(ncxURL: ncxURL, limits: limits)
         }
 
-        let contentsEntries = try contentsPageEntries(opf: opf, baseURL: baseURL, rootURL: rootURL)
+        let contentsEntries = try contentsPageEntries(opf: opf, baseURL: baseURL, rootURL: rootURL, limits: limits)
         if shouldPreferContentsPage(over: declaredEntries, contentsEntries: contentsEntries) {
             return contentsEntries
         }
@@ -50,12 +55,13 @@ enum NavDocument {
             }
     }
 
-    private static func epub3Entries(navURL: URL) throws -> [EPUBTOCEntry] {
+    private static func epub3Entries(navURL: URL, limits: EPUBResourceLimits) throws -> [EPUBTOCEntry] {
         guard FileManager.default.fileExists(atPath: navURL.path) else {
             return []
         }
 
-        let document = try SwiftSoup.parse(try Data(contentsOf: navURL), navURL.absoluteString)
+        let documentData = try EPUBResourceReader.data(contentsOf: navURL, maxBytes: limits.maxDocumentBytes)
+        let document = try SwiftSoup.parse(documentData, navURL.absoluteString)
         let links = try document.select("nav[epub\\:type=toc] a[href], nav[type=toc] a[href], nav a[href]").array()
         return try links.compactMap { element in
             let href = try element.attr("href")
@@ -67,12 +73,13 @@ enum NavDocument {
         }
     }
 
-    private static func epub2Entries(ncxURL: URL) throws -> [EPUBTOCEntry] {
+    private static func epub2Entries(ncxURL: URL, limits: EPUBResourceLimits) throws -> [EPUBTOCEntry] {
         guard FileManager.default.fileExists(atPath: ncxURL.path) else {
             return []
         }
 
-        let document = try SwiftSoup.parseXML(try Data(contentsOf: ncxURL), ncxURL.absoluteString)
+        let documentData = try EPUBResourceReader.data(contentsOf: ncxURL, maxBytes: limits.maxDocumentBytes)
+        let document = try SwiftSoup.parseXML(documentData, ncxURL.absoluteString)
         let points = try document.getElementsByTag("navPoint").array()
         return try points.compactMap { point in
             let title = try point.getElementsByTag("text").first()?.text().normalizedWhitespace ?? ""
@@ -84,7 +91,12 @@ enum NavDocument {
         }
     }
 
-    private static func contentsPageEntries(opf: OPFDocument, baseURL: URL, rootURL: URL) throws -> [EPUBTOCEntry] {
+    private static func contentsPageEntries(
+        opf: OPFDocument,
+        baseURL: URL,
+        rootURL: URL,
+        limits: EPUBResourceLimits
+    ) throws -> [EPUBTOCEntry] {
         var entries: [EPUBTOCEntry] = []
         for itemID in opf.spine {
             guard let item = opf.manifest[itemID],
@@ -97,7 +109,8 @@ enum NavDocument {
                 continue
             }
 
-            let document = try SwiftSoup.parse(try Data(contentsOf: documentURL), documentURL.absoluteString)
+            let documentData = try EPUBResourceReader.data(contentsOf: documentURL, maxBytes: limits.maxDocumentBytes)
+            let document = try SwiftSoup.parse(documentData, documentURL.absoluteString)
             let containers = try document.select("[role=doc-toc], nav[epub\\:type=toc], nav[type=toc]").array()
             let candidates = containers.isEmpty && isLikelyContentsDocument(document)
                 ? [document.body()].compactMap { $0 }

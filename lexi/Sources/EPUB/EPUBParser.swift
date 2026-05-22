@@ -5,9 +5,15 @@ import ZIPFoundation
 struct EPUBParser {
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
+    private let resourceLimits: EPUBResourceLimits
 
-    init(fileManager: FileManager = .default, now: @escaping @Sendable () -> Date = Date.init) {
+    init(
+        fileManager: FileManager = .default,
+        resourceLimits: EPUBResourceLimits = .standard,
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
         self.fileManager = fileManager
+        self.resourceLimits = resourceLimits
         self.now = now
     }
 
@@ -22,21 +28,21 @@ struct EPUBParser {
         try extractArchive(at: url, to: workingDirectory)
 
         let containerURL = workingDirectory.appending(path: "META-INF/container.xml")
-        let opfRelativePath = try OPFDocument.rootfilePath(in: containerURL)
+        let opfRelativePath = try OPFDocument.rootfilePath(in: containerURL, limits: resourceLimits)
         let opfURL = try EPUBPath.resolve(opfRelativePath, relativeTo: workingDirectory, root: workingDirectory)
         guard fileManager.fileExists(atPath: opfURL.path) else {
             throw EPUBParserError.missingOPF
         }
 
-        let opf = try OPFDocument.parse(opfURL)
+        let opf = try OPFDocument.parse(opfURL, limits: resourceLimits)
         guard !opf.spine.isEmpty else {
             throw EPUBParserError.emptySpine
         }
 
         let baseURL = opfURL.deletingLastPathComponent()
-        let tocEntries = try NavDocument.chapterEntries(opf: opf, baseURL: baseURL, rootURL: workingDirectory)
+        let tocEntries = try NavDocument.chapterEntries(opf: opf, baseURL: baseURL, rootURL: workingDirectory, limits: resourceLimits)
         let bookID = stableBookID(title: opf.title, author: opf.author, fileURL: url)
-        let cover = try CoverExtractor.cover(for: opf, baseURL: baseURL, rootURL: workingDirectory, bookID: bookID)
+        let cover = try CoverExtractor.cover(for: opf, baseURL: baseURL, rootURL: workingDirectory, bookID: bookID, limits: resourceLimits)
         let book = Book(
             id: bookID,
             title: opf.title,
@@ -63,7 +69,8 @@ struct EPUBParser {
             }
 
             let url = try EPUBPath.resolve(item.href, relativeTo: baseURL, root: rootURL)
-            let document = try SwiftSoup.parse(try Data(contentsOf: url), url.absoluteString)
+            let documentData = try EPUBResourceReader.data(contentsOf: url, maxBytes: resourceLimits.maxDocumentBytes)
+            let document = try SwiftSoup.parse(documentData, url.absoluteString)
             return try SpineDocument(index: offset, href: item.href.normalizedEPUBPath, document: document)
         }
     }
@@ -166,7 +173,27 @@ struct EPUBParser {
     private func extractArchive(at url: URL, to directory: URL) throws {
         do {
             let archive = try Archive(url: url, accessMode: .read)
+            var entryCount = 0
+            var totalUncompressedBytes: UInt64 = 0
             for entry in archive {
+                entryCount += 1
+                guard entryCount <= resourceLimits.maxEntryCount else {
+                    throw EPUBParserError.resourceLimitExceeded
+                }
+                guard entry.type != .symlink else {
+                    throw EPUBParserError.corruptZip
+                }
+                guard entry.uncompressedSize <= resourceLimits.maxEntryUncompressedBytes else {
+                    throw EPUBParserError.resourceLimitExceeded
+                }
+                guard entry.uncompressedSize <= resourceLimits.maxTotalUncompressedBytes else {
+                    throw EPUBParserError.resourceLimitExceeded
+                }
+                guard totalUncompressedBytes <= resourceLimits.maxTotalUncompressedBytes - entry.uncompressedSize else {
+                    throw EPUBParserError.resourceLimitExceeded
+                }
+                totalUncompressedBytes += entry.uncompressedSize
+
                 let destination = directory.appendingPathComponent(entry.path)
                 guard destination.standardizedFileURL.path.hasPrefix(directory.standardizedFileURL.path + "/") else {
                     throw EPUBParserError.corruptZip
@@ -294,6 +321,7 @@ enum EPUBParserError: Error, Equatable, LocalizedError {
     case missingOPF
     case emptySpine
     case missingManifestItem(String)
+    case resourceLimitExceeded
 
     var errorDescription: String? {
         switch self {
@@ -305,7 +333,40 @@ enum EPUBParserError: Error, Equatable, LocalizedError {
             return "EPUB spine is empty."
         case .missingManifestItem(let id):
             return "EPUB spine references missing manifest item: \(id)."
+        case .resourceLimitExceeded:
+            return "EPUB archive exceeds Lexi's import safety limits."
         }
+    }
+}
+
+struct EPUBResourceLimits: Equatable, Sendable {
+    var maxEntryCount: Int
+    var maxEntryUncompressedBytes: UInt64
+    var maxTotalUncompressedBytes: UInt64
+    var maxDocumentBytes: UInt64
+    var maxCoverBytes: UInt64
+
+    static let standard = EPUBResourceLimits(
+        maxEntryCount: 2_000,
+        maxEntryUncompressedBytes: 25 * 1_024 * 1_024,
+        maxTotalUncompressedBytes: 200 * 1_024 * 1_024,
+        maxDocumentBytes: 16 * 1_024 * 1_024,
+        maxCoverBytes: 8 * 1_024 * 1_024
+    )
+}
+
+enum EPUBResourceReader {
+    static func data(contentsOf url: URL, maxBytes: UInt64) throws -> Data {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        if let size = attributes[.size] as? NSNumber, size.uint64Value > maxBytes {
+            throw EPUBParserError.resourceLimitExceeded
+        }
+
+        let data = try Data(contentsOf: url)
+        guard UInt64(data.count) <= maxBytes else {
+            throw EPUBParserError.resourceLimitExceeded
+        }
+        return data
     }
 }
 
