@@ -8,7 +8,7 @@
 
 一款原生 macOS 英文阅读器，原文身侧实时流式中译；同时附带一个全局划词翻译浮窗，跟随你进入任何 app。
 
-> **状态 — v2.0.0 MVP release。** 阅读器、EPUB 导入、流式翻译、MenuBar 浮窗、生词本、左右双栏布局都已上线。当前技术预览包通过 GitHub Releases 和 Homebrew Cask 分发。
+> **状态 — v2.0.1 MVP release。** 阅读器、EPUB 导入、流式翻译、MenuBar 浮窗、生词本、左右双栏布局都已上线。当前技术预览包通过 GitHub Releases 和 Homebrew Cask 分发。
 
 ---
 

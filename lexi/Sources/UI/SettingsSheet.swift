@@ -19,6 +19,8 @@ struct SettingsSheet: View {
     @State private var bookCacheCandidate: String = ""
     @State private var books: [Book] = []
     @State private var localToast: String?
+    @State private var launchAtLoginEnabled = false
+    @State private var launchAtLoginStatus: LaunchAtLoginStatus = .disabled
 
     @AppStorage(LexiDefaultsKey.generalStartup) private var startupBehavior = "last"
     @AppStorage(LexiDefaultsKey.generalOnClose) private var closeBehavior = "menubar"
@@ -125,6 +127,7 @@ struct SettingsSheet: View {
         }
         .task {
             await loadValues()
+            refreshLaunchAtLoginStatus()
         }
         .onChange(of: defaultChapterEngine) { _, _ in
             NotificationCenter.default.post(name: .lexiChapterEngineSettingsChanged, object: nil)
@@ -236,6 +239,18 @@ struct SettingsSheet: View {
     private var generalTab: some View {
         VStack(spacing: 0) {
             SettingsSection(title: "启动 / 退出") {
+                SettingsRow(
+                    label: "开机自启动",
+                    hint: launchAtLoginHint
+                ) {
+                    LexiToggle(
+                        isOn: Binding(
+                            get: { launchAtLoginEnabled },
+                            set: { setLaunchAtLogin($0) }
+                        ),
+                        accent: settingsAccent.primary
+                    )
+                }
                 SettingsRow(label: "启动 Lexi 时") {
                     SettingsSelect(
                         value: $startupBehavior,
@@ -568,6 +583,63 @@ struct SettingsSheet: View {
         statuses = nextStatuses
         cacheBytes = (try? await database?.translationCacheBytes()) ?? 0
         books = (try? await database?.books()) ?? []
+    }
+
+    private var launchAtLoginHint: String {
+        switch launchAtLoginStatus {
+        case .enabled:
+            return "macOS 登录后自动启动 Lexi"
+        case .disabled:
+            return "在系统登录项中注册或移除 Lexi"
+        case .requiresApproval:
+            return "需要在系统设置 → 登录项中允许 Lexi"
+        case .unavailable:
+            return "当前构建无法注册登录项"
+        }
+    }
+
+    @MainActor
+    private func refreshLaunchAtLoginStatus() {
+        let status = LaunchAtLoginService.status
+        launchAtLoginStatus = status
+        launchAtLoginEnabled = status == .enabled || status == .requiresApproval
+    }
+
+    @MainActor
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        let previousEnabled = launchAtLoginEnabled
+        let previousStatus = launchAtLoginStatus
+        launchAtLoginEnabled = enabled
+
+        do {
+            try LaunchAtLoginService.setEnabled(enabled)
+            refreshLaunchAtLoginStatus()
+            toast(launchAtLoginToast(for: launchAtLoginStatus, requestedEnabled: enabled))
+        } catch {
+            launchAtLoginEnabled = previousEnabled
+            launchAtLoginStatus = previousStatus
+            toast(enabled ? "开启开机自启动失败" : "关闭开机自启动失败")
+        }
+    }
+
+    private func launchAtLoginToast(
+        for status: LaunchAtLoginStatus,
+        requestedEnabled: Bool
+    ) -> String {
+        if !requestedEnabled {
+            return "已关闭开机自启动"
+        }
+
+        switch status {
+        case .enabled:
+            return "已开启开机自启动"
+        case .requiresApproval:
+            return "请在系统设置 → 登录项中允许 Lexi"
+        case .disabled:
+            return "开机自启动未开启"
+        case .unavailable:
+            return "当前构建无法注册登录项"
+        }
     }
 
     private func test(_ engine: EngineID) {

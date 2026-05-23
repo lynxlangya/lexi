@@ -8,7 +8,7 @@
 
 A native macOS reader for English books, with streaming Chinese translation rendered next to the original text — and a global selection-translation popup that follows you into any app.
 
-> **Status — v2.0.0 MVP release.** Reader, EPUB import, streaming translation, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed through GitHub Releases and Homebrew Cask.
+> **Status — v2.0.1 MVP release.** Reader, EPUB import, streaming translation, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed through GitHub Releases and Homebrew Cask.
 
 ---
 
