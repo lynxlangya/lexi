@@ -261,7 +261,11 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     func openSettings() {
-        toggleReaderWindow()
+        if let window = readerWindow {
+            show(window)
+        } else {
+            openReaderWindow()
+        }
         NotificationCenter.default.post(name: .lexiOpenSettings, object: nil)
     }
 
