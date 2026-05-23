@@ -74,6 +74,13 @@ struct SettingsSheet: View {
         }
     }
 
+    private var appVersionText: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "0"
+        let build = info?["CFBundleVersion"] as? String ?? "0"
+        return "Lexi \(version) (build \(build))"
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             VStack(spacing: 0) {
@@ -195,9 +202,7 @@ struct SettingsSheet: View {
             Spacer()
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Lexi 1.0 (build 412)")
-                Text("检查更新…")
-                    .foregroundStyle(settingsAccent.primary)
+                Text(appVersionText)
             }
             .font(LexiFont.sans(10.5))
             .foregroundStyle(Color.lexiInk3)

@@ -8,7 +8,7 @@
 
 A native macOS reader for English books, with streaming Chinese translation rendered next to the original text — and a global selection-translation popup that follows you into any app.
 
-> **Status — v1 MVP.** Reader, EPUB import, streaming translation, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. No public release builds yet.
+> **Status — v2.0.0 MVP release.** Reader, EPUB import, streaming translation, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed through GitHub Releases and Homebrew Cask.
 
 ---
 
@@ -62,7 +62,25 @@ Most "AI translation" tools treat the translation as the final artifact. Lexi tr
 
 ---
 
-## Getting started
+## Install
+
+Install with Homebrew:
+
+```sh
+brew tap lynxlangya/tap
+brew install --cask --no-quarantine lexi
+```
+
+Or download the latest zip from [GitHub Releases](https://github.com/lynxlangya/lexi/releases).
+
+Current preview builds are ad-hoc signed and not Apple-notarized. If macOS blocks the first launch, allow Lexi from System Settings → Privacy & Security, or run:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Lexi.app
+open /Applications/Lexi.app
+```
+
+## Build from source
 
 ```sh
 git clone https://github.com/lynxlangya/lexi.git
@@ -142,13 +160,12 @@ No iOS / iPadOS target. Targets macOS 26.4, `SDKROOT=macosx`.
 Run the unit tests:
 
 ```sh
-xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug \
-  -derivedDataPath /tmp/lexi-derived test
+./scripts/test.sh
 ```
 
 Coverage spans Data (GRDB migrations, vocab CRUD), EPUB parsing, translation engines (request shaping, SSE parsing, retry behavior), Reader translation controller state machine, selection context resolution, and the new paragraph layout enum.
 
-There is no CI or lint config in the repo yet.
+The test script uses a temporary DerivedData directory and removes it on exit, so repeated CLI verification does not accumulate `/tmp/lexi-*` build artifacts. There is no CI or lint config in the repo yet.
 
 ### Security
 
@@ -159,7 +176,7 @@ There is no CI or lint config in the repo yet.
 
 ## Project status
 
-v1 MVP is complete — PR 1–10 (the planned MVP increments) have all landed on `main`, plus a series of follow-up fixes and the dual-column layout feature. There is no public release build yet; the project is consumed as source.
+v2.0.0 is the first MVP technical preview release: PR 1–10 have landed, follow-up fixes are merged, and installable builds are available through GitHub Releases and `lynxlangya/tap`.
 
 For roadmap and product decisions, see [`DESIGN.md`](DESIGN.md).
 
@@ -167,4 +184,4 @@ For roadmap and product decisions, see [`DESIGN.md`](DESIGN.md).
 
 ## License
 
-Not yet licensed for redistribution. Treat the source as read-only until a license file is added.
+No open-source license has been granted yet. Treat the source as visible but not reusable until a license file is added.

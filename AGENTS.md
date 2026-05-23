@@ -8,11 +8,11 @@ update: 2026-05-20
 
 ## Project Snapshot
 
-- `lexi` is a macOS SwiftUI app for the locked Lexi v1 MVP described in `DESIGN.md`.
+- `lexi` is a macOS SwiftUI app for the Lexi MVP described in `DESIGN.md`.
 - PR 1-10 from `PR-PLAN.md` are complete and merged. Treat `PR-PLAN.md` as a historical execution plan plus acceptance index, not as an active backlog.
 - Source code is organized under `lexi/Sources/` by module.
 - The Xcode Core Data template has been removed. Do not reintroduce `NSPersistentContainer`, `.xcdatamodeld`, or template `Item` models.
-- The v1 data layer uses GRDB-backed SQLite plus Keychain for API keys.
+- The data layer uses GRDB-backed SQLite plus Keychain for API keys.
 - This repository is an Xcode project, not a Swift Package. SwiftPM dependencies are managed through `lexi.xcodeproj`.
 - Current product surfaces are Reader/Shelf, MenuBar selection popup, Settings, and Vocab.
 
@@ -40,8 +40,11 @@ Run the app from Xcode with the `lexi` scheme.
 Use this command for the current unit test suite:
 
 ```sh
-xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDataPath /tmp/lexi-derived test
+./scripts/test.sh
 ```
+
+The test script uses a temporary DerivedData directory and removes it on exit. Do
+not add long-lived `/tmp/lexi-*` DerivedData paths to verification commands.
 
 ## Current Files
 

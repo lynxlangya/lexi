@@ -8,7 +8,7 @@
 
 一款原生 macOS 英文阅读器，原文身侧实时流式中译；同时附带一个全局划词翻译浮窗，跟随你进入任何 app。
 
-> **状态 — v1 MVP。** 阅读器、EPUB 导入、流式翻译、MenuBar 浮窗、生词本、左右双栏布局都已上线。暂未发布构建包，按源码使用。
+> **状态 — v2.0.0 MVP release。** 阅读器、EPUB 导入、流式翻译、MenuBar 浮窗、生词本、左右双栏布局都已上线。当前技术预览包通过 GitHub Releases 和 Homebrew Cask 分发。
 
 ---
 
@@ -62,7 +62,25 @@
 
 ---
 
-## 上手
+## 安装
+
+使用 Homebrew 安装：
+
+```sh
+brew tap lynxlangya/tap
+brew install --cask --no-quarantine lexi
+```
+
+也可以从 [GitHub Releases](https://github.com/lynxlangya/lexi/releases) 下载最新 zip。
+
+当前预览包是 ad-hoc 签名，尚未经过 Apple notarization。若 macOS 首次启动时拦截，可在「系统设置 → 隐私与安全性」中允许打开 Lexi，或执行：
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Lexi.app
+open /Applications/Lexi.app
+```
+
+## 从源码运行
 
 ```sh
 git clone https://github.com/lynxlangya/lexi.git
@@ -142,13 +160,12 @@ v1 产品决议见 [`DESIGN.md`](DESIGN.md)，MVP 的历史 PR 拆解见 [`PR-PL
 运行单元测试：
 
 ```sh
-xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug \
-  -derivedDataPath /tmp/lexi-derived test
+./scripts/test.sh
 ```
 
 覆盖范围：Data（GRDB 迁移、生词本 CRUD）、EPUB 解析、翻译引擎（请求构造、SSE 解析、重试）、阅读器翻译控制器状态机、选区上下文解析、新的段落布局枚举等。
 
-仓库里暂无 CI 和 lint 配置。
+测试脚本会创建临时 DerivedData 并在退出时删除，避免反复命令行验证堆积 `/tmp/lexi-*` 构建产物。仓库里暂无 CI 和 lint 配置。
 
 ### 安全
 
@@ -159,7 +176,7 @@ xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug \
 
 ## 项目状态
 
-v1 MVP 已经做完——计划中的 PR 1–10 都已合入 `main`，后续若干 fix 和左右双栏功能也已上线。暂未发布构建包，目前按源码使用。
+v2.0.0 是第一个 MVP 技术预览版本：计划中的 PR 1–10 已合入，后续修复也已落地，并已通过 GitHub Releases 和 `lynxlangya/tap` 提供可安装构建包。
 
 路线图和产品决议见 [`DESIGN.md`](DESIGN.md)。
 
@@ -167,4 +184,4 @@ v1 MVP 已经做完——计划中的 PR 1–10 都已合入 `main`，后续若�
 
 ## 许可证
 
-暂无 license，目前请视作只读源码。后续会补 LICENSE 文件。
+暂未授予开源许可证。目前源码可见，但在补充 LICENSE 文件前不代表可以复用或再分发。

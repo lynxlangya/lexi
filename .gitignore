@@ -54,6 +54,7 @@ Secrets.local.*
 *~
 .idea/
 .vscode/
+.claude/*.lock
 
 # ─── Coverage / profiling ──────────────────────────────
 *.gcda

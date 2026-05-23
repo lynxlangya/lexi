@@ -1,6 +1,6 @@
 # Lexi Sources
 
-This directory is the home for Lexi v1 source code. The old `ContentView.swift`, `Persistence.swift`, and Core Data model template have been removed.
+This directory is the home for Lexi source code. The old `ContentView.swift`, `Persistence.swift`, and Core Data model template have been removed.
 
 Module ownership:
 
@@ -15,7 +15,7 @@ Module ownership:
 Verification entry points:
 
 ```sh
-xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDataPath /tmp/lexi-derived test
+./scripts/test.sh
 xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Release build CODE_SIGNING_ALLOWED=NO
 ```
 

@@ -38,7 +38,7 @@
 完成后的整体验证入口：
 
 ```sh
-xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDataPath /tmp/lexi-derived test
+./scripts/test.sh
 xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Release build CODE_SIGNING_ALLOWED=NO
 ```
 

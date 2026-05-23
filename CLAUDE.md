@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Lexi v1 MVP PR 1-10 have all been merged. Source code is organized by module under `lexi/Sources/`; see [DESIGN.md](DESIGN.md) for locked product decisions and [PR-PLAN.md](PR-PLAN.md) for the completed historical PR breakdown.
+Lexi MVP PR 1-10 have all been merged, and v2.0.0 is the current technical preview release line. Source code is organized by module under `lexi/Sources/`; see [DESIGN.md](DESIGN.md) for locked product decisions and [PR-PLAN.md](PR-PLAN.md) for the completed historical PR breakdown.
 
 The Core Data template has been removed. The app now has the main Reader/Shelf surface, EPUB import, streaming translation, MenuBar selection popup, Settings sheet, and Vocab list. Persistence is GRDB-backed SQLite plus Keychain for API keys. The unit test target covers Data, EPUB parsing, translation engines, and Reader translation controller behavior. There is no CI or lint config yet.
 
@@ -21,14 +21,16 @@ To launch the app, open `lexi.xcodeproj` in Xcode and Run (⌘R). Target is **ma
 Run the current unit tests with:
 
 ```sh
-xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug -derivedDataPath /tmp/lexi-derived test
+./scripts/test.sh
 ```
+
+The test script creates a temporary DerivedData directory and deletes it on exit. Avoid adding new long-lived `/tmp/lexi-*` DerivedData paths.
 
 ## Architecture
 
 `lexiApp.swift` is the `@main` entry point. It registers the Reader window scene and the MenuBarExtra scene, wires both through `LexiMenuBarCoordinator`, and keeps Lexi resident after the main window closes by switching to accessory activation policy.
 
-`lexi/Sources/` is the v1 source root:
+`lexi/Sources/` is the source root:
 
 - `App/` — application entry and lifecycle
 - `Reader/` — Reader main window, Shelf, EPUB import flow, translation state UI, and Vocab sheet
