@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.wangyun.fan/lexi.png" alt="Lexi — 中文读者的英文阅读器" width="900">
+  <img src="https://img.wangyun.fan/lexi_board.png" alt="Lexi — 中文读者的英文阅读器" width="900">
 </p>
 
 # Lexi

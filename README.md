@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.wangyun.fan/lexi.png" alt="Lexi — bilingual macOS reader" width="900">
+  <img src="https://img.wangyun.fan/lexi_board.png" alt="Lexi — bilingual macOS reader" width="900">
 </p>
 
 # Lexi
