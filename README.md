@@ -68,7 +68,7 @@ Install with Homebrew:
 
 ```sh
 brew tap lynxlangya/tap
-brew install --cask --no-quarantine lexi
+brew install --cask lexi
 ```
 
 Or download the latest zip from [GitHub Releases](https://github.com/lynxlangya/lexi/releases).

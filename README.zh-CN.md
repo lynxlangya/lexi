@@ -68,7 +68,7 @@
 
 ```sh
 brew tap lynxlangya/tap
-brew install --cask --no-quarantine lexi
+brew install --cask lexi
 ```
 
 也可以从 [GitHub Releases](https://github.com/lynxlangya/lexi/releases) 下载最新 zip。
