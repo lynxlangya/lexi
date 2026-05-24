@@ -29,12 +29,60 @@ nonisolated enum Keychain {
     }
 }
 
+nonisolated enum TTSKeychain {
+    private static let store = GenericKeychainStore(servicePrefix: "com.lexi.tts")
+
+    static func setApiKey(_ key: String, for provider: TTSProviderID) {
+        try? setApiKeyThrowing(key, for: provider)
+    }
+
+    static func apiKey(for provider: TTSProviderID) -> String? {
+        try? apiKeyThrowing(for: provider)
+    }
+
+    static func delete(_ provider: TTSProviderID) {
+        try? deleteThrowing(provider)
+    }
+
+    static func setApiKeyThrowing(_ key: String, for provider: TTSProviderID) throws {
+        try store.setApiKey(key, account: provider.rawValue)
+    }
+
+    static func apiKeyThrowing(for provider: TTSProviderID) throws -> String? {
+        try store.apiKey(account: provider.rawValue)
+    }
+
+    static func deleteThrowing(_ provider: TTSProviderID) throws {
+        try store.delete(account: provider.rawValue)
+    }
+}
+
 nonisolated struct KeychainStore: Sendable {
     let servicePrefix: String
 
     func setApiKey(_ key: String, for engine: EngineID) throws {
+        try generic.setApiKey(key, account: engine.rawValue)
+    }
+
+    func apiKey(for engine: EngineID) throws -> String? {
+        try generic.apiKey(account: engine.rawValue)
+    }
+
+    func delete(_ engine: EngineID) throws {
+        try generic.delete(account: engine.rawValue)
+    }
+
+    private var generic: GenericKeychainStore {
+        GenericKeychainStore(servicePrefix: servicePrefix)
+    }
+}
+
+nonisolated struct GenericKeychainStore: Sendable {
+    let servicePrefix: String
+
+    func setApiKey(_ key: String, account: String) throws {
         let data = Data(key.utf8)
-        let query = baseQuery(for: engine)
+        let query = baseQuery(account: account)
 
         let status = SecItemCopyMatching(query as CFDictionary, nil)
         switch status {
@@ -53,8 +101,8 @@ nonisolated struct KeychainStore: Sendable {
         }
     }
 
-    func apiKey(for engine: EngineID) throws -> String? {
-        var query = baseQuery(for: engine)
+    func apiKey(account: String) throws -> String? {
+        var query = baseQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -72,17 +120,17 @@ nonisolated struct KeychainStore: Sendable {
         }
     }
 
-    func delete(_ engine: EngineID) throws {
-        let status = SecItemDelete(baseQuery(for: engine) as CFDictionary)
+    func delete(account: String) throws {
+        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
         if status != errSecItemNotFound {
             try check(status)
         }
     }
 
-    private func baseQuery(for engine: EngineID) -> [String: Any] {
+    private func baseQuery(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "\(servicePrefix).\(engine.rawValue)",
+            kSecAttrService as String: "\(servicePrefix).\(account)",
             kSecAttrAccount as String: "apiKey",
         ]
     }

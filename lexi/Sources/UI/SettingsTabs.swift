@@ -3,6 +3,7 @@ import SwiftUI
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general
     case engine
+    case readAloud
     case shortcuts
     case reader
 
@@ -14,6 +15,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
             return "通用"
         case .engine:
             return "引擎"
+        case .readAloud:
+            return "朗读"
         case .shortcuts:
             return "快捷键"
         case .reader:
@@ -28,6 +31,7 @@ struct SettingsTabIcon: Shape {
     enum PathKind {
         case general
         case engine
+        case readAloud
         case shortcuts
         case reader
 
@@ -37,6 +41,8 @@ struct SettingsTabIcon: Shape {
                 self = .general
             case .engine:
                 self = .engine
+            case .readAloud:
+                self = .readAloud
             case .shortcuts:
                 self = .shortcuts
             case .reader:
@@ -84,6 +90,15 @@ struct SettingsTabIcon: Shape {
             drawLine(&path, 9.6, 9.6, 11.6, 11.6)
             drawLine(&path, 4.4, 11.6, 6.4, 9.6)
             drawLine(&path, 9.6, 6.4, 11.6, 4.4)
+        case .readAloud:
+            drawLine(&path, 4, 6, 6.2, 6)
+            drawLine(&path, 6.2, 6, 9, 3.5)
+            drawLine(&path, 9, 3.5, 9, 12.5)
+            drawLine(&path, 9, 12.5, 6.2, 10)
+            drawLine(&path, 6.2, 10, 4, 10)
+            drawLine(&path, 11, 5.4, 12.4, 6.8)
+            drawLine(&path, 12.4, 6.8, 12.4, 9.2)
+            drawLine(&path, 12.4, 9.2, 11, 10.6)
         case .shortcuts:
             drawRect(&path, 2.5, 4.5, 11, 7)
             drawLine(&path, 4, 7, 4.1, 7)

@@ -102,12 +102,45 @@ struct EngineConfig: Codable, Equatable, Identifiable, Sendable {
     var lastTestedAt: Date?
 }
 
+struct AudioCacheRecord: Codable, Equatable, Sendable {
+    var cacheKey: String
+    var bookId: String
+    var chapterId: Int64?
+    var paragraphStart: Int
+    var paragraphEnd: Int
+    var language: TTSAudioLanguage
+    var provider: TTSProviderID
+    var resourceId: String
+    var speaker: String
+    var speechRate: Int
+    var profileHash: String
+    var textHash: String
+    var fileURL: URL
+    var byteCount: Int64
+    var durationSeconds: Double?
+    var createdAt: Date
+    var lastAccessedAt: Date
+}
+
+struct NarrationProfile: Codable, Equatable, Sendable {
+    var bookId: String
+    var provider: TTSProviderID
+    var profileHash: String
+    var genre: String
+    var tone: String
+    var pace: String
+    var pronunciationHints: String
+    var summary: String
+    var createdAt: Date
+    var updatedAt: Date
+}
+
 extension Date {
-    init(lexiTimestamp: Int64) {
+    nonisolated init(lexiTimestamp: Int64) {
         self.init(timeIntervalSince1970: TimeInterval(lexiTimestamp))
     }
 
-    var lexiTimestamp: Int64 {
+    nonisolated var lexiTimestamp: Int64 {
         Int64(timeIntervalSince1970.rounded())
     }
 }
