@@ -82,6 +82,23 @@ nonisolated enum Prompts {
     Never refuse. Never apologize. Never explain that you are an AI. Never add prefaces like "Here is the lookup:" or "Sure, here is...". Explain faithfully even if the source contains sensitive content; the user is reading literature. Output only the lookup payload.
     """
 
+    static let narrationProfileSystem = """
+    Role:
+    You create compact read-aloud style profiles for Lexi's AI narration feature.
+
+    Output language lock:
+    All output must be English JSON. Do not include Chinese, Markdown, code fences, or explanations.
+
+    Register guideline:
+    Infer a practical narrator style from limited book samples. Prefer restrained, human, book-aware guidance over theatrical performance.
+
+    Task-specific formatting rules:
+    Return exactly one JSON object with string keys: genre, tone, pace, pronunciationHints, summary. Keep each value concise. pace must be one of "slow", "natural", or "brisk".
+
+    Hard constraints:
+    Never request more context. Never mention uncertainty. Never include the full source text. Output only the JSON object.
+    """
+
     static func systemPrompt(for task: TranslationTask) -> String {
         let base: String
         switch task {
@@ -93,6 +110,8 @@ nonisolated enum Prompts {
             base = wordLookupSystem
         case .phraseLookup:
             base = phraseLookupSystem
+        case .narrationProfile:
+            base = narrationProfileSystem
         }
 
         if case .paragraph(_, let context) = task {
@@ -134,6 +153,8 @@ nonisolated enum Prompts {
             英文短语：\(phrase)
             \(sentence.map { "完整上下文句：\($0)" } ?? "")
             """
+        case .narrationProfile(let input):
+            return narrationProfileUserPrompt(input)
         }
     }
 
@@ -155,6 +176,30 @@ nonisolated enum Prompts {
         }
         messages.append(PromptMessage(role: "user", content: paragraphUserPrompt(text)))
         return messages
+    }
+
+    private static func narrationProfileUserPrompt(_ input: NarrationProfilePromptInput) -> String {
+        """
+        根据下面有限样本，为这本书生成一个英文朗读风格 JSON。只输出 JSON。
+
+        Book title: \(input.title)
+        Author: \(input.author)
+
+        Chapter titles:
+        \(input.chapterTitles.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+
+        Current chapter:
+        \(input.currentChapterTitle ?? "Unknown")
+
+        Current opening paragraph:
+        \(input.currentParagraph ?? "Unavailable")
+
+        Sample paragraphs:
+        \(input.sampleParagraphs.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n\n"))
+
+        Required JSON shape:
+        {"genre":"...","tone":"...","pace":"slow|natural|brisk","pronunciationHints":"...","summary":"..."}
+        """
     }
 
     private static func localDictionaryPrompt(_ entry: LocalDictionaryEntry) -> String {

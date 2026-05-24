@@ -5,6 +5,7 @@ import Observation
 nonisolated enum ReadAloudPlaybackStatus: Equatable, Sendable {
     case idle
     case planning
+    case preparingStyle
     case generating(String)
     case playing(String)
     case paused(String)
@@ -17,6 +18,8 @@ nonisolated enum ReadAloudPlaybackStatus: Equatable, Sendable {
             return "朗读就绪"
         case .planning:
             return "准备朗读"
+        case .preparingStyle:
+            return "正在准备朗读风格…"
         case .generating(let range):
             return "正在生成 · \(range)"
         case .playing(let range):
@@ -34,7 +37,7 @@ nonisolated enum ReadAloudPlaybackStatus: Equatable, Sendable {
         switch self {
         case .idle, .error:
             return false
-        case .planning, .generating, .playing, .paused, .fallback:
+        case .planning, .preparingStyle, .generating, .playing, .paused, .fallback:
             return true
         }
     }
@@ -59,6 +62,8 @@ nonisolated enum ReadAloudPlaybackStatus: Equatable, Sendable {
 final class ReaderReadAloudController: NSObject {
     private let database: AppDatabase
     private let registry: TTSRegistry
+    private let engineRegistry: EngineRegistry
+    private let profileResolver: NarrationProfileResolving
     private let audioResolver: ReadAloudAudioResolving
     private let playerFactory: @MainActor (URL) -> ReaderAudioPlaying
     private let systemSpeaker: ReaderSystemSpeaking
@@ -76,12 +81,16 @@ final class ReaderReadAloudController: NSObject {
     init(
         database: AppDatabase,
         registry: TTSRegistry = .shared,
+        engineRegistry: EngineRegistry = .shared,
+        profileResolver: NarrationProfileResolving? = nil,
         audioResolver: ReadAloudAudioResolving? = nil,
         playerFactory: (@MainActor (URL) -> ReaderAudioPlaying)? = nil,
         systemSpeaker: ReaderSystemSpeaking? = nil
     ) {
         self.database = database
         self.registry = registry
+        self.engineRegistry = engineRegistry
+        self.profileResolver = profileResolver ?? DefaultNarrationProfileResolver()
         self.audioResolver = audioResolver ?? DefaultReadAloudAudioResolver()
         self.playerFactory = playerFactory ?? { AVPlayerReaderAudioPlayer(url: $0) }
         self.systemSpeaker = systemSpeaker ?? AVSpeechReaderSystemSpeaker()
@@ -101,11 +110,14 @@ final class ReaderReadAloudController: NSObject {
 
     func start(
         book: ReaderBook,
+        chapters: [ReaderChapter],
         chapter: ReaderChapter,
         snapshot: ChapterTranslationSnapshot,
         visibleParagraphId: Int64?,
         language requestedLanguage: TTSAudioLanguage,
-        config: TTSProviderConfig
+        config: TTSProviderConfig,
+        engineConfig: EngineConfig,
+        forceRefreshProfile: Bool = false
     ) {
         stop()
         status = .planning
@@ -131,7 +143,13 @@ final class ReaderReadAloudController: NSObject {
 
         chunks = planned
         currentIndex = 0
-        playCurrentChunk()
+        prepareProfileAndPlay(
+            book: book,
+            chapters: chapters,
+            currentChapter: chapter,
+            engineConfig: engineConfig,
+            forceRefreshProfile: forceRefreshProfile
+        )
     }
 
     func pauseOrResume() {
@@ -225,6 +243,36 @@ final class ReaderReadAloudController: NSObject {
         }
     }
 
+    private func prepareProfileAndPlay(
+        book: ReaderBook,
+        chapters: [ReaderChapter],
+        currentChapter: ReaderChapter,
+        engineConfig: EngineConfig,
+        forceRefreshProfile: Bool
+    ) {
+        generationTask?.cancel()
+        status = .preparingStyle
+        generationTask = Task { [database, engineRegistry, profileResolver, currentConfig] in
+            let profile = await profileResolver.profile(
+                book: book,
+                chapters: chapters,
+                currentChapter: currentChapter,
+                provider: currentConfig.provider,
+                forceRefresh: forceRefreshProfile,
+                database: database,
+                engineConfig: engineConfig,
+                engineRegistry: engineRegistry
+            )
+            guard !Task.isCancelled else {
+                return
+            }
+            for index in chunks.indices {
+                chunks[index].profile = profile
+            }
+            playCurrentChunk()
+        }
+    }
+
     private func playResolvedAudio(_ url: URL, for chunk: ReadAloudChunk) {
         removePlayerObserver()
         let nextPlayer = playerFactory(url)
@@ -304,7 +352,7 @@ nonisolated struct DefaultReadAloudAudioResolver: ReadAloudAudioResolving {
         for try await audioChunk in provider.streamSpeech(TTSRequest(
             text: chunk.text,
             config: config,
-            contextInstruction: "Read naturally with clear phrasing and expressive pacing."
+            contextInstruction: chunk.profile?.ttsContextInstruction ?? "Read naturally with clear phrasing and expressive pacing."
         )) {
             try Task.checkCancellation()
             audio.append(audioChunk.data)
@@ -347,7 +395,7 @@ nonisolated struct DefaultReadAloudAudioResolver: ReadAloudAudioResolving {
             resourceId: config.resourceId,
             speaker: config.speaker,
             speechRate: config.speechRate,
-            profileHash: "profile-none",
+            profileHash: chunk.profile?.profileHash ?? "profile-none",
             textHash: TTSAudioCacheKey.makeTextHash(chunk.text)
         )
     }

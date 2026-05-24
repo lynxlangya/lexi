@@ -20,6 +20,7 @@ struct ReaderChromeOverlay: View {
     let stopReadAloud: () -> Void
     let previousReadAloudChunk: () -> Void
     let nextReadAloudChunk: () -> Void
+    let refreshReadAloudProfile: () -> Void
     let openVocab: () -> Void
     let openSettings: () -> Void
     let sidebarVisible: Bool
@@ -106,6 +107,8 @@ struct ReaderChromeOverlay: View {
             chromeButton(readAloudLanguageIcon, help: readAloudLanguageHelp) {
                 readAloudLanguage = readAloudLanguage == .source ? .target : .source
             }
+
+            chromeButton("wand.and.stars", help: "刷新朗读风格", action: refreshReadAloudProfile)
 
             if readAloudStatus.isActive {
                 chromeButton("backward.end", help: "上一段朗读", action: previousReadAloudChunk)
