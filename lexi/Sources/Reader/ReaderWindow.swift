@@ -126,6 +126,9 @@ private struct ReaderWindowContent: View {
     @State private var lastKnownScrollParagraphIndex: Int?
     @State private var selectedTextContext: SelectedTextContext?
     @State private var scrollWriteTask: Task<Void, Never>?
+    @State private var showsReadAloudPanel = false
+    @State private var readAloudPanelShowsText = true
+    @State private var readAloudPanelMode = ReaderReadAloudPanelMode.nowReading
     @AppStorage(LexiDefaultsKey.readerFontSize) private var fontSize = 17.0
     @AppStorage(LexiDefaultsKey.readerTranslationMode) private var transModeRaw = ReaderTranslationMode.both.rawValue
     @AppStorage(LexiDefaultsKey.readerPrefetch) private var prefetchCount = 1
@@ -386,7 +389,27 @@ private struct ReaderWindowContent: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(preferences.theme.paper)
                         .tint(preferences.accent.primary)
+
+                        if showsReadAloudPanel {
+                            ReaderReadAloudPanel(
+                                book: book,
+                                chapter: selectedChapter,
+                                language: $readAloudLanguage,
+                                showsText: $readAloudPanelShowsText,
+                                mode: $readAloudPanelMode,
+                                status: readAloudController?.status ?? .idle,
+                                preferences: preferences,
+                                close: {
+                                    withAnimation(.easeInOut(duration: 0.18)) {
+                                        showsReadAloudPanel = false
+                                    }
+                                },
+                                primaryAction: handleReadAloudEntry
+                            )
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                        }
                     }
+                    .animation(.easeInOut(duration: 0.18), value: showsReadAloudPanel)
 
                     ReaderChromeOverlay(
                         columnVisibility: $columnVisibility,
@@ -397,7 +420,7 @@ private struct ReaderWindowContent: View {
                         preferences: preferences,
                         readAloudStatus: readAloudController?.status ?? .idle,
                         cycleThemeMode: cycleThemeMode,
-                        openReadAloud: { handleReadAloudEntry() },
+                        openReadAloud: { openReadAloudPanel() },
                         openVocab: { openVocab(for: book) },
                         openSettings: { showsSettings = true },
                         sidebarVisible: columnVisibility != .detailOnly
@@ -703,10 +726,17 @@ private struct ReaderWindowContent: View {
     }
 
     private func handleReadAloudEntry() {
+        openReadAloudPanel()
         if readAloudController?.status.canPause == true || readAloudController?.status.canResume == true {
             readAloudController?.pauseOrResume()
         } else {
             startReadAloud()
+        }
+    }
+
+    private func openReadAloudPanel() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showsReadAloudPanel = true
         }
     }
 
