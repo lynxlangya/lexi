@@ -9,7 +9,7 @@ nonisolated enum ReadAloudPlaybackStatus: Equatable, Sendable {
     case generating(String)
     case playing(String)
     case paused(String)
-    case fallback(String)
+    case fallback(String, String)
     case error(String)
 
     var label: String {
@@ -26,8 +26,8 @@ nonisolated enum ReadAloudPlaybackStatus: Equatable, Sendable {
             return "正在朗读 · \(range)"
         case .paused(let range):
             return "已暂停 · \(range)"
-        case .fallback(let range):
-            return "系统朗读 · \(range)"
+        case .fallback(let range, let reason):
+            return "系统朗读 · \(range) · \(reason)"
         case .error(let message):
             return "朗读失败 · \(message)"
         }
@@ -296,11 +296,11 @@ final class ReaderReadAloudController: NSObject {
                 prefetchNextChunk()
             } catch is CancellationError {
                 return
-            } catch TTSProviderError.missingAPIKey, TTSProviderError.missingSpeaker {
+            } catch let error as TTSProviderError where error.usesSystemFallback {
                 guard !Task.isCancelled else {
                     return
                 }
-                playSystemFallback(chunk)
+                playSystemFallback(chunk, reason: error.localizedDescription)
             } catch {
                 guard !Task.isCancelled else {
                     return
@@ -363,9 +363,9 @@ final class ReaderReadAloudController: NSObject {
         status = .playing(chunk.displayRange)
     }
 
-    private func playSystemFallback(_ chunk: ReadAloudChunk) {
+    private func playSystemFallback(_ chunk: ReadAloudChunk, reason: String) {
         systemSpeaker.speak(chunk.text)
-        status = .fallback(chunk.displayRange)
+        status = .fallback(chunk.displayRange, reason)
     }
 
     private func advanceAfterCurrentChunk() {
@@ -421,6 +421,17 @@ nonisolated protocol ReadAloudAudioResolving: Sendable {
         registry: TTSRegistry,
         config: TTSProviderConfig
     ) async throws -> URL
+}
+
+private extension TTSProviderError {
+    var usesSystemFallback: Bool {
+        switch self {
+        case .missingAPIKey, .missingSpeaker:
+            return true
+        case .invalidResponse, .httpStatus, .providerMessage:
+            return false
+        }
+    }
 }
 
 nonisolated struct DefaultReadAloudAudioResolver: ReadAloudAudioResolving {

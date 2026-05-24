@@ -88,6 +88,13 @@ final class ReaderReadAloudTests: XCTestCase {
         XCTAssertFalse(last.canMoveNext)
     }
 
+    func testFallbackStatusKeepsConfigurationReasonVisible() {
+        let status = ReadAloudPlaybackStatus.fallback("段落 1", "请先配置豆包语音音色 ID")
+
+        XCTAssertEqual(status.label, "系统朗读 · 段落 1 · 请先配置豆包语音音色 ID")
+        XCTAssertTrue(status.isActive)
+    }
+
     func testHighlightTargetMatchesOnlyExactChapterParagraphAndLanguage() {
         let target = ReadAloudHighlightTarget(
             chapterId: 10,

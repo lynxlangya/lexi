@@ -8,6 +8,8 @@ enum ReaderReadAloudPanelMode: Equatable {
 struct ReaderReadAloudPanel: View {
     let book: ReaderBook
     let chapter: ReaderChapter
+    let chapters: [ReaderChapter]
+    let selectedChapterIndex: Int
     @Binding var language: TTSAudioLanguage
     @Binding var showsText: Bool
     @Binding var mode: ReaderReadAloudPanelMode
@@ -23,6 +25,8 @@ struct ReaderReadAloudPanel: View {
     let nextChunk: () -> Void
     let previousChapter: () -> Void
     let nextChapter: () -> Void
+    let chapterState: (ReaderChapter) -> ChapterTranslationState
+    let selectChapter: (Int) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -235,7 +239,7 @@ struct ReaderReadAloudPanel: View {
         case .nowReading:
             nowReadingBlock
         case .chapters:
-            chaptersPlaceholder
+            chaptersBlock
         }
     }
 
@@ -280,28 +284,76 @@ struct ReaderReadAloudPanel: View {
         }
     }
 
-    private var chaptersPlaceholder: some View {
+    private var chaptersBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("章节")
-                .font(LexiFont.zh(12))
-                .foregroundStyle(preferences.theme.ink3)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("章节列表将在下一步接入。")
+            HStack {
+                Text("章节")
                     .font(LexiFont.zh(12))
-                    .foregroundStyle(preferences.theme.ink2)
+                    .foregroundStyle(preferences.theme.ink3)
 
-                Text("当前章节 · Chapter \(chapter.n)")
-                    .font(LexiFont.mono(11))
-                    .foregroundStyle(preferences.accent.primary)
+                Spacer()
+
+                Text(language == .source ? "朗读原文" : "朗读译文")
+                    .font(LexiFont.zh(10.5))
+                    .foregroundStyle(preferences.theme.ink3)
             }
-            .padding(14)
+
+            LazyVStack(spacing: 6) {
+                ForEach(Array(chapters.enumerated()), id: \.element.id) { index, item in
+                    chapterRow(item, index: index)
+                }
+            }
+        }
+    }
+
+    private func chapterRow(_ item: ReaderChapter, index: Int) -> some View {
+        let state = readAloudChapterStatus(for: item, index: index)
+        let isSelected = index == selectedChapterIndex
+
+        return Button {
+            selectChapter(index)
+        } label: {
+            HStack(alignment: .center, spacing: 10) {
+                Text(item.n)
+                    .font(LexiFont.mono(11))
+                    .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink3)
+                    .frame(width: 24, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                        .font(LexiFont.zh(12.5))
+                        .fontWeight(isSelected ? .semibold : .regular)
+                        .foregroundStyle(isSelected ? preferences.theme.ink : preferences.theme.ink2)
+                        .lineLimit(1)
+
+                    Text(state.label)
+                        .font(LexiFont.zh(10.5))
+                        .foregroundStyle(state.foregroundColor(preferences: preferences))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                Circle()
+                    .fill(state.color(preferences: preferences))
+                    .frame(width: isSelected ? 7 : 5, height: isSelected ? 7 : 5)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(preferences.theme.paper.opacity(preferences.theme.isDark ? 0.36 : 0.62))
+                    .fill(isSelected ? preferences.accent.soft : preferences.theme.paper.opacity(preferences.theme.isDark ? 0.32 : 0.58))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? preferences.accent.primary.opacity(0.28) : Color.clear, lineWidth: 1)
             }
         }
+        .buttonStyle(.plain)
+        .help("从 Chapter \(item.n) 开始朗读")
+        .accessibilityLabel("从 Chapter \(item.n) 开始朗读，\(state.label)")
+        .focusable(false)
     }
 
     private func panelIconButton(
@@ -319,6 +371,7 @@ struct ReaderReadAloudPanel: View {
         .foregroundStyle(isEnabled ? preferences.theme.ink : preferences.theme.ink4)
         .disabled(!isEnabled)
         .help(help)
+        .accessibilityLabel(help)
         .focusable(false)
     }
 
@@ -340,6 +393,7 @@ struct ReaderReadAloudPanel: View {
                 .fill(isSelected ? preferences.accent.soft : Color.clear)
         }
         .help(help)
+        .accessibilityLabel(help)
         .focusable(false)
     }
 
@@ -353,8 +407,8 @@ struct ReaderReadAloudPanel: View {
             return "豆包语音 · 自然清晰 · \(languageLabel)"
         case .paused:
             return "豆包语音 · 已暂停 · \(languageLabel)"
-        case .fallback:
-            return "系统朗读 · \(languageLabel)"
+        case .fallback(_, let reason):
+            return "\(reason) · 系统朗读 · \(languageLabel)"
         case .error:
             return "朗读失败 · \(languageLabel)"
         }
@@ -433,6 +487,67 @@ struct ReaderReadAloudPanel: View {
             return preferences.sourceFont.serif(18)
         case .target:
             return Font(preferences.targetFont.nsFont(16))
+        }
+    }
+
+    private func readAloudChapterStatus(for item: ReaderChapter, index: Int) -> ReadAloudChapterRowStatus {
+        if index == selectedChapterIndex, status.isActive {
+            return .current
+        }
+        switch language {
+        case .source:
+            return item.paragraphs.isEmpty ? .unavailable("无可朗读原文") : .available("可朗读原文")
+        case .target:
+            switch chapterState(item) {
+            case .cached:
+                return .available("译文已缓存")
+            case .translating:
+                return .pending("译文缓存中")
+            case .error:
+                return .unavailable("译文缓存失败")
+            case .idle:
+                return .unavailable("译文未缓存")
+            }
+        }
+    }
+}
+
+private enum ReadAloudChapterRowStatus {
+    case current
+    case available(String)
+    case pending(String)
+    case unavailable(String)
+
+    var label: String {
+        switch self {
+        case .current:
+            return "正在朗读"
+        case .available(let label), .pending(let label), .unavailable(let label):
+            return label
+        }
+    }
+
+    func color(preferences: ReaderRuntimePreferences) -> Color {
+        switch self {
+        case .current:
+            return preferences.accent.primary
+        case .available:
+            return Color.green.opacity(0.82)
+        case .pending:
+            return Color.orange.opacity(0.82)
+        case .unavailable:
+            return preferences.theme.ink4
+        }
+    }
+
+    func foregroundColor(preferences: ReaderRuntimePreferences) -> Color {
+        switch self {
+        case .current:
+            return preferences.accent.primary
+        case .available, .pending:
+            return preferences.theme.ink3
+        case .unavailable:
+            return preferences.theme.ink4
         }
     }
 }
