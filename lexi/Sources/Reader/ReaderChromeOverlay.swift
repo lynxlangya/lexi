@@ -163,19 +163,16 @@ struct ReaderChromeOverlay: View {
     }
 
     private var readAloudHelp: String {
-        if readAloudStatus.canPause {
-            return "朗读中，点击暂停"
-        }
-        if readAloudStatus.canResume {
-            return "继续朗读"
-        }
         if readAloudStatus.isLoading {
-            return readAloudStatus.label
+            return "\(readAloudStatus.label)，点击打开朗读器"
         }
         if readAloudStatus.isError {
-            return readAloudStatus.label
+            return "\(readAloudStatus.label)，点击打开朗读器"
         }
-        return "从当前位置开始朗读"
+        if readAloudStatus.isActive {
+            return "打开朗读器"
+        }
+        return "打开朗读器"
     }
 
     private var themeModeHelp: String {
@@ -240,6 +237,7 @@ private struct ChromeIconButton: View {
                 .stroke(isHovering ? preferences.theme.rule : Color.clear, lineWidth: 1)
         }
         .help(help)
+        .accessibilityLabel(help)
         .focusable(false)
         .onHover { isHovering = $0 }
     }
