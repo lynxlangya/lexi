@@ -252,6 +252,91 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(row?["seenGlobally"] as Int64?, 1)
     }
 
+    func testV4AudioReadAloudCreatesCacheAndProfileTables() async throws {
+        let database = try AppDatabase.makeTransient()
+        let names = try await database.tableNames()
+        XCTAssertTrue(names.contains("audio_cache"))
+        XCTAssertTrue(names.contains("narration_profiles"))
+    }
+
+    func testAudioCacheRoundTripAndByteCount() async throws {
+        let database = try AppDatabase.makeTransient()
+        try await database.insertBook(Book(
+            id: "book-a",
+            title: "Book A",
+            author: "Author",
+            fileURL: URL(fileURLWithPath: "/tmp/book-a.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        ))
+
+        let created = Date(lexiTimestamp: 1_800_000_001)
+        let accessed = Date(lexiTimestamp: 1_800_000_002)
+        let record = AudioCacheRecord(
+            cacheKey: "cache-key",
+            bookId: "book-a",
+            chapterId: nil,
+            paragraphStart: 0,
+            paragraphEnd: 1,
+            language: .source,
+            provider: .doubao,
+            resourceId: "seed-tts-2.0",
+            speaker: "voice",
+            speechRate: 0,
+            profileHash: "profile",
+            textHash: "text",
+            fileURL: URL(fileURLWithPath: "/tmp/audio.mp3"),
+            byteCount: 1234,
+            durationSeconds: 2.5,
+            createdAt: created,
+            lastAccessedAt: accessed
+        )
+
+        try await database.upsertAudioCacheRecord(record)
+        let fetched = try await database.audioCacheRecord(cacheKey: "cache-key", accessedAt: nil)
+        let bytes = try await database.audioCacheBytes()
+
+        XCTAssertEqual(fetched, record)
+        XCTAssertEqual(bytes, 1234)
+    }
+
+    func testNarrationProfileRoundTrip() async throws {
+        let database = try AppDatabase.makeTransient()
+        try await database.insertBook(Book(
+            id: "book-a",
+            title: "Book A",
+            author: "Author",
+            fileURL: URL(fileURLWithPath: "/tmp/book-a.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        ))
+
+        let profile = NarrationProfile(
+            bookId: "book-a",
+            provider: .doubao,
+            profileHash: "profile-hash",
+            genre: "nonfiction",
+            tone: "calm",
+            pace: "natural",
+            pronunciationHints: "AI as A I",
+            summary: "A book about work and intelligence.",
+            createdAt: Date(lexiTimestamp: 1_800_000_001),
+            updatedAt: Date(lexiTimestamp: 1_800_000_002)
+        )
+
+        try await database.upsertNarrationProfile(profile)
+        let fetched = try await database.narrationProfile(bookId: "book-a")
+        XCTAssertEqual(fetched, profile)
+    }
+
     func testUpsertNewWordInsertsFullRow() async throws {
         let database = try AppDatabase.makeTransient()
         let result = try await database.upsertVocabEntry(
@@ -784,5 +869,20 @@ final class DataTests: XCTestCase {
 
         try store.delete(.openai)
         XCTAssertNil(try store.apiKey(for: .openai))
+    }
+
+    func testGenericKeychainSupportsTTSAccountsSeparately() throws {
+        let store = GenericKeychainStore(servicePrefix: "com.lexi.tests.tts.\(UUID().uuidString)")
+        defer {
+            try? store.delete(account: TTSProviderID.doubao.rawValue)
+        }
+
+        XCTAssertNil(try store.apiKey(account: TTSProviderID.doubao.rawValue))
+
+        try store.setApiKey("doubao-key", account: TTSProviderID.doubao.rawValue)
+        XCTAssertEqual(try store.apiKey(account: TTSProviderID.doubao.rawValue), "doubao-key")
+
+        try store.delete(account: TTSProviderID.doubao.rawValue)
+        XCTAssertNil(try store.apiKey(account: TTSProviderID.doubao.rawValue))
     }
 }

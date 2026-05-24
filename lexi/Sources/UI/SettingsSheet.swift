@@ -15,7 +15,12 @@ struct SettingsSheet: View {
     )
     @State private var statuses: [EngineID: EngineStatusDot] = [:]
     @State private var testingEngine: EngineID?
+    @State private var ttsAPIKey = ""
+    @State private var loadedTTSAPIKey = ""
+    @State private var ttsStatus: EngineStatusDot = .unset
+    @State private var testingTTS = false
     @State private var cacheBytes: Int64 = 0
+    @State private var audioCacheBytes: Int64 = 0
     @State private var bookCacheCandidate: String = ""
     @State private var books: [Book] = []
     @State private var localToast: String?
@@ -28,6 +33,10 @@ struct SettingsSheet: View {
     @AppStorage(LexiDefaultsKey.generalCrashLogs) private var crashLogs = true
     @AppStorage(LexiDefaultsKey.engineDefaultChapter) private var defaultChapterEngine = EngineID.deepseek.rawValue
     @AppStorage(LexiDefaultsKey.engineDefaultPopup) private var defaultPopupEngine = EngineID.deepseek.rawValue
+    @AppStorage(LexiDefaultsKey.ttsProvider) private var ttsProvider = TTSProviderID.doubao.rawValue
+    @AppStorage(LexiDefaultsKey.ttsResourceId) private var ttsResourceId = TTSProviderConfig.doubaoDefault.resourceId
+    @AppStorage(LexiDefaultsKey.ttsSpeaker) private var ttsSpeaker = TTSProviderConfig.doubaoDefault.speaker
+    @AppStorage(LexiDefaultsKey.ttsSpeechRate) private var ttsSpeechRate = TTSProviderConfig.doubaoDefault.speechRate
     @AppStorage(LexiDefaultsKey.readerFontSize) private var fontSize = 17.0
     @AppStorage(LexiDefaultsKey.readerSourceFont) private var sourceFont = ReaderFontChoice.defaultValue.rawValue
     @AppStorage(LexiDefaultsKey.readerTargetFont) private var targetFont = ReaderTargetFontChoice.defaultValue.rawValue
@@ -69,7 +78,7 @@ struct SettingsSheet: View {
 
     private var contentMaxWidth: CGFloat {
         switch selectedTab {
-        case .engine:
+        case .engine, .readAloud:
             return 640
         default:
             return 620
@@ -137,6 +146,7 @@ struct SettingsSheet: View {
         }
         .onDisappear {
             saveAPIKeys()
+            saveTTSAPIKey()
         }
     }
 
@@ -229,6 +239,8 @@ struct SettingsSheet: View {
             generalTab
         case .engine:
             engineTab
+        case .readAloud:
+            readAloudTab
         case .shortcuts:
             shortcutsTab
         case .reader:
@@ -381,6 +393,101 @@ struct SettingsSheet: View {
                         }
                         .font(LexiFont.zh(11.5))
                     }
+                }
+            }
+        }
+    }
+
+    private var readAloudTab: some View {
+        VStack(spacing: 0) {
+            SettingsSection(title: "AI 朗读") {
+                SettingsRow(
+                    label: "服务商",
+                    hint: "当前主攻豆包语音，系统朗读作为兜底"
+                ) {
+                    SettingsSelect(
+                        value: $ttsProvider,
+                        options: TTSProviderID.allCases.map { ($0.rawValue, $0.displayName) }
+                    )
+                }
+                SettingsRow(
+                    label: "Resource ID",
+                    hint: "需与豆包音色匹配，默认 seed-tts-2.0"
+                ) {
+                    TextField("seed-tts-2.0", text: $ttsResourceId)
+                        .font(LexiFont.mono(11))
+                        .textFieldStyle(.roundedBorder)
+                        .controlSize(.small)
+                        .frame(width: 190)
+                }
+                SettingsRow(
+                    label: "音色 ID",
+                    hint: "在火山控制台选择可用音色后填入 speaker"
+                ) {
+                    TextField("speaker", text: $ttsSpeaker)
+                        .font(LexiFont.mono(11))
+                        .textFieldStyle(.roundedBorder)
+                        .controlSize(.small)
+                        .frame(width: 190)
+                }
+                SettingsRow(
+                    label: "语速",
+                    hint: "0 为默认；正数更快，负数更慢",
+                    isLast: true
+                ) {
+                    Stepper(value: $ttsSpeechRate, in: -50...100, step: 10) {
+                        Text("\(ttsSpeechRate)")
+                            .font(LexiFont.mono(11))
+                            .foregroundStyle(Color.lexiInk2)
+                            .frame(width: 34, alignment: .trailing)
+                    }
+                    .controlSize(.small)
+                }
+            }
+
+            SettingsSection(title: "API Key") {
+                SettingsRow(
+                    label: "豆包语音",
+                    hint: "Keychain 本地保存；不会进入 SQLite 或日志",
+                    isLast: true,
+                    controlWidth: 330
+                ) {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(ttsAPIKey.isEmpty ? Color.lexiInk4 : ttsStatus.color)
+                            .frame(width: 6, height: 6)
+
+                        SecureField("X-Api-Key", text: $ttsAPIKey)
+                            .font(LexiFont.mono(11))
+                            .textFieldStyle(.roundedBorder)
+                            .controlSize(.small)
+                            .frame(width: 178)
+                            .onChange(of: ttsAPIKey) { _, next in
+                                ttsStatus = next.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .unset : .keyOkModelUnknown
+                            }
+
+                        Button {
+                            testTTS()
+                        } label: {
+                            if testingTTS {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                    .frame(width: 28)
+                            } else {
+                                Text("测试")
+                            }
+                        }
+                        .buttonStyle(SettingsFlatButtonStyle())
+                        .disabled(testingTTS)
+                    }
+                }
+            }
+
+            SettingsSection(title: "朗读缓存") {
+                SettingsRow(label: "音频缓存", isLast: true) {
+                    Text("\(Int(audioCacheBytesMB.rounded())) MB")
+                        .font(LexiFont.mono(11))
+                        .foregroundStyle(Color.lexiInk2)
                 }
             }
         }
@@ -550,6 +657,10 @@ struct SettingsSheet: View {
         Double(cacheBytes) / 1024 / 1024
     }
 
+    private var audioCacheBytesMB: Double {
+        Double(audioCacheBytes) / 1024 / 1024
+    }
+
     private func subtitle(for engine: EngineID) -> String {
         switch engine {
         case .openai:
@@ -581,7 +692,11 @@ struct SettingsSheet: View {
         loadedAPIKeys = nextKeys
         models = nextModels
         statuses = nextStatuses
+        ttsAPIKey = TTSKeychain.apiKey(for: .doubao) ?? ""
+        loadedTTSAPIKey = ttsAPIKey
+        ttsStatus = ttsAPIKey.isEmpty ? .unset : .ok
         cacheBytes = (try? await database?.translationCacheBytes()) ?? 0
+        audioCacheBytes = (try? await database?.audioCacheBytes()) ?? 0
         books = (try? await database?.books()) ?? []
     }
 
@@ -684,6 +799,41 @@ struct SettingsSheet: View {
         }
     }
 
+    private func testTTS() {
+        let key = ttsAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            ttsStatus = .unset
+            TTSKeychain.delete(.doubao)
+            toast("请先填写豆包语音 API Key")
+            return
+        }
+
+        guard !ttsSpeaker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            ttsStatus = .fail
+            toast("请先填写豆包语音音色 ID")
+            return
+        }
+
+        saveTTSAPIKey(notify: false)
+        testingTTS = true
+        Task {
+            do {
+                let provider = try TTSRegistry.shared.provider(for: currentTTSConfig)
+                _ = try await provider.ping(TTSRequest(
+                    text: "Lexi 正在测试豆包语音朗读。",
+                    config: currentTTSConfig,
+                    contextInstruction: "Read naturally with clear phrasing."
+                ))
+                ttsStatus = .ok
+                toast("豆包语音连接成功")
+            } catch {
+                ttsStatus = .fail
+                toast(error.localizedDescription)
+            }
+            testingTTS = false
+        }
+    }
+
     private func saveAPIKeys(notify: Bool = true) {
         var changed = false
         for engine in EngineID.allCases {
@@ -701,6 +851,32 @@ struct SettingsSheet: View {
         if notify, changed {
             notifyEngineSettingsChanged()
         }
+    }
+
+    private func saveTTSAPIKey(notify: Bool = true) {
+        let key = ttsAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let changed = loadedTTSAPIKey != key
+        if key.isEmpty {
+            TTSKeychain.delete(.doubao)
+            ttsStatus = .unset
+        } else {
+            TTSKeychain.setApiKey(key, for: .doubao)
+        }
+        loadedTTSAPIKey = key
+        if notify, changed {
+            toast("已更新豆包语音 Key")
+        }
+    }
+
+    private var currentTTSConfig: TTSProviderConfig {
+        TTSProviderConfig(
+            provider: TTSProviderID(rawValue: ttsProvider) ?? .doubao,
+            resourceId: ttsResourceId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? TTSProviderConfig.doubaoDefault.resourceId : ttsResourceId.trimmingCharacters(in: .whitespacesAndNewlines),
+            speaker: ttsSpeaker.trimmingCharacters(in: .whitespacesAndNewlines),
+            speechRate: ttsSpeechRate,
+            format: TTSProviderConfig.doubaoDefault.format,
+            sampleRate: TTSProviderConfig.doubaoDefault.sampleRate
+        )
     }
 
     private func notifyEngineSettingsChanged() {

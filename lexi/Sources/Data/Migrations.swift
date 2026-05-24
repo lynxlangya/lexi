@@ -2,13 +2,14 @@ import Foundation
 import GRDB
 
 enum Migrations {
-    static func register(in migrator: inout DatabaseMigrator) {
+    nonisolated static func register(in migrator: inout DatabaseMigrator) {
         registerV1Initial(in: &migrator)
         registerV2VocabEnrichment(in: &migrator)
         registerV3VocabGlobalSource(in: &migrator)
+        registerV4AudioReadAloud(in: &migrator)
     }
 
-    static func registerV1Initial(in migrator: inout DatabaseMigrator) {
+    nonisolated static func registerV1Initial(in migrator: inout DatabaseMigrator) {
         migrator.registerMigration("v1_initial") { db in
             try db.create(table: "books") { table in
                 table.column("id", .text).primaryKey()
@@ -84,7 +85,7 @@ enum Migrations {
         }
     }
 
-    private static func registerV2VocabEnrichment(in migrator: inout DatabaseMigrator) {
+    private nonisolated static func registerV2VocabEnrichment(in migrator: inout DatabaseMigrator) {
         migrator.registerMigration("v2_vocab_enrichment") { db in
             try db.create(table: "vocab_new") { table in
                 table.autoIncrementedPrimaryKey("id")
@@ -151,7 +152,7 @@ enum Migrations {
         }
     }
 
-    private static func registerV3VocabGlobalSource(in migrator: inout DatabaseMigrator) {
+    private nonisolated static func registerV3VocabGlobalSource(in migrator: inout DatabaseMigrator) {
         migrator.registerMigration("v3_vocab_global_source") { db in
             try db.alter(table: "vocab") { table in
                 table.add(column: "seenGlobally", .integer).notNull().defaults(to: 0)
@@ -164,6 +165,50 @@ enum Migrations {
                 """
             )
             try db.create(index: "vocab_seen_global_idx", on: "vocab", columns: ["seenGlobally"])
+        }
+    }
+
+    private nonisolated static func registerV4AudioReadAloud(in migrator: inout DatabaseMigrator) {
+        migrator.registerMigration("v4_audio_read_aloud") { db in
+            try db.create(table: "audio_cache") { table in
+                table.column("cacheKey", .text).primaryKey()
+                table.column("bookId", .text)
+                    .notNull()
+                    .references("books", onDelete: .cascade)
+                table.column("chapterId", .integer)
+                    .references("chapters", onDelete: .cascade)
+                table.column("paragraphStart", .integer).notNull()
+                table.column("paragraphEnd", .integer).notNull()
+                table.column("language", .text).notNull()
+                table.column("provider", .text).notNull()
+                table.column("resourceId", .text).notNull()
+                table.column("speaker", .text).notNull()
+                table.column("speechRate", .integer).notNull()
+                table.column("profileHash", .text).notNull()
+                table.column("textHash", .text).notNull()
+                table.column("fileURL", .text).notNull()
+                table.column("byteCount", .integer).notNull()
+                table.column("durationSeconds", .double)
+                table.column("createdAt", .integer).notNull()
+                table.column("lastAccessedAt", .integer).notNull()
+            }
+            try db.create(index: "audio_cache_book_idx", on: "audio_cache", columns: ["bookId"])
+            try db.create(index: "audio_cache_accessed_idx", on: "audio_cache", columns: ["lastAccessedAt"])
+
+            try db.create(table: "narration_profiles") { table in
+                table.column("bookId", .text)
+                    .primaryKey()
+                    .references("books", onDelete: .cascade)
+                table.column("provider", .text).notNull()
+                table.column("profileHash", .text).notNull()
+                table.column("genre", .text).notNull()
+                table.column("tone", .text).notNull()
+                table.column("pace", .text).notNull()
+                table.column("pronunciationHints", .text).notNull()
+                table.column("summary", .text).notNull()
+                table.column("createdAt", .integer).notNull()
+                table.column("updatedAt", .integer).notNull()
+            }
         }
     }
 }
@@ -189,7 +234,7 @@ private struct LegacyVocabRow {
         addedAt = row["addedAt"]
     }
 
-    static func encodeBookIds(_ bookIds: [String]) -> String {
+    nonisolated static func encodeBookIds(_ bookIds: [String]) -> String {
         (try? String(data: JSONEncoder().encode(bookIds), encoding: .utf8)) ?? "[]"
     }
 }
