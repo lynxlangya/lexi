@@ -109,6 +109,22 @@ final class AudioTests: XCTestCase {
             XCTAssertEqual(error as? TTSProviderError, .missingAPIKey(.doubao))
         }
     }
+
+    func testAudioCacheRemoveFilesOnlyDeletesInsideAudioCacheDirectory() throws {
+        let cacheFile = try AudioCacheLocation.fileURL(cacheKey: UUID().uuidString, format: "mp3")
+        let outsideFile = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString)-outside.mp3")
+        try Data([0x01]).write(to: cacheFile)
+        try Data([0x02]).write(to: outsideFile)
+        defer {
+            try? FileManager.default.removeItem(at: cacheFile)
+            try? FileManager.default.removeItem(at: outsideFile)
+        }
+
+        AudioCacheLocation.removeFiles(at: [cacheFile, outsideFile])
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cacheFile.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outsideFile.path))
+    }
 }
 
 private final class AudioMockHTTPClient: EngineHTTPClient, @unchecked Sendable {

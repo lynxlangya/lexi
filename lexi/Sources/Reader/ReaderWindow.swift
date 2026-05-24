@@ -633,7 +633,9 @@ private struct ReaderWindowContent: View {
 
         Task {
             do {
+                let audioFileURLs = try await database.audioCacheFileURLs(bookId: target.id)
                 try await database.deleteBook(id: target.id)
+                AudioCacheLocation.removeFiles(at: audioFileURLs)
                 if target.id == book?.id {
                     scrollWriteTask?.cancel()
                     visibleParagraphId = nil
