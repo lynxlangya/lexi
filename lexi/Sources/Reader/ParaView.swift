@@ -7,6 +7,7 @@ struct ParaView: View {
     let transMode: ReaderTranslationMode
     let layout: ReaderParagraphLayout
     let preferences: ReaderRuntimePreferences
+    let readAloudHighlight: TTSAudioLanguage?
     let onSelectionChange: (SelectedTextContext?) -> Void
     let retry: () -> Void
 
@@ -63,6 +64,11 @@ struct ParaView: View {
             },
             onSelectionChange: onSelectionChange
         )
+        .background {
+            if readAloudHighlight == .source {
+                readAloudHighlightBackground
+            }
+        }
     }
 
     private var activeLayout: ReaderParagraphLayout {
@@ -137,6 +143,25 @@ struct ParaView: View {
             },
             onSelectionChange: onSelectionChange
         )
+        .background {
+            if readAloudHighlight == .target {
+                readAloudHighlightBackground
+            }
+        }
+    }
+
+    private var readAloudHighlightBackground: some View {
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(preferences.accent.faint)
+            .padding(.horizontal, -10)
+            .padding(.vertical, -7)
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(preferences.accent.primary.opacity(0.72))
+                    .frame(width: 3)
+                    .padding(.vertical, -1)
+                    .offset(x: -10)
+            }
     }
 
     private var estimatedDualColumnLineCount: Int {

@@ -9,6 +9,7 @@ struct ReadingColumn: View {
     let snapshot: ChapterTranslationSnapshot
     let transMode: ReaderTranslationMode
     let preferences: ReaderRuntimePreferences
+    let readAloudHighlight: ReadAloudHighlightTarget?
     @Binding var visibleParagraphId: Int64?
     @Binding var selectedTextContext: SelectedTextContext?
     let goToPreviousChapter: () -> Void
@@ -32,6 +33,7 @@ struct ReadingColumn: View {
                             transMode: transMode,
                             layout: activeParagraphLayout,
                             preferences: preferences,
+                            readAloudHighlight: highlightTarget(for: paragraph),
                             onSelectionChange: { context in
                                 selectedTextContext = context.map {
                                     SelectedTextContext(
@@ -107,6 +109,19 @@ struct ReadingColumn: View {
 
     private var windowPad: CGFloat {
         activeParagraphLayout == .dual ? LexiSpacing.windowPadDual : LexiSpacing.windowPad
+    }
+
+    private func highlightTarget(for paragraph: ReaderParagraph) -> TTSAudioLanguage? {
+        guard let readAloudHighlight else {
+            return nil
+        }
+        if readAloudHighlight.matches(chapterId: chapter.id, paragraphId: paragraph.id, language: .source) {
+            return .source
+        }
+        if readAloudHighlight.matches(chapterId: chapter.id, paragraphId: paragraph.id, language: .target) {
+            return .target
+        }
+        return nil
     }
 
     private func reportVisibleParagraph(from offsets: [Int64: CGFloat]) {

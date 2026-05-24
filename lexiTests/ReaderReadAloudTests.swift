@@ -88,6 +88,22 @@ final class ReaderReadAloudTests: XCTestCase {
         XCTAssertFalse(last.canMoveNext)
     }
 
+    func testHighlightTargetMatchesOnlyExactChapterParagraphAndLanguage() {
+        let target = ReadAloudHighlightTarget(
+            chapterId: 10,
+            language: .target,
+            paragraphIds: [2, 3],
+            text: "二。\n\n三。",
+            displayRange: "段落 2-3"
+        )
+
+        XCTAssertTrue(target.matches(chapterId: 10, paragraphId: 2, language: .target))
+        XCTAssertTrue(target.matches(chapterId: 10, paragraphId: 3, language: .target))
+        XCTAssertFalse(target.matches(chapterId: 10, paragraphId: 2, language: .source))
+        XCTAssertFalse(target.matches(chapterId: 11, paragraphId: 2, language: .target))
+        XCTAssertFalse(target.matches(chapterId: 10, paragraphId: 4, language: .target))
+    }
+
     func testAudioResolverUsesCacheHitBeforeProviderCall() async throws {
         let database = try AppDatabase.makeTransient()
         let book = Book(

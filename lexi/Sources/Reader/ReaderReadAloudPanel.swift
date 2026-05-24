@@ -13,6 +13,7 @@ struct ReaderReadAloudPanel: View {
     @Binding var mode: ReaderReadAloudPanelMode
     let status: ReadAloudPlaybackStatus
     let progress: ReadAloudPlaybackProgress
+    let currentHighlight: ReadAloudHighlightTarget?
     let canMoveToPreviousChapter: Bool
     let canMoveToNextChapter: Bool
     let preferences: ReaderRuntimePreferences
@@ -245,7 +246,7 @@ struct ReaderReadAloudPanel: View {
                 .foregroundStyle(preferences.theme.ink3)
 
             if showsText {
-                Text(sampleText)
+                Text(currentText)
                     .font(currentTextFont)
                     .fontWeight(.semibold)
                     .lineSpacing(6)
@@ -410,13 +411,20 @@ struct ReaderReadAloudPanel: View {
         language == .source ? "原文" : "译文"
     }
 
-    private var sampleText: String {
-        switch language {
-        case .source:
-            return chapter.paragraphs.first?.en ?? "Open a chapter to start reading aloud."
-        case .target:
-            return "译文朗读将在下一步接入当前段落。"
+    private var currentText: String {
+        guard let currentHighlight,
+              currentHighlight.chapterId == chapter.id,
+              currentHighlight.language == language,
+              !currentHighlight.text.isEmpty else {
+            return emptyText
         }
+        return currentHighlight.text
+    }
+
+    private var emptyText: String {
+        language == .source
+            ? "点击播放后，这里会显示正在朗读的原文。"
+            : "点击播放后，这里会显示正在朗读的译文。"
     }
 
     private var currentTextFont: Font {
