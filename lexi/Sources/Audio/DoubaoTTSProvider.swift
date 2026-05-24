@@ -244,14 +244,10 @@ private nonisolated struct DoubaoTTSRequestPayload: Encodable {
             var speech_rate: Int
         }
 
-        struct Additions: Encodable {
-            var context_texts: [String]
-        }
-
         var text: String
         var speaker: String
         var audio_params: AudioParams
-        var additions: Additions?
+        var additions: String?
     }
 
     var user: User
@@ -267,10 +263,23 @@ private nonisolated struct DoubaoTTSRequestPayload: Encodable {
                 sample_rate: speech.config.sampleRate,
                 speech_rate: speech.config.speechRate
             ),
-            additions: speech.contextInstruction.flatMap { instruction in
-                let trimmed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : RequestParams.Additions(context_texts: [trimmed])
-            }
+            additions: Self.additionsJSON(from: speech.contextInstruction)
         )
+    }
+
+    private static func additionsJSON(from instruction: String?) -> String? {
+        guard let trimmed = instruction?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        let payload = AdditionsPayload(context_texts: [trimmed])
+        guard let data = try? JSONEncoder().encode(payload) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private struct AdditionsPayload: Encodable {
+        var context_texts: [String]
     }
 }

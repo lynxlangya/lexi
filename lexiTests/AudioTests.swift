@@ -36,8 +36,10 @@ final class AudioTests: XCTestCase {
         XCTAssertEqual(audioParams["sample_rate"] as? Int, 24_000)
         XCTAssertEqual(audioParams["speech_rate"] as? Int, 10)
 
-        let additions = try XCTUnwrap(params["additions"] as? [String: Any])
-        XCTAssertEqual(additions["context_texts"] as? [String], ["Read naturally."])
+        let additions = try XCTUnwrap(params["additions"] as? String)
+        let additionsData = try XCTUnwrap(additions.data(using: .utf8))
+        let additionsJSON = try JSONSerialization.jsonObject(with: additionsData) as? [String: Any]
+        XCTAssertEqual(additionsJSON?["context_texts"] as? [String], ["Read naturally."])
     }
 
     func testDoubaoParserCollectsBase64AudioFromNestedSSEPayload() throws {
