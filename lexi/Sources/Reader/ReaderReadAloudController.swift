@@ -55,6 +55,47 @@ nonisolated enum ReadAloudPlaybackStatus: Equatable, Sendable {
         }
         return false
     }
+
+    var isError: Bool {
+        if case .error = self {
+            return true
+        }
+        return false
+    }
+}
+
+nonisolated struct ReadAloudPlaybackProgress: Equatable, Sendable {
+    var currentIndex: Int
+    var totalCount: Int
+    var currentRange: String?
+
+    static let empty = ReadAloudPlaybackProgress(
+        currentIndex: 0,
+        totalCount: 0,
+        currentRange: nil
+    )
+
+    var fraction: Double {
+        guard totalCount > 0 else {
+            return 0
+        }
+        return Double(currentIndex + 1) / Double(totalCount)
+    }
+
+    var displayText: String {
+        guard totalCount > 0 else {
+            return "等待"
+        }
+        return "\(currentIndex + 1) / \(totalCount)"
+    }
+
+    var canMovePrevious: Bool {
+        currentIndex > 0
+    }
+
+    var canMoveNext: Bool {
+        totalCount > 0 && currentIndex + 1 < totalCount
+    }
 }
 
 @Observable
@@ -77,6 +118,7 @@ final class ReaderReadAloudController: NSObject {
 
     private(set) var status: ReadAloudPlaybackStatus = .idle
     private(set) var language: TTSAudioLanguage = .source
+    private(set) var progress = ReadAloudPlaybackProgress.empty
 
     init(
         database: AppDatabase,
@@ -143,6 +185,7 @@ final class ReaderReadAloudController: NSObject {
 
         chunks = planned
         currentIndex = 0
+        updateProgress()
         prepareProfileAndPlay(
             book: book,
             chapters: chapters,
@@ -178,6 +221,7 @@ final class ReaderReadAloudController: NSObject {
         chunks = []
         currentIndex = 0
         status = .idle
+        progress = .empty
     }
 
     func previousChunk() {
@@ -185,6 +229,7 @@ final class ReaderReadAloudController: NSObject {
             return
         }
         currentIndex -= 1
+        updateProgress()
         playCurrentChunk()
     }
 
@@ -194,6 +239,7 @@ final class ReaderReadAloudController: NSObject {
             return
         }
         currentIndex += 1
+        updateProgress()
         playCurrentChunk()
     }
 
@@ -213,6 +259,7 @@ final class ReaderReadAloudController: NSObject {
             return
         }
 
+        updateProgress()
         status = .generating(chunk.displayRange)
         generationTask = Task { [database, registry, audioResolver, currentConfig] in
             do {
@@ -305,6 +352,14 @@ final class ReaderReadAloudController: NSObject {
             return
         }
         nextChunk()
+    }
+
+    private func updateProgress() {
+        progress = ReadAloudPlaybackProgress(
+            currentIndex: currentIndex,
+            totalCount: chunks.count,
+            currentRange: chunks[safe: currentIndex]?.displayRange
+        )
     }
 
     private func prefetchNextChunk() {

@@ -209,7 +209,8 @@ private struct ReaderWindowContent: View {
                     translateSelectedChapter()
                 }
                 .onChange(of: readAloudLanguage) { _, _ in
-                    guard readAloudController?.status.isActive == true else {
+                    guard let status = readAloudController?.status,
+                          status.isActive || status.isError else {
                         return
                     }
                     startReadAloud()
@@ -398,13 +399,20 @@ private struct ReaderWindowContent: View {
                                 showsText: $readAloudPanelShowsText,
                                 mode: $readAloudPanelMode,
                                 status: readAloudController?.status ?? .idle,
+                                progress: readAloudController?.progress ?? .empty,
+                                canMoveToPreviousChapter: selectedChapterIndex > 0,
+                                canMoveToNextChapter: selectedChapterIndex + 1 < chapters.count,
                                 preferences: preferences,
                                 close: {
                                     withAnimation(.easeInOut(duration: 0.18)) {
                                         showsReadAloudPanel = false
                                     }
                                 },
-                                primaryAction: handleReadAloudEntry
+                                primaryAction: handleReadAloudEntry,
+                                previousChunk: { readAloudController?.previousChunk() },
+                                nextChunk: { readAloudController?.nextChunk() },
+                                previousChapter: previousReadAloudChapter,
+                                nextChapter: nextReadAloudChapter
                             )
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
@@ -737,6 +745,30 @@ private struct ReaderWindowContent: View {
     private func openReadAloudPanel() {
         withAnimation(.easeInOut(duration: 0.18)) {
             showsReadAloudPanel = true
+        }
+    }
+
+    private func previousReadAloudChapter() {
+        guard selectedChapterIndex > 0 else {
+            return
+        }
+        selectReadAloudChapter(at: selectedChapterIndex - 1)
+    }
+
+    private func nextReadAloudChapter() {
+        guard selectedChapterIndex + 1 < chapters.count else {
+            return
+        }
+        selectReadAloudChapter(at: selectedChapterIndex + 1)
+    }
+
+    private func selectReadAloudChapter(at index: Int) {
+        selectChapter(at: index)
+        visibleParagraphId = nil
+        openReadAloudPanel()
+        Task { @MainActor in
+            await Task.yield()
+            startReadAloud()
         }
     }
 

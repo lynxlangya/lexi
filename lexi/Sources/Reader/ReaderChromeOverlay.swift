@@ -272,10 +272,4 @@ private extension ReadAloudPlaybackStatus {
         }
     }
 
-    var isError: Bool {
-        if case .error = self {
-            return true
-        }
-        return false
-    }
 }

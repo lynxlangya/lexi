@@ -61,6 +61,33 @@ final class ReaderReadAloudTests: XCTestCase {
         )
     }
 
+    func testPlaybackProgressUsesChunkPositionSemantics() {
+        XCTAssertEqual(ReadAloudPlaybackProgress.empty.displayText, "等待")
+        XCTAssertEqual(ReadAloudPlaybackProgress.empty.fraction, 0)
+        XCTAssertFalse(ReadAloudPlaybackProgress.empty.canMovePrevious)
+        XCTAssertFalse(ReadAloudPlaybackProgress.empty.canMoveNext)
+
+        let first = ReadAloudPlaybackProgress(
+            currentIndex: 0,
+            totalCount: 3,
+            currentRange: "段落 1"
+        )
+        XCTAssertEqual(first.fraction, 1.0 / 3.0, accuracy: 0.0001)
+        XCTAssertEqual(first.displayText, "1 / 3")
+        XCTAssertFalse(first.canMovePrevious)
+        XCTAssertTrue(first.canMoveNext)
+
+        let last = ReadAloudPlaybackProgress(
+            currentIndex: 2,
+            totalCount: 3,
+            currentRange: "段落 5"
+        )
+        XCTAssertEqual(last.fraction, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(last.displayText, "3 / 3")
+        XCTAssertTrue(last.canMovePrevious)
+        XCTAssertFalse(last.canMoveNext)
+    }
+
     func testAudioResolverUsesCacheHitBeforeProviderCall() async throws {
         let database = try AppDatabase.makeTransient()
         let book = Book(
