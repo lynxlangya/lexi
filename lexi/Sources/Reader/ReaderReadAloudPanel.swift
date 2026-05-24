@@ -12,9 +12,16 @@ struct ReaderReadAloudPanel: View {
     @Binding var showsText: Bool
     @Binding var mode: ReaderReadAloudPanelMode
     let status: ReadAloudPlaybackStatus
+    let progress: ReadAloudPlaybackProgress
+    let canMoveToPreviousChapter: Bool
+    let canMoveToNextChapter: Bool
     let preferences: ReaderRuntimePreferences
     let close: () -> Void
     let primaryAction: () -> Void
+    let previousChunk: () -> Void
+    let nextChunk: () -> Void
+    let previousChapter: () -> Void
+    let nextChapter: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -129,8 +136,18 @@ struct ReaderReadAloudPanel: View {
 
     private var playbackControls: some View {
         HStack(spacing: 14) {
-            panelIconButton("backward.end", help: "上一章", isEnabled: false) {}
-            panelIconButton("backward.fill", help: "上一段", isEnabled: false) {}
+            panelIconButton(
+                "backward.end",
+                help: "上一章并开始朗读",
+                isEnabled: canMoveToPreviousChapter,
+                action: previousChapter
+            )
+            panelIconButton(
+                "backward.fill",
+                help: "上一段",
+                isEnabled: progress.canMovePrevious,
+                action: previousChunk
+            )
 
             Button(action: primaryAction) {
                 Image(systemName: primaryIcon)
@@ -146,8 +163,18 @@ struct ReaderReadAloudPanel: View {
             .help(primaryHelp)
             .focusable(false)
 
-            panelIconButton("forward.fill", help: "下一段", isEnabled: false) {}
-            panelIconButton("forward.end", help: "下一章", isEnabled: false) {}
+            panelIconButton(
+                "forward.fill",
+                help: "下一段",
+                isEnabled: progress.canMoveNext,
+                action: nextChunk
+            )
+            panelIconButton(
+                "forward.end",
+                help: "下一章并开始朗读",
+                isEnabled: canMoveToNextChapter,
+                action: nextChapter
+            )
         }
         .frame(maxWidth: .infinity)
     }
@@ -348,15 +375,18 @@ struct ReaderReadAloudPanel: View {
     }
 
     private var progressValue: CGFloat {
-        status.isActive ? 0.26 : 0
+        CGFloat(progress.fraction)
     }
 
     private var progressLeadingLabel: String {
-        status.isActive ? "朗读中" : "未开始"
+        if let currentRange = progress.currentRange, status.isActive {
+            return currentRange
+        }
+        return status.isActive ? "朗读中" : "未开始"
     }
 
     private var progressTrailingLabel: String {
-        status.isActive ? "本章" : "等待"
+        progress.displayText
     }
 
     private var primaryIcon: String {
