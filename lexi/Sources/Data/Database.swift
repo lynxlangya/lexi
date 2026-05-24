@@ -283,6 +283,19 @@ actor AppDatabase {
         }
     }
 
+    func audioCacheFileURLs(bookId: String) throws -> [URL] {
+        try pool.read { db in
+            try Row.fetchAll(
+                db,
+                sql: "SELECT fileURL FROM audio_cache WHERE bookId = ?",
+                arguments: [bookId]
+            ).compactMap { row in
+                let raw: String = row["fileURL"]
+                return URL(string: raw) ?? URL(fileURLWithPath: raw)
+            }
+        }
+    }
+
     func translationCacheBytes(bookId: String) throws -> Int64 {
         try pool.read { db in
             try Int64.fetchOne(
@@ -656,6 +669,21 @@ actor AppDatabase {
     func clearAudioCache() throws {
         try pool.write { db in
             try db.execute(sql: "DELETE FROM audio_cache")
+        }
+    }
+
+    func clearAudioCache(bookId: String) throws -> [URL] {
+        try pool.write { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT fileURL FROM audio_cache WHERE bookId = ?",
+                arguments: [bookId]
+            )
+            try db.execute(sql: "DELETE FROM audio_cache WHERE bookId = ?", arguments: [bookId])
+            return rows.compactMap { row in
+                let raw: String = row["fileURL"]
+                return URL(string: raw) ?? URL(fileURLWithPath: raw)
+            }
         }
     }
 

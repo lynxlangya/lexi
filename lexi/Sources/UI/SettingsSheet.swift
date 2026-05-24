@@ -485,9 +485,17 @@ struct SettingsSheet: View {
 
             SettingsSection(title: "朗读缓存") {
                 SettingsRow(label: "音频缓存", isLast: true) {
-                    Text("\(Int(audioCacheBytesMB.rounded())) MB")
-                        .font(LexiFont.mono(11))
-                        .foregroundStyle(Color.lexiInk2)
+                    HStack(spacing: 10) {
+                        Text("\(Int(audioCacheBytesMB.rounded())) MB")
+                            .font(LexiFont.mono(11))
+                            .foregroundStyle(Color.lexiInk2)
+
+                        Button("清除") {
+                            clearAudioCache()
+                        }
+                        .buttonStyle(SettingsFlatButtonStyle())
+                        .disabled(audioCacheBytes == 0)
+                    }
                 }
             }
         }
@@ -899,6 +907,17 @@ struct SettingsSheet: View {
             try? await database?.clearTranslationCache()
             cacheBytes = 0
             toast("已清除全部翻译缓存")
+        }
+    }
+
+    private func clearAudioCache() {
+        Task {
+            try? await database?.clearAudioCache()
+            if let directory = try? AudioCacheLocation.directory() {
+                try? FileManager.default.removeItem(at: directory)
+            }
+            audioCacheBytes = 0
+            toast("已清除音频缓存")
         }
     }
 

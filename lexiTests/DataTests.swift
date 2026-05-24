@@ -304,6 +304,72 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(bytes, 1234)
     }
 
+    func testClearAudioCacheForBookReturnsFilesAndPreservesTranslations() async throws {
+        let database = try AppDatabase.makeTransient()
+        let date = Date(lexiTimestamp: 1_800_000_000)
+        let bookOne = try await insertBookWithOneTranslation(id: "book-one", database: database, date: date)
+        let bookTwo = try await insertBookWithOneTranslation(id: "book-two", database: database, date: date)
+        let oneFile = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString)-one.mp3")
+        let twoFile = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString)-two.mp3")
+
+        try await database.upsertAudioCacheRecord(audioCacheRecord(
+            cacheKey: "audio-one",
+            bookId: "book-one",
+            chapterId: bookOne.chapterId,
+            fileURL: oneFile,
+            byteCount: 100,
+            date: date
+        ))
+        try await database.upsertAudioCacheRecord(audioCacheRecord(
+            cacheKey: "audio-two",
+            bookId: "book-two",
+            chapterId: bookTwo.chapterId,
+            fileURL: twoFile,
+            byteCount: 200,
+            date: date
+        ))
+
+        let removedFiles = try await database.clearAudioCache(bookId: "book-one")
+        let removedAudio = try await database.audioCacheRecord(cacheKey: "audio-one", accessedAt: nil)
+        let remainingAudio = try await database.audioCacheRecord(cacheKey: "audio-two", accessedAt: nil)
+        let audioBytes = try await database.audioCacheBytes()
+        let bookOneTranslationBytes = try await database.translationCacheBytes(bookId: "book-one")
+        let bookTwoTranslationBytes = try await database.translationCacheBytes(bookId: "book-two")
+
+        XCTAssertEqual(removedFiles, [oneFile])
+        XCTAssertNil(removedAudio)
+        XCTAssertNotNil(remainingAudio)
+        XCTAssertEqual(audioBytes, 200)
+        XCTAssertGreaterThan(bookOneTranslationBytes, 0)
+        XCTAssertGreaterThan(bookTwoTranslationBytes, 0)
+    }
+
+    func testDeletingBookCascadesAudioCacheRowsAfterFileURLLookup() async throws {
+        let database = try AppDatabase.makeTransient()
+        let date = Date(lexiTimestamp: 1_800_000_000)
+        let book = try await insertBookWithOneTranslation(id: "book-audio", database: database, date: date)
+        let fileURL = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString)-audio.mp3")
+        try await database.upsertAudioCacheRecord(audioCacheRecord(
+            cacheKey: "audio-book",
+            bookId: "book-audio",
+            chapterId: book.chapterId,
+            fileURL: fileURL,
+            byteCount: 300,
+            date: date
+        ))
+
+        let fileURLs = try await database.audioCacheFileURLs(bookId: "book-audio")
+        try await database.deleteBook(id: "book-audio")
+        let deletedBook = try await database.book(id: "book-audio")
+        let deletedAudio = try await database.audioCacheRecord(cacheKey: "audio-book", accessedAt: nil)
+        let audioBytes = try await database.audioCacheBytes()
+
+        XCTAssertEqual(fileURLs, [fileURL])
+        XCTAssertNil(deletedBook)
+        XCTAssertNil(deletedAudio)
+        XCTAssertEqual(audioBytes, 0)
+    }
+
     func testNarrationProfileRoundTrip() async throws {
         let database = try AppDatabase.makeTransient()
         try await database.insertBook(Book(
@@ -768,6 +834,66 @@ final class DataTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appending(path: "LexiTests", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory.appending(path: "\(UUID().uuidString).sqlite")
+    }
+
+    private func insertBookWithOneTranslation(
+        id: String,
+        database: AppDatabase,
+        date: Date
+    ) async throws -> (chapterId: Int64, paragraphId: Int64) {
+        try await database.insertBook(
+            Book(
+                id: id,
+                title: id,
+                author: "Author",
+                fileURL: URL(fileURLWithPath: "/tmp/\(id).epub"),
+                addedAt: date,
+                lastReadAt: nil,
+                progress: 0,
+                coverData: nil,
+                coverBg: nil,
+                coverInk: nil
+            )
+        )
+        let chapterId = try await database.insertChapter(
+            Chapter(id: nil, bookId: id, idx: 0, n: "1", title: "Chapter")
+        )
+        let paragraphId = try await database.insertParagraph(
+            Paragraph(id: nil, chapterId: chapterId, ord: 0, en: "Text")
+        )
+        try await database.upsertTranslation(
+            Translation(id: nil, paragraphId: paragraphId, engine: .openai, model: "gpt", zh: "译文", createdAt: date)
+        )
+        return (chapterId, paragraphId)
+    }
+
+    private func audioCacheRecord(
+        cacheKey: String,
+        bookId: String,
+        chapterId: Int64,
+        fileURL: URL,
+        byteCount: Int64,
+        date: Date
+    ) -> AudioCacheRecord {
+        AudioCacheRecord(
+            cacheKey: cacheKey,
+            bookId: bookId,
+            chapterId: chapterId,
+            paragraphStart: 0,
+            paragraphEnd: 0,
+            language: .source,
+            provider: .doubao,
+            resourceId: "seed-tts-2.0",
+            speaker: "voice",
+            speechRate: 0,
+            profileHash: "profile",
+            textHash: "text-\(cacheKey)",
+            fileURL: fileURL,
+            byteCount: byteCount,
+            durationSeconds: nil,
+            createdAt: date,
+            lastAccessedAt: date
+        )
     }
 
     func testShelfBookListOrdersByRecentActivity() async throws {
