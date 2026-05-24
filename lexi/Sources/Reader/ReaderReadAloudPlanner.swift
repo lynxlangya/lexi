@@ -12,6 +12,7 @@ nonisolated struct ReadAloudChunk: Equatable, Identifiable, Sendable {
     var language: TTSAudioLanguage
     var text: String
     var paragraphIds: [Int64]
+    var profile: NarrationProfile?
 
     var displayRange: String {
         paragraphStart == paragraphEnd
@@ -62,7 +63,8 @@ nonisolated enum ReadAloudChunkPlanner {
                 paragraphEnd: last.paragraph.ord,
                 language: language,
                 text: pendingParagraphs.map(\.text).joined(separator: "\n\n"),
-                paragraphIds: pendingParagraphs.map(\.paragraph.id)
+                paragraphIds: pendingParagraphs.map(\.paragraph.id),
+                profile: nil
             ))
             pendingParagraphs.removeAll(keepingCapacity: true)
             pendingCharacterCount = 0

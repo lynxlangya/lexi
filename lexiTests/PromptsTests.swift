@@ -8,6 +8,7 @@ final class PromptsTests: XCTestCase {
             Prompts.sentenceTranslationSystem,
             Prompts.wordLookupSystem,
             Prompts.phraseLookupSystem,
+            Prompts.narrationProfileSystem,
         ]
 
         for prompt in prompts {
@@ -25,6 +26,7 @@ final class PromptsTests: XCTestCase {
             Prompts.sentenceTranslationSystem,
             Prompts.wordLookupSystem,
             Prompts.phraseLookupSystem,
+            Prompts.narrationProfileSystem,
         ].joined(separator: "\n")
 
         XCTAssertFalse(combined.contains("你是"))
@@ -48,6 +50,18 @@ final class PromptsTests: XCTestCase {
         XCTAssertEqual(
             Prompts.systemPrompt(for: .phraseLookup(phrase: "look up", context: nil)),
             Prompts.phraseLookupSystem
+        )
+        let input = NarrationProfilePromptInput(
+            title: "Book",
+            author: "Author",
+            chapterTitles: ["One"],
+            sampleParagraphs: ["Sample"],
+            currentChapterTitle: "One",
+            currentParagraph: "Sample"
+        )
+        XCTAssertEqual(
+            Prompts.systemPrompt(for: .narrationProfile(input: input)),
+            Prompts.narrationProfileSystem
         )
     }
 

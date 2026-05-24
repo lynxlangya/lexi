@@ -57,7 +57,7 @@ struct ReaderStatusBar: View {
             return Color.lexiWarn
         case .fallback:
             return preferences.theme.ink2
-        case .idle, .planning, .generating, .playing, .paused:
+        case .idle, .planning, .preparingStyle, .generating, .playing, .paused:
             return preferences.accent.primary
         }
     }

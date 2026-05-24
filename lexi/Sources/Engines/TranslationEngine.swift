@@ -13,6 +13,7 @@ nonisolated enum TranslationTask: Equatable, Sendable {
     case sentence(text: String, context: SentenceContext?)
     case wordLookup(word: String, context: SentenceContext?)
     case phraseLookup(phrase: String, context: SentenceContext?)
+    case narrationProfile(input: NarrationProfilePromptInput)
 }
 
 nonisolated struct ParagraphContext: Equatable, Sendable {

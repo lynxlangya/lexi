@@ -398,11 +398,12 @@ private struct ReaderWindowContent: View {
                         preferences: preferences,
                         readAloudStatus: readAloudController?.status ?? .idle,
                         cycleThemeMode: cycleThemeMode,
-                        startReadAloud: startReadAloud,
+                        startReadAloud: { startReadAloud() },
                         pauseOrResumeReadAloud: { readAloudController?.pauseOrResume() },
                         stopReadAloud: { readAloudController?.stop() },
                         previousReadAloudChunk: { readAloudController?.previousChunk() },
                         nextReadAloudChunk: { readAloudController?.nextChunk() },
+                        refreshReadAloudProfile: { startReadAloud(forceRefreshProfile: true) },
                         openVocab: { openVocab(for: book) },
                         openSettings: { showsSettings = true },
                         sidebarVisible: columnVisibility != .detailOnly
@@ -684,7 +685,7 @@ private struct ReaderWindowContent: View {
         }
     }
 
-    private func startReadAloud() {
+    private func startReadAloud(forceRefreshProfile: Bool = false) {
         guard let book,
               let selectedChapter,
               let controller,
@@ -694,11 +695,14 @@ private struct ReaderWindowContent: View {
 
         readAloudController.start(
             book: book,
+            chapters: chapters,
             chapter: selectedChapter,
             snapshot: controller.snapshot(for: selectedChapter.id),
             visibleParagraphId: visibleParagraphId,
             language: readAloudLanguage,
-            config: currentTTSConfig
+            config: currentTTSConfig,
+            engineConfig: controller.currentEngineConfig,
+            forceRefreshProfile: forceRefreshProfile
         )
     }
 

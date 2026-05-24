@@ -86,7 +86,8 @@ final class ReaderReadAloudTests: XCTestCase {
             paragraphEnd: 0,
             language: .source,
             text: "Hello.",
-            paragraphIds: [1]
+            paragraphIds: [1],
+            profile: nil
         )
         let config = TTSProviderConfig(
             provider: .doubao,
@@ -133,6 +134,176 @@ final class ReaderReadAloudTests: XCTestCase {
         XCTAssertEqual(resolvedURL, fileURL)
         XCTAssertEqual(client.callCount, 0)
         try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    func testNarrationPromptInputSamplesMetadataWithoutWholeBook() {
+        let longParagraph = String(repeating: "Long sample ", count: 120)
+        let book = ReaderBook(
+            id: "book",
+            title: "  Co-Intelligence\n",
+            author: " Ethan Mollick ",
+            fileURL: URL(fileURLWithPath: "/tmp/book.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+        let chapters = (0..<30).map { index in
+            ReaderChapter(
+                id: Int64(index + 1),
+                bookId: book.id,
+                idx: index,
+                n: "\(index + 1)",
+                title: "Chapter \(index + 1)",
+                paragraphs: [
+                    ReaderParagraph(id: Int64(index + 100), ord: 0, en: longParagraph),
+                ]
+            )
+        }
+
+        let input = NarrationProfilePromptInput.make(
+            book: book,
+            chapters: chapters,
+            currentChapter: chapters[5]
+        )
+
+        XCTAssertEqual(input.title, "Co-Intelligence")
+        XCTAssertEqual(input.author, "Ethan Mollick")
+        XCTAssertEqual(input.chapterTitles.count, 24)
+        XCTAssertEqual(input.sampleParagraphs.count, 8)
+        XCTAssertTrue(input.sampleParagraphs.allSatisfy { $0.count <= 600 })
+        XCTAssertEqual(input.currentChapterTitle, "Chapter 6")
+    }
+
+    func testNarrationProfilePayloadDecodesWrappedJSONAndBuildsInstruction() throws {
+        let payload = try NarrationProfilePayload.decode("""
+        Here is the profile:
+        {"genre":"business","tone":"warm explanatory","pace":"natural","pronunciationHints":"AI as A I","summary":"A concise book about working with AI."}
+        """)
+        let profile = NarrationProfile(
+            bookId: "book",
+            provider: .doubao,
+            profileHash: NarrationProfile.profileHash(provider: .doubao, payload: payload),
+            genre: payload.genre,
+            tone: payload.tone,
+            pace: payload.pace,
+            pronunciationHints: payload.pronunciationHints,
+            summary: payload.summary,
+            createdAt: Date(lexiTimestamp: 1_800_000_000),
+            updatedAt: Date(lexiTimestamp: 1_800_000_000)
+        )
+
+        XCTAssertEqual(payload.genre, "business")
+        XCTAssertTrue(profile.ttsContextInstruction.contains("warm explanatory"))
+        XCTAssertTrue(profile.ttsContextInstruction.contains("AI as A I"))
+    }
+
+    func testAudioCacheKeyIncludesNarrationProfileHash() {
+        let baseProfile = NarrationProfile.neutral(
+            bookId: "book",
+            provider: .doubao,
+            now: Date(lexiTimestamp: 1_800_000_000)
+        )
+        var expressiveProfile = baseProfile
+        expressiveProfile.profileHash = "expressive-profile"
+        let baseChunk = ReadAloudChunk(
+            bookId: "book",
+            chapterId: 1,
+            paragraphStart: 0,
+            paragraphEnd: 0,
+            language: .source,
+            text: "Hello.",
+            paragraphIds: [1],
+            profile: baseProfile
+        )
+        var expressiveChunk = baseChunk
+        expressiveChunk.profile = expressiveProfile
+        let config = TTSProviderConfig(
+            provider: .doubao,
+            resourceId: "seed-tts-2.0",
+            speaker: "voice",
+            speechRate: 0,
+            format: "mp3",
+            sampleRate: 24_000
+        )
+
+        let baseKey = DefaultReadAloudAudioResolver.audioCacheKey(for: baseChunk, config: config)
+        let expressiveKey = DefaultReadAloudAudioResolver.audioCacheKey(for: expressiveChunk, config: config)
+
+        XCTAssertNotEqual(baseKey.value, expressiveKey.value)
+        XCTAssertEqual(baseKey.profileHash, baseProfile.profileHash)
+    }
+
+    func testNarrationResolverUsesCachedProfileUnlessRefreshIsForced() async throws {
+        let database = try AppDatabase.makeTransient()
+        let book = Book(
+            id: "book",
+            title: "Book",
+            author: "Author",
+            fileURL: URL(fileURLWithPath: "/tmp/book.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+        try await database.insertBook(book)
+        let cached = NarrationProfile(
+            bookId: book.id,
+            provider: .doubao,
+            profileHash: "cached-profile",
+            genre: "business",
+            tone: "calm",
+            pace: "natural",
+            pronunciationHints: "",
+            summary: "cached",
+            createdAt: Date(lexiTimestamp: 1_800_000_001),
+            updatedAt: Date(lexiTimestamp: 1_800_000_001)
+        )
+        try await database.upsertNarrationProfile(cached)
+        let readerBook = ReaderBook(
+            id: book.id,
+            title: book.title,
+            author: book.author,
+            fileURL: book.fileURL,
+            addedAt: book.addedAt,
+            lastReadAt: book.lastReadAt,
+            progress: book.progress,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+        let chapter = makeChapter(paragraphTexts: ["New sample."])
+        let resolver = DefaultNarrationProfileResolver()
+        let failingRegistry = EngineRegistry(client: ReadAloudFailIfCalledHTTPClient(), apiKeyProvider: { _ in nil })
+        let config = EngineConfig(id: .deepseek, model: "model", lastTestedOK: false, lastTestedAt: nil)
+
+        let reused = await resolver.profile(
+            book: readerBook,
+            chapters: [chapter],
+            currentChapter: chapter,
+            provider: .doubao,
+            forceRefresh: false,
+            database: database,
+            engineConfig: config,
+            engineRegistry: failingRegistry
+        )
+        let refreshed = await resolver.profile(
+            book: readerBook,
+            chapters: [chapter],
+            currentChapter: chapter,
+            provider: .doubao,
+            forceRefresh: true,
+            database: database,
+            engineConfig: config,
+            engineRegistry: failingRegistry
+        )
+
+        XCTAssertEqual(reused, cached)
+        XCTAssertEqual(refreshed, NarrationProfile.neutral(bookId: book.id, provider: .doubao, now: refreshed.createdAt))
     }
 
     private func makeChapter(paragraphTexts: [String]) -> ReaderChapter {
