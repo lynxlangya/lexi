@@ -2,6 +2,11 @@ import SwiftUI
 
 struct BookCover: View {
     let book: ReaderBook
+    var width: CGFloat = 144
+    var height: CGFloat = 216
+    var cornerRadius: CGFloat = 2
+    var shadowRadius: CGFloat = 14
+    var shadowYOffset: CGFloat = 6
 
     var body: some View {
         Group {
@@ -13,10 +18,10 @@ struct BookCover: View {
                 fallbackCover
             }
         }
-        .frame(width: 144, height: 216)
+        .frame(width: width, height: height)
         .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-        .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .shadow(color: .black.opacity(0.18), radius: shadowRadius, y: shadowYOffset)
     }
 
     private var nsImage: NSImage? {
