@@ -9,10 +9,17 @@ struct ReaderChromeOverlay: View {
     @Binding var columnVisibility: NavigationSplitViewVisibility
     let bookTitle: String
     @Binding var transMode: ReaderTranslationMode
+    @Binding var readAloudLanguage: TTSAudioLanguage
     @Binding var paragraphLayout: ReaderParagraphLayout
     let themeMode: ReaderThemeMode
     let preferences: ReaderRuntimePreferences
+    let readAloudStatus: ReadAloudPlaybackStatus
     let cycleThemeMode: () -> Void
+    let startReadAloud: () -> Void
+    let pauseOrResumeReadAloud: () -> Void
+    let stopReadAloud: () -> Void
+    let previousReadAloudChunk: () -> Void
+    let nextReadAloudChunk: () -> Void
     let openVocab: () -> Void
     let openSettings: () -> Void
     let sidebarVisible: Bool
@@ -88,6 +95,24 @@ struct ReaderChromeOverlay: View {
 
     private var controlCluster: some View {
         HStack(spacing: 1) {
+            chromeButton(readAloudPlayIcon, help: readAloudPlayHelp) {
+                if readAloudStatus.canPause || readAloudStatus.canResume {
+                    pauseOrResumeReadAloud()
+                } else {
+                    startReadAloud()
+                }
+            }
+
+            chromeButton(readAloudLanguageIcon, help: readAloudLanguageHelp) {
+                readAloudLanguage = readAloudLanguage == .source ? .target : .source
+            }
+
+            if readAloudStatus.isActive {
+                chromeButton("backward.end", help: "上一段朗读", action: previousReadAloudChunk)
+                chromeButton("forward.end", help: "下一段朗读", action: nextReadAloudChunk)
+                chromeButton("stop.fill", help: "停止朗读", action: stopReadAloud)
+            }
+
             chromeButton("translate", help: transModeHelp) {
                 transMode = transMode.next
             }
@@ -128,6 +153,34 @@ struct ReaderChromeOverlay: View {
         case .zh:
             return "仅译文 (⌘B)"
         }
+    }
+
+    private var readAloudPlayIcon: String {
+        if readAloudStatus.canPause {
+            return "pause.fill"
+        }
+        if readAloudStatus.canResume {
+            return "play.fill"
+        }
+        return "speaker.wave.2"
+    }
+
+    private var readAloudPlayHelp: String {
+        if readAloudStatus.canPause {
+            return "暂停朗读"
+        }
+        if readAloudStatus.canResume {
+            return "继续朗读"
+        }
+        return "从当前位置开始朗读"
+    }
+
+    private var readAloudLanguageIcon: String {
+        readAloudLanguage == .source ? "textformat.abc" : "translate"
+    }
+
+    private var readAloudLanguageHelp: String {
+        readAloudLanguage == .source ? "朗读原文，点击切换到译文" : "朗读译文，点击切换到原文"
     }
 
     private var themeModeHelp: String {

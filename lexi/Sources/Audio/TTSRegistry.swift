@@ -1,6 +1,6 @@
 import Foundation
 
-struct TTSRegistry: Sendable {
+nonisolated struct TTSRegistry: Sendable {
     static let shared = TTSRegistry()
 
     private let client: EngineHTTPClient

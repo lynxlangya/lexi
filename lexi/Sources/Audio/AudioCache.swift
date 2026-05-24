@@ -1,6 +1,6 @@
 import Foundation
 
-enum AudioCacheLocation {
+nonisolated enum AudioCacheLocation {
     static func directory() throws -> URL {
         let support = try FileManager.default.url(
             for: .applicationSupportDirectory,

@@ -112,6 +112,7 @@ private struct ReaderWindowContent: View {
     @State private var book: ReaderBook?
     @State private var chapters: [ReaderChapter] = []
     @State private var controller: ChapterTranslationController?
+    @State private var readAloudController: ReaderReadAloudController?
     @State private var loadError: String?
     @State private var toast: ToastMessage?
     @State private var cacheClearCandidate: ReaderBook?
@@ -136,6 +137,11 @@ private struct ReaderWindowContent: View {
     @AppStorage(LexiDefaultsKey.readerTranslationStyle) private var translationStyle = ReaderTranslationStyle.demote.rawValue
     @AppStorage(LexiDefaultsKey.readerParagraphLayout) private var paragraphLayoutRaw = ReaderParagraphLayout.defaultValue.rawValue
     @AppStorage(LexiDefaultsKey.generalStartup) private var startupBehavior = "last"
+    @AppStorage(LexiDefaultsKey.ttsProvider) private var ttsProvider = TTSProviderID.doubao.rawValue
+    @AppStorage(LexiDefaultsKey.ttsResourceId) private var ttsResourceId = TTSProviderConfig.doubaoDefault.resourceId
+    @AppStorage(LexiDefaultsKey.ttsSpeaker) private var ttsSpeaker = TTSProviderConfig.doubaoDefault.speaker
+    @AppStorage(LexiDefaultsKey.ttsSpeechRate) private var ttsSpeechRate = TTSProviderConfig.doubaoDefault.speechRate
+    @State private var readAloudLanguage = TTSAudioLanguage.source
 
     private var preferences: ReaderRuntimePreferences {
         ReaderRuntimePreferences(
@@ -196,7 +202,14 @@ private struct ReaderWindowContent: View {
                 .task(loadInitialData)
                 .onChange(of: selectedChapterIndex) { _, _ in
                     visibleParagraphId = nil
+                    readAloudController?.cancelForReaderTransition()
                     translateSelectedChapter()
+                }
+                .onChange(of: readAloudLanguage) { _, _ in
+                    guard readAloudController?.status.isActive == true else {
+                        return
+                    }
+                    startReadAloud()
                 }
                 .readerShortcuts(
                     toggleTranslationMode: { transModeRaw = transMode.next.rawValue },
@@ -379,10 +392,17 @@ private struct ReaderWindowContent: View {
                         columnVisibility: $columnVisibility,
                         bookTitle: book.title,
                         transMode: transModeBinding,
+                        readAloudLanguage: $readAloudLanguage,
                         paragraphLayout: paragraphLayoutBinding,
                         themeMode: themeMode,
                         preferences: preferences,
+                        readAloudStatus: readAloudController?.status ?? .idle,
                         cycleThemeMode: cycleThemeMode,
+                        startReadAloud: startReadAloud,
+                        pauseOrResumeReadAloud: { readAloudController?.pauseOrResume() },
+                        stopReadAloud: { readAloudController?.stop() },
+                        previousReadAloudChunk: { readAloudController?.previousChunk() },
+                        nextReadAloudChunk: { readAloudController?.nextChunk() },
                         openVocab: { openVocab(for: book) },
                         openSettings: { showsSettings = true },
                         sidebarVisible: columnVisibility != .detailOnly
@@ -399,6 +419,7 @@ private struct ReaderWindowContent: View {
                     chapterProgress: chapterProgress,
                     bookProgress: bookProgress,
                     state: controller.chapterState(for: selectedChapter.id),
+                    readAloudStatus: readAloudController?.status ?? .idle,
                     preferences: preferences
                 )
             }
@@ -493,12 +514,15 @@ private struct ReaderWindowContent: View {
             let loaded = try await ReaderFixtureStore.loadExistingBook(bookId: nextBook.id, from: database)
             let engineConfig = await EnginePreferences.chapterConfig(database: database)
             let nextController = ChapterTranslationController(database: database, engineConfig: engineConfig)
+            let nextReadAloudController = ReaderReadAloudController(database: database)
             visibleParagraphId = nil
             pendingScrollParagraphIdx = nil
             lastKnownScrollParagraphIndex = nil
+            readAloudController?.cancelForReaderTransition()
             book = loaded.0
             chapters = loaded.1
             controller = nextController
+            readAloudController = nextReadAloudController
             coordinator.setActiveReaderBook(id: loaded.0.id, title: loaded.0.title)
 
             let target = ReaderResumeTarget.resolve(
@@ -617,6 +641,8 @@ private struct ReaderWindowContent: View {
                     book = nil
                     chapters = []
                     controller = nil
+                    readAloudController?.cancelForReaderTransition()
+                    readAloudController = nil
                     surface = .shelf
                 }
                 removeCandidate = nil
@@ -658,6 +684,36 @@ private struct ReaderWindowContent: View {
         }
     }
 
+    private func startReadAloud() {
+        guard let book,
+              let selectedChapter,
+              let controller,
+              let readAloudController else {
+            return
+        }
+
+        readAloudController.start(
+            book: book,
+            chapter: selectedChapter,
+            snapshot: controller.snapshot(for: selectedChapter.id),
+            visibleParagraphId: visibleParagraphId,
+            language: readAloudLanguage,
+            config: currentTTSConfig
+        )
+    }
+
+    private var currentTTSConfig: TTSProviderConfig {
+        let trimmedResource = ttsResourceId.trimmingCharacters(in: .whitespacesAndNewlines)
+        return TTSProviderConfig(
+            provider: TTSProviderID(rawValue: ttsProvider) ?? .doubao,
+            resourceId: trimmedResource.isEmpty ? TTSProviderConfig.doubaoDefault.resourceId : trimmedResource,
+            speaker: ttsSpeaker.trimmingCharacters(in: .whitespacesAndNewlines),
+            speechRate: ttsSpeechRate,
+            format: TTSProviderConfig.doubaoDefault.format,
+            sampleRate: TTSProviderConfig.doubaoDefault.sampleRate
+        )
+    }
+
     private func handleVisibleParagraphChange(_ paragraphId: Int64) {
         scrollWriteTask?.cancel()
         guard let context = scrollPersistenceContext(paragraphId: paragraphId) else {
@@ -695,6 +751,7 @@ private struct ReaderWindowContent: View {
 
     private func returnToShelf() {
         flushVisibleScrollProgress {
+            readAloudController?.cancelForReaderTransition()
             surface = .shelf
             coordinator.clearActiveReaderBook()
         }
