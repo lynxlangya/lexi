@@ -110,6 +110,13 @@ final class AudioTests: XCTestCase {
         }
     }
 
+    func testMissingAPIKeyErrorIsUserFacingChinese() {
+        XCTAssertEqual(
+            TTSProviderError.missingAPIKey(.doubao).errorDescription,
+            "请先在设置里配置豆包语音 API Key"
+        )
+    }
+
     func testAudioCacheRemoveFilesOnlyDeletesInsideAudioCacheDirectory() throws {
         let cacheFile = try AudioCacheLocation.fileURL(cacheKey: UUID().uuidString, format: "mp3")
         let outsideFile = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString)-outside.mp3")

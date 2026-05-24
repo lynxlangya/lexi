@@ -72,7 +72,7 @@ nonisolated enum TTSProviderError: Error, Equatable, LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey(let provider):
-            return "Missing API key for \(provider.rawValue)."
+            return "请先在设置里配置\(provider.displayName) API Key"
         case .missingSpeaker:
             return "请先配置豆包语音音色 ID"
         case .invalidResponse:
