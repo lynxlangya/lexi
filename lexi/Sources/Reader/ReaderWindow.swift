@@ -396,6 +396,8 @@ private struct ReaderWindowContent: View {
                             ReaderReadAloudPanel(
                                 book: book,
                                 chapter: selectedChapter,
+                                chapters: chapters,
+                                selectedChapterIndex: selectedChapterIndex,
                                 language: $readAloudLanguage,
                                 showsText: $readAloudPanelShowsText,
                                 mode: $readAloudPanelMode,
@@ -414,7 +416,9 @@ private struct ReaderWindowContent: View {
                                 previousChunk: { readAloudController?.previousChunk() },
                                 nextChunk: { readAloudController?.nextChunk() },
                                 previousChapter: previousReadAloudChapter,
-                                nextChapter: nextReadAloudChapter
+                                nextChapter: nextReadAloudChapter,
+                                chapterState: { item in controller.chapterState(for: item.id) },
+                                selectChapter: selectReadAloudChapter
                             )
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
