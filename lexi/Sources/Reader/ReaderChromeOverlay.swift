@@ -9,18 +9,12 @@ struct ReaderChromeOverlay: View {
     @Binding var columnVisibility: NavigationSplitViewVisibility
     let bookTitle: String
     @Binding var transMode: ReaderTranslationMode
-    @Binding var readAloudLanguage: TTSAudioLanguage
     @Binding var paragraphLayout: ReaderParagraphLayout
     let themeMode: ReaderThemeMode
     let preferences: ReaderRuntimePreferences
     let readAloudStatus: ReadAloudPlaybackStatus
     let cycleThemeMode: () -> Void
-    let startReadAloud: () -> Void
-    let pauseOrResumeReadAloud: () -> Void
-    let stopReadAloud: () -> Void
-    let previousReadAloudChunk: () -> Void
-    let nextReadAloudChunk: () -> Void
-    let refreshReadAloudProfile: () -> Void
+    let openReadAloud: () -> Void
     let openVocab: () -> Void
     let openSettings: () -> Void
     let sidebarVisible: Bool
@@ -96,25 +90,7 @@ struct ReaderChromeOverlay: View {
 
     private var controlCluster: some View {
         HStack(spacing: 1) {
-            chromeButton(readAloudPlayIcon, help: readAloudPlayHelp) {
-                if readAloudStatus.canPause || readAloudStatus.canResume {
-                    pauseOrResumeReadAloud()
-                } else {
-                    startReadAloud()
-                }
-            }
-
-            chromeButton(readAloudLanguageIcon, help: readAloudLanguageHelp) {
-                readAloudLanguage = readAloudLanguage == .source ? .target : .source
-            }
-
-            chromeButton("wand.and.stars", help: "刷新朗读风格", action: refreshReadAloudProfile)
-
-            if readAloudStatus.isActive {
-                chromeButton("backward.end", help: "上一段朗读", action: previousReadAloudChunk)
-                chromeButton("forward.end", help: "下一段朗读", action: nextReadAloudChunk)
-                chromeButton("stop.fill", help: "停止朗读", action: stopReadAloud)
-            }
+            readAloudButton
 
             chromeButton("translate", help: transModeHelp) {
                 transMode = transMode.next
@@ -132,6 +108,18 @@ struct ReaderChromeOverlay: View {
 
             chromeButton("gearshape", help: "设置", action: openSettings)
         }
+    }
+
+    private var readAloudButton: some View {
+        ChromeIconButton(
+            systemName: readAloudIcon,
+            help: readAloudHelp,
+            preferences: preferences,
+            iconSize: 13,
+            isActive: readAloudStatus.isActive,
+            isError: readAloudStatus.isError,
+            action: openReadAloud
+        )
     }
 
     private func chromeButton(
@@ -158,32 +146,36 @@ struct ReaderChromeOverlay: View {
         }
     }
 
-    private var readAloudPlayIcon: String {
+    private var readAloudIcon: String {
+        if readAloudStatus.isError {
+            return "exclamationmark.triangle.fill"
+        }
+        if readAloudStatus.isLoading {
+            return "waveform"
+        }
         if readAloudStatus.canPause {
-            return "pause.fill"
+            return "speaker.wave.2.fill"
         }
         if readAloudStatus.canResume {
-            return "play.fill"
+            return "speaker.wave.2.fill"
         }
         return "speaker.wave.2"
     }
 
-    private var readAloudPlayHelp: String {
+    private var readAloudHelp: String {
         if readAloudStatus.canPause {
-            return "暂停朗读"
+            return "朗读中，点击暂停"
         }
         if readAloudStatus.canResume {
             return "继续朗读"
         }
+        if readAloudStatus.isLoading {
+            return readAloudStatus.label
+        }
+        if readAloudStatus.isError {
+            return readAloudStatus.label
+        }
         return "从当前位置开始朗读"
-    }
-
-    private var readAloudLanguageIcon: String {
-        readAloudLanguage == .source ? "textformat.abc" : "translate"
-    }
-
-    private var readAloudLanguageHelp: String {
-        readAloudLanguage == .source ? "朗读原文，点击切换到译文" : "朗读译文，点击切换到原文"
     }
 
     private var themeModeHelp: String {
@@ -203,6 +195,8 @@ private struct ChromeIconButton: View {
     var iconSize: CGFloat = 12.5
     var buttonSize: CGFloat = 26
     var normalColor: Color?
+    var isActive = false
+    var isError = false
     @State private var isHovering = false
 
     init(
@@ -212,6 +206,8 @@ private struct ChromeIconButton: View {
         iconSize: CGFloat = 12.5,
         buttonSize: CGFloat = 26,
         normalColor: Color? = nil,
+        isActive: Bool = false,
+        isError: Bool = false,
         action: @escaping () -> Void
     ) {
         self.systemName = systemName
@@ -220,6 +216,8 @@ private struct ChromeIconButton: View {
         self.iconSize = iconSize
         self.buttonSize = buttonSize
         self.normalColor = normalColor
+        self.isActive = isActive
+        self.isError = isError
         self.action = action
     }
 
@@ -232,10 +230,10 @@ private struct ChromeIconButton: View {
                 .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isHovering ? preferences.accent.primary : (normalColor ?? preferences.theme.ink))
+        .foregroundStyle(foregroundColor)
         .background {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isHovering ? preferences.theme.raised : Color.clear)
+                .fill(backgroundColor)
         }
         .overlay {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -244,5 +242,40 @@ private struct ChromeIconButton: View {
         .help(help)
         .focusable(false)
         .onHover { isHovering = $0 }
+    }
+
+    private var foregroundColor: Color {
+        if isError {
+            return .red
+        }
+        if isHovering || isActive {
+            return preferences.accent.primary
+        }
+        return normalColor ?? preferences.theme.ink
+    }
+
+    private var backgroundColor: Color {
+        if isActive {
+            return preferences.accent.primary.opacity(isHovering ? 0.20 : 0.14)
+        }
+        return isHovering ? preferences.theme.raised : Color.clear
+    }
+}
+
+private extension ReadAloudPlaybackStatus {
+    var isLoading: Bool {
+        switch self {
+        case .planning, .preparingStyle, .generating:
+            return true
+        case .idle, .playing, .paused, .fallback, .error:
+            return false
+        }
+    }
+
+    var isError: Bool {
+        if case .error = self {
+            return true
+        }
+        return false
     }
 }

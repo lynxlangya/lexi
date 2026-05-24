@@ -392,18 +392,12 @@ private struct ReaderWindowContent: View {
                         columnVisibility: $columnVisibility,
                         bookTitle: book.title,
                         transMode: transModeBinding,
-                        readAloudLanguage: $readAloudLanguage,
                         paragraphLayout: paragraphLayoutBinding,
                         themeMode: themeMode,
                         preferences: preferences,
                         readAloudStatus: readAloudController?.status ?? .idle,
                         cycleThemeMode: cycleThemeMode,
-                        startReadAloud: { startReadAloud() },
-                        pauseOrResumeReadAloud: { readAloudController?.pauseOrResume() },
-                        stopReadAloud: { readAloudController?.stop() },
-                        previousReadAloudChunk: { readAloudController?.previousChunk() },
-                        nextReadAloudChunk: { readAloudController?.nextChunk() },
-                        refreshReadAloudProfile: { startReadAloud(forceRefreshProfile: true) },
+                        openReadAloud: { handleReadAloudEntry() },
                         openVocab: { openVocab(for: book) },
                         openSettings: { showsSettings = true },
                         sidebarVisible: columnVisibility != .detailOnly
@@ -706,6 +700,14 @@ private struct ReaderWindowContent: View {
             engineConfig: controller.currentEngineConfig,
             forceRefreshProfile: forceRefreshProfile
         )
+    }
+
+    private func handleReadAloudEntry() {
+        if readAloudController?.status.canPause == true || readAloudController?.status.canResume == true {
+            readAloudController?.pauseOrResume()
+        } else {
+            startReadAloud()
+        }
     }
 
     private var currentTTSConfig: TTSProviderConfig {
