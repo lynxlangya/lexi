@@ -166,6 +166,7 @@ struct ReaderReadAloudPanel: View {
             }
             .buttonStyle(.plain)
             .help(primaryHelp)
+            .accessibilityLabel(primaryHelp)
             .focusable(false)
 
             panelIconButton(
