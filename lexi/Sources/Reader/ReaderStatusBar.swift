@@ -20,6 +20,7 @@ struct ReaderStatusBar: View {
     let chapterProgress: Int
     let bookProgress: Int
     let state: ChapterTranslationState
+    let readAloudStatus: ReadAloudPlaybackStatus
     let preferences: ReaderRuntimePreferences
 
     var body: some View {
@@ -30,6 +31,14 @@ struct ReaderStatusBar: View {
 
             Spacer()
 
+            if readAloudStatus != .idle {
+                Text(readAloudStatus.label)
+                    .font(LexiFont.zh(11))
+                    .foregroundStyle(statusColor)
+                    .lineLimit(1)
+                    .padding(.trailing, 10)
+            }
+
             ChapterCacheDot(state: state, preferences: preferences)
         }
         .padding(.horizontal, 16)
@@ -39,6 +48,17 @@ struct ReaderStatusBar: View {
             Rectangle()
                 .fill(preferences.theme.rule)
                 .frame(height: 1)
+        }
+    }
+
+    private var statusColor: Color {
+        switch readAloudStatus {
+        case .error:
+            return Color.lexiWarn
+        case .fallback:
+            return preferences.theme.ink2
+        case .idle, .planning, .generating, .playing, .paused:
+            return preferences.accent.primary
         }
     }
 }

@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-enum TTSProviderID: String, Codable, CaseIterable, Sendable {
+nonisolated enum TTSProviderID: String, Codable, CaseIterable, Sendable {
     case doubao
 
     var displayName: String {
@@ -12,12 +12,12 @@ enum TTSProviderID: String, Codable, CaseIterable, Sendable {
     }
 }
 
-enum TTSAudioLanguage: String, Codable, Sendable {
+nonisolated enum TTSAudioLanguage: String, Codable, Sendable {
     case source
     case target
 }
 
-struct TTSProviderConfig: Codable, Equatable, Sendable {
+nonisolated struct TTSProviderConfig: Codable, Equatable, Sendable {
     var provider: TTSProviderID
     var resourceId: String
     var speaker: String
@@ -35,7 +35,7 @@ struct TTSProviderConfig: Codable, Equatable, Sendable {
     )
 }
 
-struct TTSRequest: Equatable, Sendable {
+nonisolated struct TTSRequest: Equatable, Sendable {
     var text: String
     var config: TTSProviderConfig
     var contextInstruction: String?
@@ -57,12 +57,12 @@ struct TTSRequest: Equatable, Sendable {
     }
 }
 
-struct TTSAudioChunk: Equatable, Sendable {
+nonisolated struct TTSAudioChunk: Equatable, Sendable {
     var data: Data
     var isFinal: Bool
 }
 
-enum TTSProviderError: Error, Equatable, LocalizedError, Sendable {
+nonisolated enum TTSProviderError: Error, Equatable, LocalizedError, Sendable {
     case missingAPIKey(TTSProviderID)
     case missingSpeaker
     case invalidResponse
@@ -85,14 +85,14 @@ enum TTSProviderError: Error, Equatable, LocalizedError, Sendable {
     }
 }
 
-protocol TTSProvider: Sendable {
+nonisolated protocol TTSProvider: Sendable {
     var id: TTSProviderID { get }
 
     func streamSpeech(_ request: TTSRequest) -> AsyncThrowingStream<TTSAudioChunk, Error>
     func ping(_ request: TTSRequest) async throws -> Data
 }
 
-struct TTSAudioCacheKey: Codable, Equatable, Sendable {
+nonisolated struct TTSAudioCacheKey: Codable, Equatable, Sendable {
     var bookId: String
     var chapterId: Int64?
     var paragraphStart: Int
@@ -127,7 +127,7 @@ struct TTSAudioCacheKey: Codable, Equatable, Sendable {
 }
 
 extension String {
-    var lexiSHA256: String {
+    nonisolated var lexiSHA256: String {
         let digest = SHA256.hash(data: Data(utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
     }

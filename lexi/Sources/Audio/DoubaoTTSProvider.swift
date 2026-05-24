@@ -1,6 +1,6 @@
 import Foundation
 
-struct DoubaoTTSProvider: TTSProvider {
+nonisolated struct DoubaoTTSProvider: TTSProvider {
     let apiKey: String
     let baseURL: URL
     let client: EngineHTTPClient
@@ -77,7 +77,7 @@ struct DoubaoTTSProvider: TTSProvider {
     }
 }
 
-struct DoubaoSSEAudioParser {
+nonisolated struct DoubaoSSEAudioParser {
     private var buffer = Data()
 
     mutating func feed(_ data: Data) throws -> [TTSAudioChunk] {
@@ -221,7 +221,7 @@ struct DoubaoSSEAudioParser {
 }
 
 private extension Data {
-    var lexiSSEEventDelimiterRange: Range<Data.Index>? {
+    nonisolated var lexiSSEEventDelimiterRange: Range<Data.Index>? {
         if let range = range(of: Data("\n\n".utf8)) {
             return range
         }
@@ -232,7 +232,7 @@ private extension Data {
     }
 }
 
-private struct DoubaoTTSRequestPayload: Encodable {
+private nonisolated struct DoubaoTTSRequestPayload: Encodable {
     struct User: Encodable {
         var uid: String
     }
