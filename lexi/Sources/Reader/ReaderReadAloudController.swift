@@ -98,6 +98,20 @@ nonisolated struct ReadAloudPlaybackProgress: Equatable, Sendable {
     }
 }
 
+nonisolated struct ReadAloudHighlightTarget: Equatable, Sendable {
+    var chapterId: Int64
+    var language: TTSAudioLanguage
+    var paragraphIds: Set<Int64>
+    var text: String
+    var displayRange: String
+
+    func matches(chapterId: Int64, paragraphId: Int64, language: TTSAudioLanguage) -> Bool {
+        self.chapterId == chapterId
+            && self.language == language
+            && paragraphIds.contains(paragraphId)
+    }
+}
+
 @Observable
 @MainActor
 final class ReaderReadAloudController: NSObject {
@@ -119,6 +133,7 @@ final class ReaderReadAloudController: NSObject {
     private(set) var status: ReadAloudPlaybackStatus = .idle
     private(set) var language: TTSAudioLanguage = .source
     private(set) var progress = ReadAloudPlaybackProgress.empty
+    private(set) var currentHighlight: ReadAloudHighlightTarget?
 
     init(
         database: AppDatabase,
@@ -186,6 +201,7 @@ final class ReaderReadAloudController: NSObject {
         chunks = planned
         currentIndex = 0
         updateProgress()
+        updateCurrentHighlight()
         prepareProfileAndPlay(
             book: book,
             chapters: chapters,
@@ -222,6 +238,7 @@ final class ReaderReadAloudController: NSObject {
         currentIndex = 0
         status = .idle
         progress = .empty
+        currentHighlight = nil
     }
 
     func previousChunk() {
@@ -230,6 +247,7 @@ final class ReaderReadAloudController: NSObject {
         }
         currentIndex -= 1
         updateProgress()
+        updateCurrentHighlight()
         playCurrentChunk()
     }
 
@@ -240,6 +258,7 @@ final class ReaderReadAloudController: NSObject {
         }
         currentIndex += 1
         updateProgress()
+        updateCurrentHighlight()
         playCurrentChunk()
     }
 
@@ -260,6 +279,7 @@ final class ReaderReadAloudController: NSObject {
         }
 
         updateProgress()
+        updateCurrentHighlight()
         status = .generating(chunk.displayRange)
         generationTask = Task { [database, registry, audioResolver, currentConfig] in
             do {
@@ -285,6 +305,7 @@ final class ReaderReadAloudController: NSObject {
                 guard !Task.isCancelled else {
                     return
                 }
+                currentHighlight = nil
                 status = .error(error.localizedDescription)
             }
         }
@@ -359,6 +380,20 @@ final class ReaderReadAloudController: NSObject {
             currentIndex: currentIndex,
             totalCount: chunks.count,
             currentRange: chunks[safe: currentIndex]?.displayRange
+        )
+    }
+
+    private func updateCurrentHighlight() {
+        guard let chunk = chunks[safe: currentIndex], status != .idle else {
+            currentHighlight = nil
+            return
+        }
+        currentHighlight = ReadAloudHighlightTarget(
+            chapterId: chunk.chapterId,
+            language: chunk.language,
+            paragraphIds: Set(chunk.paragraphIds),
+            text: chunk.text,
+            displayRange: chunk.displayRange
         )
     }
 
