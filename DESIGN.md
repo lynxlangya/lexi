@@ -1,6 +1,8 @@
 # Lexi · Design Brief
 
-> 单一可信源：[`design/`](design/) 目录下的 prototype 是规格本身。本文件做信息架构和工程交接的桥，不重复 prototype 已经定死的像素值。**遇到本文件和 prototype 冲突，以 prototype 为准。**
+> 2026-05-25 维护说明：`design/` prototype 目录已从仓库移除，本文件保留为 MVP 决策和早期设计依据的历史记录，不再是逐像素 UI 单一可信源。当前产品介绍以 [`README.md`](README.md)、[`README.zh-CN.md`](README.zh-CN.md) 和 [`site/index.html`](site/index.html) 为准；当前实现事实以 `lexi/Sources/` 为准。
+>
+> 本文中仍保留大量 `design/...` 链接用于追溯历史决策；这些链接在当前仓库里可能已经不可打开。后续新增设计规格应写入新的 issue / PR 描述或恢复独立设计资料，而不是继续把本文当作活跃 backlog。
 
 ---
 
@@ -15,13 +17,13 @@
 | 3 | **BYOK only**，无用户系统、无后端、无托管订阅 | 不建账户层；API Key 全部 Keychain 本地存；启动无登录 |
 | 4 | **数据全本地**，**v1 不引 Core Data，也不引 CloudKit** | 删 Xcode 模板自带的 [`lexi/Persistence.swift`](lexi/Persistence.swift) 和 [`lexi/lexi.xcdatamodeld`](lexi/lexi.xcdatamodeld)；选 GRDB 或 SQLite.swift 做单一持久层；设置面板的 "iCloud 同步" toggle 删除 |
 | 5 | **生词本 v1 = 收藏 + 本地列表**，不做 SRS 复习 | menu-bar 下拉里 "今日复习 (5)" 高亮项 v1 不接逻辑（建议先隐藏或灰显，避免假承诺） |
-| 6 | **不内嵌本地词典**，划词查询统一走引擎 | 浮窗引擎 pill 里 `Dict` 选项删除 |
+| 6 | **初版不内嵌本地词典**，划词查询统一走引擎 | 后续 prompt 层重构已引入 macOS `DCSCopyTextDefinition` 做本地词典优先，LLM 负责语境化释义；浮窗仍不显示独立 `Dict` 引擎 pill |
 | 7 | **引擎只 3 个预设：OpenAI · Anthropic · DeepSeek**；**每个都要用户自填 API Key + Model 名**；**v1 不做"自定义引擎"模块** | (a) 设置→引擎 API Keys 三行：OpenAI / Anthropic / DeepSeek（**DeepL / Google 整体出局**）；(b) 每行控件改为 `[Key 输入框] + [Model 名输入/select] + 测试`；(c) 设置→引擎→"自定义引擎"整个 section 删除；(d) 段落引擎 + 划词引擎默认 select options 全部改为 `OpenAI / Anthropic / DeepSeek`；(e) Reader/MenuBar 浮窗 pill 改为 `GPT / Claude / DeepSeek`；(f) 整段落顶栏 ⚙ engine 菜单同步 |
 | 8 | **段落引擎中途切换不重译已缓存段** | 已缓存段保留旧译文（旧引擎），只对后续未翻译段用新引擎；UI 不弹确认 |
 | 9 | **EPUB 封面：自带优先，缺失 fallback 排印** | EPUB 解析阶段提 `cover.xhtml/jpg`；有 → 渲染原图（合适圆角 + 投影一致）；无 → 走 [`prototype-shelf.jsx`](design/prototype-shelf.jsx) 的排印封面（`cover.bg + cover.ink` 双色） |
 | 10 | **浮窗 B 的"备选译文" inset v1 隐藏** | [`menubar-popup-v2.jsx:356`](design/menubar-popup-v2.jsx:356) `alt` 字段 + "备选 · DeepL" inset 都不渲染 |
 | 11 | **浮窗 B 的"发送到 Lexi 阅读器"按钮 v1 隐藏** | [`menubar-popup-v2.jsx`](design/menubar-popup-v2.jsx) `WordB / SentenceB` 里 `onSend` 按钮删 |
-| 12 | **朗读 ⌘. 接 `AVSpeechSynthesizer`** | 系统 TTS，离线、免 key；浮窗 / Reader 的 speaker icon 都接此 |
+| 12 | **朗读初版接 `AVSpeechSynthesizer`** | 当前 Reader 朗读已升级为右侧抽屉 + 豆包 TTS + 本地音频缓存；系统朗读仅作为缺少 TTS Key / 音色时的兜底 |
 
 下文凡有可切换 toggle / 多方向并列处，**以本节为准**剪掉。其余 prototype 像素 / 交互照搬。
 
@@ -328,7 +330,7 @@ Loading / Error 卡 A/B 共用，不分方向。
 | **Global** | `⌘⇧T` | 即时翻译选中文字 —— 不弹浮窗，直接替换选区 |
 | **Global** | `⌘⇧K` | 显示 / 隐藏阅读器 |
 | Reader | `⌘D` | 加入生词本 |
-| Reader | `⌘.` | 朗读 |
+| Reader | 顶栏朗读按钮 | 打开 / 退出右侧朗读器 |
 | Reader | `⌘B` | 切 仅原文 / 译文 / 双语 |
 | Reader | `⌘[` `⌘]` | 上 / 下一章 |
 | Reader | `⌘0` | 切侧栏 |
@@ -565,13 +567,13 @@ Lexi (单一 .app)
 | 3 | BYOK only，无后端 / 无用户系统 | §0 / §8 |
 | 4 | 全本地存储；删 Core Data；上 GRDB；无 CloudKit | §0 / §9 |
 | 5 | 生词本 = 收藏 + 列表；SRS 推迟 | §0 |
-| 6 | 不内嵌本地词典 / 本地 LLM | §0 / §8 |
+| 6 | 初版不内嵌本地词典；当前本地词典用于基础释义，LLM 用于语境化 lookup | §0 / §8 |
 | 7 | 引擎只 3 个预设：OpenAI / Anthropic / DeepSeek；每个用户自填 Key + Model；无"自定义引擎"模块 | §0 / §8 |
 | 8 | 段落引擎切换不重译已缓存段；只对后续未译段生效 | §0 |
 | 9 | EPUB 封面：自带优先，缺失 fallback 排印 | §0 / §5.5 |
 | 10 | 浮窗 B 的"备选译文" inset v1 隐藏 | §0 / §6.3 |
 | 11 | 浮窗 B 的"发送到 Lexi 阅读器" v1 隐藏 | §0 / §6.3 |
-| 12 | 朗读 ⌘. 接 `AVSpeechSynthesizer` | §0 |
+| 12 | Reader 朗读已升级为豆包 TTS + 右侧朗读器；系统朗读作为兜底 | §0 |
 | 13 | Model 字段 = `TextField` + placeholder（不写死 enum，不做 picker） | §0 末尾 |
 | 14 | "测试"按钮 = 轻量探活：OpenAI/DeepSeek `GET /v1/models` + model 名 grep；Anthropic 用 Haiku 1-token request | §0 末尾 |
 

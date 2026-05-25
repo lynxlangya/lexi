@@ -6,9 +6,9 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-A native macOS reader for English books, with streaming Chinese translation rendered next to the original text — and a global selection-translation popup that follows you into any app.
+A native macOS reader for English books, with streaming Chinese translation rendered next to the original text, AI read-aloud in a right-side player drawer, and a global selection-translation popup that follows you into any app.
 
-> **Status — v2.0.1 MVP release.** Reader, EPUB import, streaming translation, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed through GitHub Releases and Homebrew Cask.
+> **Status — v2.0.1 MVP release line.** Reader, EPUB import, streaming translation, read-aloud, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed through GitHub Releases and Homebrew Cask.
 
 ---
 
@@ -19,8 +19,9 @@ Most "AI translation" tools treat the translation as the final artifact. Lexi tr
 - **Quiet typography.** Warm paper background, single serif column, no skeuomorphism. Optimized for 1–2 hours of continuous reading.
 - **Translation is on-demand and cached.** Paragraphs are translated lazily as you read, streamed sentence by sentence, and stored locally — so re-opening a book costs nothing.
 - **Side-by-side or stacked.** Toggle between the classic stacked layout (English paragraph above its Chinese translation) and the new dual-column layout (English left, Chinese right, top-aligned).
+- **Read aloud without losing your place.** Open the right-side read-aloud drawer, choose original or translation, and keep playback going chapter to chapter while the current chunk stays highlighted.
 - **Works outside the reader.** Select English text in Safari, Mail, Notes, or any other app and trigger a popup with single-word definitions or full-sentence translations — same engines, same vocabulary list.
-- **Bring your own keys.** No accounts, no backend, no subscription. API keys live in Keychain and never leave your machine.
+- **Bring your own keys.** No accounts, no backend, no subscription. API keys live in Keychain and are sent only to the provider you configure.
 
 ---
 
@@ -32,7 +33,14 @@ Most "AI translation" tools treat the translation as the final artifact. Lexi tr
 - **Two layouts.** **Dual column** (default) places English and Chinese side by side with equal font size and top-aligned rows — short translations naturally leave whitespace below. **Stacked** keeps the classic "English above, demoted Chinese below" pattern. Toggle from the toolbar or Settings.
 - **Three display modes.** EN-only, ZH-only, or both — switchable inline with `⌘B`.
 - **Chapter prefetching.** While you read chapter N, Lexi quietly translates chapter N+1 in the background.
-- **Per-paragraph retry.** If a single paragraph fails (rate-limit, network blip), only that paragraph shows an inline error — the rest of the chapter keeps reading.
+- **Per-paragraph retry.** If a single paragraph fails (rate-limit, network blip), only that paragraph shows an inline error and later paragraphs keep translating. Partial or truncated output is rejected instead of cached.
+
+### AI read-aloud that feels like a player, not a modal
+
+- **Right-side drawer.** The reader can become a compact playback surface: cover, chapter, progress, play/pause, previous/next chunk, previous/next chapter, and a scrollable read-aloud transcript.
+- **Original or translation.** Narration is intentionally single-language at a time. The drawer can read the English original or the cached Chinese translation, and the transcript follows the same choice.
+- **Book-aware style profile.** Before narration, Lexi samples the book and current chapter through the configured translation engine to build a compact tone/pace/pronunciation profile for TTS.
+- **Doubao-first TTS.** The current AI voice provider is Doubao TTS (`seed-tts-2.0` by default), with API key stored in Keychain and audio cached locally. The system voice is used only as a fallback when the TTS key or speaker is missing.
 
 ### A MenuBar surface that follows you everywhere
 
@@ -59,6 +67,7 @@ Most "AI translation" tools treat the translation as the final artifact. Lexi tr
 - **macOS 26.4 or later**
 - **Xcode 26 or later** (Swift 5.0 toolchain)
 - API key for at least one of: OpenAI · Anthropic · DeepSeek
+- Optional Doubao TTS API key and speaker ID for AI read-aloud
 
 ---
 
@@ -98,8 +107,9 @@ First-run setup:
 
 1. Launch the app. The shelf opens empty.
 2. **Settings → Engines.** Paste an API key for OpenAI, Anthropic, or DeepSeek and enter the model name (defaults are suggested). Click **Test** to verify.
-3. **Drag an EPUB onto the shelf** (or use `⌘O`). Lexi parses the file, extracts the cover, and adds it to your shelf.
-4. Click the book to open the reader. Translation starts streaming for the visible chapter immediately.
+3. Optional: **Settings → Read Aloud.** Paste the Doubao TTS key, resource ID, and speaker ID if you want AI narration.
+4. **Drag an EPUB onto the shelf** (or use `⌘O`). Lexi parses the file, extracts the cover, and adds it to your shelf.
+5. Click the book to open the reader. Translation starts streaming for the visible chapter immediately.
 
 ---
 
@@ -112,6 +122,7 @@ First-run setup:
 | Display mode | Toolbar button · `⌘B` | English-only / Chinese-only / both. |
 | Font, line height, theme, accent | Settings → Reader | Independent of OS appearance; supports system-follow, day, night. |
 | Chapter prefetch | Settings → Reader → Translation Display | 0–2 chapters ahead. |
+| AI read-aloud | Settings → Read Aloud | Doubao TTS provider, resource ID, speaker ID, speech rate, local audio cache. |
 | Keyboard shortcuts | Settings → Shortcuts | Most are remappable; conflict detection optional. |
 
 ### Key shortcuts
@@ -133,6 +144,7 @@ Lexi is an Xcode project (`lexi.xcodeproj`) — **not** a Swift package — with
 | `Reader/` | Reader window, Shelf, EPUB import flow, paragraph rendering, translation state UI, vocab sheet |
 | `MenuBar/` | Status-bar agent, selection monitoring (Accessibility API), `NSPanel` popup, speech, global shortcuts |
 | `Engines/` | OpenAI / Anthropic / DeepSeek integrations, SSE parsing, structured lookup schema, prompts |
+| `Audio/` | Doubao TTS provider, narration profile generation, audio cache, read-aloud request models |
 | `Data/` | GRDB-backed `AppDatabase` actor, migrations, models, Keychain wrapper |
 | `EPUB/` | Archive extraction, OPF/Nav parsing, cover extraction |
 | `UI/` | Design tokens, fonts, Settings sheet, reusable controls |
@@ -149,7 +161,7 @@ See [`DESIGN.md`](DESIGN.md) for v1 product decisions and [`PR-PLAN.md`](PR-PLAN
 - **[SwiftSoup](https://github.com/scinfu/SwiftSoup)** — XHTML chapter parsing
 - **[KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)** — User-rebindable global shortcuts
 - **macOS Keychain** — API key storage
-- **`AVSpeechSynthesizer`** — Built-in TTS, no extra dependency
+- **Doubao TTS + AVFoundation** — AI narration via Doubao SSE audio, local playback/cache via `AVPlayer`, system speech fallback via `AVSpeechSynthesizer`
 
 No iOS / iPadOS target. Targets macOS 26.4, `SDKROOT=macosx`.
 
@@ -163,20 +175,20 @@ Run the unit tests:
 ./scripts/test.sh
 ```
 
-Coverage spans Data (GRDB migrations, vocab CRUD), EPUB parsing, translation engines (request shaping, SSE parsing, retry behavior), Reader translation controller state machine, selection context resolution, and the new paragraph layout enum.
+Coverage spans Data (GRDB migrations, vocab/audio CRUD), EPUB parsing, translation engines (request shaping, SSE parsing, retry behavior), Reader translation controller state machine, read-aloud planning/audio cache behavior, selection context resolution, and paragraph layout modes.
 
 The test script uses a temporary DerivedData directory and removes it on exit, so repeated CLI verification does not accumulate `/tmp/lexi-*` build artifacts. There is no CI or lint config in the repo yet.
 
 ### Security
 
-- API keys must stay in Keychain. There is no `.env`, no DEBUG-only override, no build-time secret path.
+- API keys must stay in Keychain. This includes translation engine keys and Doubao TTS keys. There is no `.env`, no DEBUG-only override, no build-time secret path.
 - If a key is exposed in logs, screenshots, PRs, or issues, rotate it at the provider's dashboard immediately.
 
 ---
 
 ## Project status
 
-v2.0.0 is the first MVP technical preview release: PR 1–10 have landed, follow-up fixes are merged, and installable builds are available through GitHub Releases and `lynxlangya/tap`.
+v2.0.1 is the current MVP technical preview release line: PR 1–10 have landed, follow-up fixes and read-aloud iteration are merged, and installable builds are available through GitHub Releases and `lynxlangya/tap`.
 
 For roadmap and product decisions, see [`DESIGN.md`](DESIGN.md).
 

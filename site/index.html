@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lexi — A quiet macOS reader for English literature</title>
-  <meta name="description" content="Native macOS EPUB reader with streaming Chinese translation, side-by-side dual-column layout, and a global selection-translation popup. BYOK: OpenAI · Anthropic · DeepSeek.">
+  <meta name="description" content="Native macOS EPUB reader with streaming Chinese translation, AI read-aloud, side-by-side dual-column layout, and a global selection-translation popup. BYOK: OpenAI · Anthropic · DeepSeek · Doubao TTS.">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,11 +45,11 @@
 
       <p class="hero-sub">
         Lexi is a quiet macOS reader for English literature. Chinese
-        translation lives on the edge of vision — ready when you need it,
-        easy to ignore when you don't.
+        translation lives on the edge of vision, and AI read-aloud can
+        take over when your eyes need to rest.
       </p>
 
-      <p class="hero-gloss">读英文 · 让中文留在视野边缘</p>
+      <p class="hero-gloss">读英文 · 听原文或译文 · 让中文留在视野边缘</p>
 
       <div class="hero-actions">
         <a class="action primary" href="https://github.com/lynxlangya/lexi/releases/latest">Download v2.0.1 →</a>
@@ -75,6 +75,9 @@
             </span>
             <span class="mock-tb active" title="Dual-column layout">
               <svg viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="4.5" height="9" rx="0.6" fill="currentColor"/><rect x="9" y="3.5" width="4.5" height="9" rx="0.6" fill="currentColor"/></svg>
+            </span>
+            <span class="mock-tb" title="Read aloud">
+              <svg viewBox="0 0 16 16"><path d="M2.5 9.7V6.3h2.2L8 3.4v9.2L4.7 9.7H2.5z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><path d="M10.3 5.4c.8.6 1.2 1.5 1.2 2.6s-.4 2-1.2 2.6M12 3.7A5.3 5.3 0 0 1 14 8c0 1.8-.7 3.2-2 4.3" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
             </span>
             <span class="mock-tb" title="Theme">
               <svg viewBox="0 0 16 16"><path d="M8 2.2A5.8 5.8 0 1 0 8 13.8z" fill="currentColor"/><circle cx="8" cy="8" r="5.8" fill="none" stroke="currentColor" stroke-width="1"/></svg>
@@ -189,6 +192,13 @@
       </p>
 
       <p>
+        When your eyes are tired, open the read-aloud drawer. Lexi can
+        narrate the original or the cached translation, keep the current
+        chunk highlighted, and continue into the next chapter like a
+        small music player for the book.
+      </p>
+
+      <p>
         None of this requires an account. There is no backend. Your API
         keys live in the macOS Keychain — not in source, not in SQLite,
         not on a server. You bring your own keys; Lexi never knows what
@@ -265,7 +275,19 @@
       </div>
 
       <div class="surface">
-        <div class="surface-label">ii. The MenuBar Popup</div>
+        <div class="surface-label">ii. The Read-Aloud Drawer</div>
+        <h3 class="surface-title">A player for the page you were reading.</h3>
+        <p>
+          Open the right-side drawer, choose original or translation, and
+          listen from the paragraph currently in view. Lexi builds a compact
+          narration profile from the book, streams Doubao TTS audio into a
+          local cache, highlights the active chunk, and advances chapter by
+          chapter.
+        </p>
+      </div>
+
+      <div class="surface">
+        <div class="surface-label">iii. The MenuBar Popup</div>
         <h3 class="surface-title">Translation that follows you everywhere.</h3>
         <p>
           Select English text in Safari, Mail, Notes, or any macOS app, hit
@@ -277,7 +299,7 @@
       </div>
 
       <div class="surface">
-        <div class="surface-label">iii. The Vocabulary</div>
+        <div class="surface-label">iv. The Vocabulary</div>
         <h3 class="surface-title">What you saved, in the context you saved it.</h3>
         <p>
           Each entry snapshots the LLM&rsquo;s lookup at the moment you saved
@@ -302,13 +324,14 @@
         built in Swift and SwiftUI, persisted with <em>GRDB</em>,
         EPUBs parsed with <em>SwiftSoup</em> and <em>ZIPFoundation</em>,
         global shortcuts powered by <em>sindresorhus/KeyboardShortcuts</em>.
-        Speech via the system <em>AVSpeechSynthesizer</em>.
+        AI read-aloud streams through <em>Doubao TTS</em>, with local
+        playback and caching through <em>AVFoundation</em>.
       </p>
 
       <p>
-        Engines you bring yourself — OpenAI, Anthropic, DeepSeek. Keys
-        live in the macOS Keychain (service <span class="code">com.lexi.engine.&lt;id&gt;</span>),
-        never written to SQLite or logs. No account, no telemetry,
+        Engines you bring yourself — OpenAI, Anthropic, DeepSeek for
+        translation, and Doubao for AI narration. Keys live in the macOS
+        Keychain, never written to SQLite or logs. No account, no telemetry,
         no backend.
       </p>
 
