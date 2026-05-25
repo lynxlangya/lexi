@@ -1011,4 +1011,78 @@ final class DataTests: XCTestCase {
         try store.delete(account: TTSProviderID.doubao.rawValue)
         XCTAssertNil(try store.apiKey(account: TTSProviderID.doubao.rawValue))
     }
+
+    func testSettingsKeychainPersistenceTrimsAndSavesEngineKeys() throws {
+        var setCalls: [(EngineID, String)] = []
+        var deleteCalls: [EngineID] = []
+        let persistence = SettingsKeychainPersistence(
+            setEngineAPIKey: { key, engine in setCalls.append((engine, key)) },
+            deleteEngineAPIKey: { engine in deleteCalls.append(engine) },
+            setTTSAPIKey: { _, _ in },
+            deleteTTSAPIKey: { _ in }
+        )
+
+        let result = try persistence.saveEngineAPIKeys(
+            apiKeys: [
+                .openai: "  openai-key  ",
+                .anthropic: "   ",
+                .deepseek: "deepseek-key",
+            ],
+            loadedKeys: [
+                .openai: "",
+                .anthropic: "old-key",
+                .deepseek: "deepseek-key",
+            ]
+        )
+
+        XCTAssertTrue(result.changed)
+        XCTAssertEqual(result.savedValues[.openai], "openai-key")
+        XCTAssertEqual(result.savedValues[.anthropic], "")
+        XCTAssertEqual(result.savedValues[.deepseek], "deepseek-key")
+        XCTAssertEqual(setCalls.map(\.0), [.openai, .deepseek])
+        XCTAssertEqual(setCalls.map(\.1), ["openai-key", "deepseek-key"])
+        XCTAssertEqual(deleteCalls, [.anthropic])
+    }
+
+    func testSettingsKeychainPersistenceSurfacesEngineSaveFailure() throws {
+        enum TestError: Error {
+            case failed
+        }
+
+        let persistence = SettingsKeychainPersistence(
+            setEngineAPIKey: { _, engine in
+                if engine == .openai {
+                    throw TestError.failed
+                }
+            },
+            deleteEngineAPIKey: { _ in },
+            setTTSAPIKey: { _, _ in },
+            deleteTTSAPIKey: { _ in }
+        )
+
+        XCTAssertThrowsError(
+            try persistence.saveEngineAPIKeys(apiKeys: [.openai: "key"], loadedKeys: [:])
+        ) { error in
+            XCTAssertEqual(error as? SettingsKeychainSaveError, .engine(.openai))
+        }
+    }
+
+    func testSettingsKeychainPersistenceSurfacesTTSFailure() throws {
+        enum TestError: Error {
+            case failed
+        }
+
+        let persistence = SettingsKeychainPersistence(
+            setEngineAPIKey: { _, _ in },
+            deleteEngineAPIKey: { _ in },
+            setTTSAPIKey: { _, _ in throw TestError.failed },
+            deleteTTSAPIKey: { _ in }
+        )
+
+        XCTAssertThrowsError(
+            try persistence.saveTTSAPIKey("doubao-key", loadedKey: "")
+        ) { error in
+            XCTAssertEqual(error as? SettingsKeychainSaveError, .tts(.doubao))
+        }
+    }
 }
