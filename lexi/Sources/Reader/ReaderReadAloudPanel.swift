@@ -13,13 +13,13 @@ struct ReaderReadAloudPanel: View {
     @Binding var language: TTSAudioLanguage
     @Binding var showsText: Bool
     @Binding var mode: ReaderReadAloudPanelMode
+    @Binding var showsReadingPane: Bool
     let status: ReadAloudPlaybackStatus
     let progress: ReadAloudPlaybackProgress
     let currentHighlight: ReadAloudHighlightTarget?
     let canMoveToPreviousChapter: Bool
     let canMoveToNextChapter: Bool
     let preferences: ReaderRuntimePreferences
-    let close: () -> Void
     let primaryAction: () -> Void
     let previousChunk: () -> Void
     let nextChunk: () -> Void
@@ -38,20 +38,36 @@ struct ReaderReadAloudPanel: View {
                     toolRow
                     contentBlock
                 }
+                .frame(maxWidth: contentMaxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, 18)
                 .padding(.top, 58)
                 .padding(.bottom, 20)
             }
             .scrollIndicators(.hidden)
         }
-        .frame(width: 362)
-        .frame(maxHeight: .infinity)
-        .background(preferences.theme.raised)
+        .frame(width: panelWidth)
+        .frame(maxWidth: panelMaxWidth, maxHeight: .infinity)
+        .background(showsReadingPane ? preferences.theme.raised : preferences.theme.paper)
         .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(preferences.theme.rule)
-                .frame(width: 1)
+            if showsReadingPane {
+                Rectangle()
+                    .fill(preferences.theme.rule)
+                    .frame(width: 1)
+            }
         }
+    }
+
+    private var panelWidth: CGFloat? {
+        showsReadingPane ? 336 : nil
+    }
+
+    private var panelMaxWidth: CGFloat? {
+        showsReadingPane ? nil : .infinity
+    }
+
+    private var contentMaxWidth: CGFloat? {
+        showsReadingPane ? nil : 620
     }
 
     private var header: some View {
@@ -188,7 +204,7 @@ struct ReaderReadAloudPanel: View {
     private var toolRow: some View {
         HStack(spacing: 8) {
             panelToggleButton(
-                language == .source ? "textformat.abc.circle.fill" : "textformat.abc",
+                "textformat.abc",
                 help: "朗读原文",
                 isSelected: language == .source
             ) {
@@ -196,7 +212,7 @@ struct ReaderReadAloudPanel: View {
             }
 
             panelToggleButton(
-                language == .target ? "translate.circle.fill" : "translate",
+                "translate",
                 help: "朗读译文",
                 isSelected: language == .target
             ) {
@@ -215,7 +231,15 @@ struct ReaderReadAloudPanel: View {
                 }
             }
 
-            panelToggleButton("xmark", help: "关闭朗读器", isSelected: false, action: close)
+            panelToggleButton(
+                showsReadingPane ? "sidebar.right" : "sidebar.left",
+                help: showsReadingPane ? "关闭阅读面板" : "显示阅读面板",
+                isSelected: !showsReadingPane
+            ) {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showsReadingPane.toggle()
+                }
+            }
 
             panelToggleButton(
                 mode == .chapters ? "list.bullet.circle.fill" : "list.bullet",
@@ -385,13 +409,14 @@ struct ReaderReadAloudPanel: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .medium))
+                .symbolRenderingMode(.hierarchical)
                 .frame(width: 30, height: 28)
         }
         .buttonStyle(.plain)
         .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink2)
         .background {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isSelected ? preferences.accent.soft : Color.clear)
+                .fill(isSelected ? preferences.accent.primary.opacity(0.14) : Color.clear)
         }
         .help(help)
         .accessibilityLabel(help)

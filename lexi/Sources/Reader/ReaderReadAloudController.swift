@@ -355,7 +355,7 @@ final class ReaderReadAloudController: NSObject {
                     return
                 }
                 Task { @MainActor in
-                    self.advanceAfterCurrentChunk()
+                    self.advanceAfterCurrentChunk(finishedChunkID: chunk.id)
                 }
             }
         }
@@ -368,8 +368,12 @@ final class ReaderReadAloudController: NSObject {
         status = .fallback(chunk.displayRange, reason)
     }
 
-    private func advanceAfterCurrentChunk() {
-        guard status.isActive else {
+    private func advanceAfterCurrentChunk(finishedChunkID: String? = nil) {
+        guard status.isActive,
+              let chunk = chunks[safe: currentIndex] else {
+            return
+        }
+        if let finishedChunkID, finishedChunkID != chunk.id {
             return
         }
         nextChunk()

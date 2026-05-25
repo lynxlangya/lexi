@@ -129,6 +129,7 @@ private struct ReaderWindowContent: View {
     @State private var showsReadAloudPanel = false
     @State private var readAloudPanelShowsText = true
     @State private var readAloudPanelMode = ReaderReadAloudPanelMode.nowReading
+    @State private var readAloudShowsReadingPane = true
     @AppStorage(LexiDefaultsKey.readerFontSize) private var fontSize = 17.0
     @AppStorage(LexiDefaultsKey.readerTranslationMode) private var transModeRaw = ReaderTranslationMode.both.rawValue
     @AppStorage(LexiDefaultsKey.readerPrefetch) private var prefetchCount = 1
@@ -199,6 +200,25 @@ private struct ReaderWindowContent: View {
         }
     }
 
+    private var readAloudShowsReadingPaneBinding: Binding<Bool> {
+        Binding {
+            readAloudShowsReadingPane
+        } set: { nextValue in
+            readAloudShowsReadingPane = nextValue
+            if !nextValue {
+                columnVisibility = .detailOnly
+            }
+        }
+    }
+
+    private var shouldShowReaderPane: Bool {
+        !showsReadAloudPanel || readAloudShowsReadingPane
+    }
+
+    private var isCompactReadAloudWindow: Bool {
+        showsReadAloudPanel && !readAloudShowsReadingPane
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             content
@@ -233,6 +253,11 @@ private struct ReaderWindowContent: View {
                 isReaderSurface: surface == .reader
             )
         )
+        .background(
+            ReaderWindowSizeUpdater(
+                isCompactReadAloud: isCompactReadAloudWindow
+            )
+        )
         .background(WindowAppearanceUpdater(colorScheme: themeMode.preferredColorScheme))
         .background(ReaderWindowCloseBehavior(willClose: flushVisibleScrollProgress))
         .background(preferences.theme.paper)
@@ -240,7 +265,7 @@ private struct ReaderWindowContent: View {
         .onChange(of: theme) { _, _ in
             systemAppearance.refresh()
         }
-        .frame(minWidth: 920, minHeight: 620)
+        .frame(minWidth: isCompactReadAloudWindow ? 680 : 920, minHeight: 620)
         .confirmationDialog(
             "清除翻译缓存？",
             isPresented: Binding(
@@ -357,7 +382,7 @@ private struct ReaderWindowContent: View {
             VStack(spacing: 0) {
                 ZStack(alignment: .top) {
                     HStack(spacing: 0) {
-                        if columnVisibility != .detailOnly {
+                        if shouldShowReaderPane, columnVisibility != .detailOnly {
                             TOCSidebar(
                                 book: book,
                                 chapters: chapters,
@@ -370,27 +395,29 @@ private struct ReaderWindowContent: View {
                             )
                         }
 
-                        ReadingColumn(
-                            bookTitle: book.title,
-                            chapter: selectedChapter,
-                            previousChapter: chapters[safe: selectedChapterIndex - 1],
-                            nextChapter: chapters[safe: selectedChapterIndex + 1],
-                            fontSize: fontSize,
-                            snapshot: controller.snapshot(for: selectedChapter.id),
-                            transMode: transMode,
-                            preferences: preferences,
-                            readAloudHighlight: readAloudController?.currentHighlight,
-                            visibleParagraphId: $visibleParagraphId,
-                            selectedTextContext: $selectedTextContext,
-                            goToPreviousChapter: previousChapter,
-                            goToNextChapter: nextChapter,
-                            onParagraphChange: handleVisibleParagraphChange
-                        ) { paragraph in
-                            controller.retryParagraph(paragraph, in: selectedChapter, bookTitle: book.title)
+                        if shouldShowReaderPane {
+                            ReadingColumn(
+                                bookTitle: book.title,
+                                chapter: selectedChapter,
+                                previousChapter: chapters[safe: selectedChapterIndex - 1],
+                                nextChapter: chapters[safe: selectedChapterIndex + 1],
+                                fontSize: fontSize,
+                                snapshot: controller.snapshot(for: selectedChapter.id),
+                                transMode: transMode,
+                                preferences: preferences,
+                                readAloudHighlight: readAloudController?.currentHighlight,
+                                visibleParagraphId: $visibleParagraphId,
+                                selectedTextContext: $selectedTextContext,
+                                goToPreviousChapter: previousChapter,
+                                goToNextChapter: nextChapter,
+                                onParagraphChange: handleVisibleParagraphChange
+                            ) { paragraph in
+                                controller.retryParagraph(paragraph, in: selectedChapter, bookTitle: book.title)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(preferences.theme.paper)
+                            .tint(preferences.accent.primary)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(preferences.theme.paper)
-                        .tint(preferences.accent.primary)
 
                         if showsReadAloudPanel {
                             ReaderReadAloudPanel(
@@ -401,17 +428,13 @@ private struct ReaderWindowContent: View {
                                 language: $readAloudLanguage,
                                 showsText: $readAloudPanelShowsText,
                                 mode: $readAloudPanelMode,
+                                showsReadingPane: readAloudShowsReadingPaneBinding,
                                 status: readAloudController?.status ?? .idle,
                                 progress: readAloudController?.progress ?? .empty,
                                 currentHighlight: readAloudController?.currentHighlight,
                                 canMoveToPreviousChapter: selectedChapterIndex > 0,
                                 canMoveToNextChapter: selectedChapterIndex + 1 < chapters.count,
                                 preferences: preferences,
-                                close: {
-                                    withAnimation(.easeInOut(duration: 0.18)) {
-                                        showsReadAloudPanel = false
-                                    }
-                                },
                                 primaryAction: handleReadAloudEntry,
                                 previousChunk: { readAloudController?.previousChunk() },
                                 nextChunk: { readAloudController?.nextChunk() },
@@ -423,37 +446,43 @@ private struct ReaderWindowContent: View {
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .animation(.easeInOut(duration: 0.18), value: showsReadAloudPanel)
+                    .animation(.easeInOut(duration: 0.18), value: readAloudShowsReadingPane)
 
-                    ReaderChromeOverlay(
-                        columnVisibility: $columnVisibility,
-                        bookTitle: book.title,
-                        transMode: transModeBinding,
-                        paragraphLayout: paragraphLayoutBinding,
-                        themeMode: themeMode,
-                        preferences: preferences,
-                        readAloudStatus: readAloudController?.status ?? .idle,
-                        cycleThemeMode: cycleThemeMode,
-                        openReadAloud: { openReadAloudPanel() },
-                        openVocab: { openVocab(for: book) },
-                        openSettings: { showsSettings = true },
-                        sidebarVisible: columnVisibility != .detailOnly
-                    )
+                    if shouldShowReaderPane {
+                        ReaderChromeOverlay(
+                            columnVisibility: $columnVisibility,
+                            bookTitle: book.title,
+                            transMode: transModeBinding,
+                            paragraphLayout: paragraphLayoutBinding,
+                            themeMode: themeMode,
+                            preferences: preferences,
+                            readAloudStatus: readAloudController?.status ?? .idle,
+                            cycleThemeMode: cycleThemeMode,
+                            openReadAloud: toggleReadAloudPanel,
+                            openVocab: { openVocab(for: book) },
+                            openSettings: { showsSettings = true },
+                            sidebarVisible: columnVisibility != .detailOnly
+                        )
+                    }
                 }
                 .toolbar(removing: .sidebarToggle)
 
-                ReaderProgressHairline(
-                    progress: Double(chapterProgress) / 100,
-                    preferences: preferences
-                )
+                if shouldShowReaderPane {
+                    ReaderProgressHairline(
+                        progress: Double(chapterProgress) / 100,
+                        preferences: preferences
+                    )
 
-                ReaderStatusBar(
-                    chapterProgress: chapterProgress,
-                    bookProgress: bookProgress,
-                    state: controller.chapterState(for: selectedChapter.id),
-                    readAloudStatus: readAloudController?.status ?? .idle,
-                    preferences: preferences
-                )
+                    ReaderStatusBar(
+                        chapterProgress: chapterProgress,
+                        bookProgress: bookProgress,
+                        state: controller.chapterState(for: selectedChapter.id),
+                        readAloudStatus: readAloudController?.status ?? .idle,
+                        preferences: preferences
+                    )
+                }
             }
         } else {
             ProgressView()
@@ -751,6 +780,17 @@ private struct ReaderWindowContent: View {
     private func openReadAloudPanel() {
         withAnimation(.easeInOut(duration: 0.18)) {
             showsReadAloudPanel = true
+        }
+    }
+
+    private func toggleReadAloudPanel() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if showsReadAloudPanel {
+                showsReadAloudPanel = false
+                readAloudShowsReadingPane = true
+            } else {
+                showsReadAloudPanel = true
+            }
         }
     }
 
@@ -1147,6 +1187,106 @@ private struct ReaderWindowTitleUpdater: NSViewRepresentable {
 
             window.title = title
             window.titleVisibility = isReaderSurface ? .hidden : .visible
+        }
+    }
+}
+
+private struct ReaderWindowSizeUpdater: NSViewRepresentable {
+    let isCompactReadAloud: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = view.window else {
+                return
+            }
+            context.coordinator.apply(isCompactReadAloud: isCompactReadAloud, to: window)
+        }
+    }
+
+    final class Coordinator {
+        private let compactWidth: CGFloat = 720
+        private let compactMinWidth: CGFloat = 680
+        private let expandedMinWidth: CGFloat = 920
+        private let minHeight: CGFloat = 620
+        private var previousExpandedFrame: NSRect?
+        private var wasCompact = false
+
+        func apply(isCompactReadAloud: Bool, to window: NSWindow) {
+            guard !window.styleMask.contains(.fullScreen) else {
+                return
+            }
+
+            if isCompactReadAloud {
+                if !wasCompact {
+                    previousExpandedFrame = window.frame
+                }
+                wasCompact = true
+                window.contentMinSize = NSSize(width: compactMinWidth, height: minHeight)
+
+                guard abs(window.frame.width - compactWidth) > 1 else {
+                    return
+                }
+                window.setFrame(
+                    constrainedFrame(width: compactWidth, height: max(window.frame.height, minHeight), basedOn: window.frame, screen: window.screen),
+                    display: true,
+                    animate: true
+                )
+            } else {
+                window.contentMinSize = NSSize(width: expandedMinWidth, height: minHeight)
+                guard wasCompact else {
+                    return
+                }
+                wasCompact = false
+
+                let target = previousExpandedFrame ?? defaultExpandedFrame(from: window.frame, screen: window.screen)
+                previousExpandedFrame = nil
+                window.setFrame(
+                    constrainedFrame(width: max(target.width, expandedMinWidth), height: max(target.height, minHeight), basedOn: target, screen: window.screen),
+                    display: true,
+                    animate: true
+                )
+            }
+        }
+
+        private func defaultExpandedFrame(from frame: NSRect, screen: NSScreen?) -> NSRect {
+            constrainedFrame(width: 1200, height: max(frame.height, 760), basedOn: frame, screen: screen)
+        }
+
+        private func constrainedFrame(width: CGFloat, height: CGFloat, basedOn frame: NSRect, screen: NSScreen?) -> NSRect {
+            var next = NSRect(
+                x: frame.midX - width / 2,
+                y: frame.midY - height / 2,
+                width: width,
+                height: height
+            )
+
+            guard let visibleFrame = screen?.visibleFrame else {
+                return next
+            }
+
+            if next.width > visibleFrame.width {
+                next.size.width = visibleFrame.width
+                next.origin.x = visibleFrame.minX
+            } else {
+                next.origin.x = min(max(next.origin.x, visibleFrame.minX), visibleFrame.maxX - next.width)
+            }
+
+            if next.height > visibleFrame.height {
+                next.size.height = visibleFrame.height
+                next.origin.y = visibleFrame.minY
+            } else {
+                next.origin.y = min(max(next.origin.y, visibleFrame.minY), visibleFrame.maxY - next.height)
+            }
+
+            return next
         }
     }
 }
