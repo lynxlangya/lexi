@@ -29,8 +29,6 @@ struct SettingsSheet: View {
 
     @AppStorage(LexiDefaultsKey.generalStartup) private var startupBehavior = "last"
     @AppStorage(LexiDefaultsKey.generalOnClose) private var closeBehavior = "menubar"
-    @AppStorage(LexiDefaultsKey.generalAutoUpdate) private var autoUpdate = true
-    @AppStorage(LexiDefaultsKey.generalCrashLogs) private var crashLogs = true
     @AppStorage(LexiDefaultsKey.engineDefaultChapter) private var defaultChapterEngine = EngineID.deepseek.rawValue
     @AppStorage(LexiDefaultsKey.engineDefaultPopup) private var defaultPopupEngine = EngineID.deepseek.rawValue
     @AppStorage(LexiDefaultsKey.ttsProvider) private var ttsProvider = TTSProviderID.doubao.rawValue
@@ -301,15 +299,6 @@ struct SettingsSheet: View {
                         }
                         .buttonStyle(SettingsFlatButtonStyle())
                     }
-                }
-            }
-
-            SettingsSection(title: "关于") {
-                SettingsRow(label: "自动检查更新") {
-                    LexiToggle(isOn: $autoUpdate, accent: settingsAccent.primary)
-                }
-                SettingsRow(label: "发送匿名崩溃日志", isLast: true) {
-                    LexiToggle(isOn: $crashLogs, accent: settingsAccent.primary)
                 }
             }
         }
