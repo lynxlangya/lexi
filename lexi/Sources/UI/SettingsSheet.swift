@@ -1,6 +1,78 @@
 import KeyboardShortcuts
 import SwiftUI
 
+struct SettingsKeychainSaveResult<Key: Hashable> {
+    var changed: Bool
+    var savedValues: [Key: String]
+}
+
+struct SettingsTTSKeySaveResult {
+    var changed: Bool
+    var savedKey: String
+}
+
+enum SettingsKeychainSaveError: Error, Equatable {
+    case engine(EngineID)
+    case tts(TTSProviderID)
+}
+
+struct SettingsKeychainPersistence {
+    var setEngineAPIKey: (String, EngineID) throws -> Void
+    var deleteEngineAPIKey: (EngineID) throws -> Void
+    var setTTSAPIKey: (String, TTSProviderID) throws -> Void
+    var deleteTTSAPIKey: (TTSProviderID) throws -> Void
+
+    static let live = SettingsKeychainPersistence(
+        setEngineAPIKey: Keychain.setApiKeyThrowing,
+        deleteEngineAPIKey: Keychain.deleteThrowing,
+        setTTSAPIKey: TTSKeychain.setApiKeyThrowing,
+        deleteTTSAPIKey: TTSKeychain.deleteThrowing
+    )
+
+    func saveEngineAPIKeys(
+        apiKeys: [EngineID: String],
+        loadedKeys: [EngineID: String]
+    ) throws -> SettingsKeychainSaveResult<EngineID> {
+        var changed = false
+        var saved: [EngineID: String] = [:]
+        for engine in EngineID.allCases {
+            let key = apiKeys[engine, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+            if loadedKeys[engine, default: ""] != key {
+                changed = true
+            }
+            do {
+                if key.isEmpty {
+                    try deleteEngineAPIKey(engine)
+                } else {
+                    try setEngineAPIKey(key, engine)
+                }
+            } catch {
+                throw SettingsKeychainSaveError.engine(engine)
+            }
+            saved[engine] = key
+        }
+        return SettingsKeychainSaveResult(changed: changed, savedValues: saved)
+    }
+
+    func saveTTSAPIKey(
+        _ apiKey: String,
+        loadedKey: String,
+        provider: TTSProviderID = .doubao
+    ) throws -> SettingsTTSKeySaveResult {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            if key.isEmpty {
+                try deleteTTSAPIKey(provider)
+            } else {
+                try setTTSAPIKey(key, provider)
+            }
+        } catch {
+            throw SettingsKeychainSaveError.tts(provider)
+        }
+        return SettingsTTSKeySaveResult(changed: loadedKey != key, savedKey: key)
+    }
+}
+
 struct SettingsSheet: View {
     let database: AppDatabase?
     let close: () -> Void
@@ -757,13 +829,23 @@ struct SettingsSheet: View {
     private func test(_ engine: EngineID) {
         guard let key = apiKeys[engine], !key.isEmpty else {
             statuses[engine] = .unset
-            Keychain.delete(engine)
+            do {
+                try SettingsKeychainPersistence.live.deleteEngineAPIKey(engine)
+                loadedAPIKeys[engine] = ""
+            } catch {
+                statuses[engine] = .fail
+                toast("\(engine.displayName) API Key 删除失败，请重试")
+                return
+            }
             toast("请先填写 \(engine.displayName) API Key")
             return
         }
 
         let model = models[engine, default: ReaderFixtureStore.defaultModel(for: engine)]
-        saveAPIKeys(notify: false)
+        guard saveAPIKeys(notify: false) else {
+            statuses[engine] = .fail
+            return
+        }
         testingEngine = engine
 
         Task {
@@ -800,7 +882,14 @@ struct SettingsSheet: View {
         let key = ttsAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
             ttsStatus = .unset
-            TTSKeychain.delete(.doubao)
+            do {
+                try SettingsKeychainPersistence.live.deleteTTSAPIKey(.doubao)
+                loadedTTSAPIKey = ""
+            } catch {
+                ttsStatus = .fail
+                toast("豆包语音 API Key 删除失败，请重试")
+                return
+            }
             toast("请先填写豆包语音 API Key")
             return
         }
@@ -811,7 +900,10 @@ struct SettingsSheet: View {
             return
         }
 
-        saveTTSAPIKey(notify: false)
+        guard saveTTSAPIKey(notify: false) else {
+            ttsStatus = .fail
+            return
+        }
         testingTTS = true
         Task {
             do {
@@ -831,37 +923,43 @@ struct SettingsSheet: View {
         }
     }
 
-    private func saveAPIKeys(notify: Bool = true) {
-        var changed = false
-        for engine in EngineID.allCases {
-            let key = apiKeys[engine, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-            if loadedAPIKeys[engine, default: ""] != key {
-                changed = true
+    @discardableResult
+    private func saveAPIKeys(notify: Bool = true) -> Bool {
+        do {
+            let result = try SettingsKeychainPersistence.live.saveEngineAPIKeys(apiKeys: apiKeys, loadedKeys: loadedAPIKeys)
+            loadedAPIKeys = result.savedValues
+            if notify, result.changed {
+                notifyEngineSettingsChanged()
             }
-            if key.isEmpty {
-                Keychain.delete(engine)
+            return true
+        } catch let error as SettingsKeychainSaveError {
+            if case .engine(let engine) = error {
+                statuses[engine] = .fail
+                toast("\(engine.displayName) API Key 保存失败，请重试")
             } else {
-                Keychain.setApiKey(key, for: engine)
+                toast("API Key 保存失败，请重试")
             }
-            loadedAPIKeys[engine] = key
-        }
-        if notify, changed {
-            notifyEngineSettingsChanged()
+            return false
+        } catch {
+            toast("API Key 保存失败，请重试")
+            return false
         }
     }
 
-    private func saveTTSAPIKey(notify: Bool = true) {
-        let key = ttsAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let changed = loadedTTSAPIKey != key
-        if key.isEmpty {
-            TTSKeychain.delete(.doubao)
-            ttsStatus = .unset
-        } else {
-            TTSKeychain.setApiKey(key, for: .doubao)
-        }
-        loadedTTSAPIKey = key
-        if notify, changed {
-            toast("已更新豆包语音 Key")
+    @discardableResult
+    private func saveTTSAPIKey(notify: Bool = true) -> Bool {
+        do {
+            let result = try SettingsKeychainPersistence.live.saveTTSAPIKey(ttsAPIKey, loadedKey: loadedTTSAPIKey)
+            loadedTTSAPIKey = result.savedKey
+            ttsStatus = result.savedKey.isEmpty ? .unset : ttsStatus
+            if notify, result.changed {
+                toast("已更新豆包语音 Key")
+            }
+            return true
+        } catch {
+            ttsStatus = .fail
+            toast("豆包语音 API Key 保存失败，请重试")
+            return false
         }
     }
 
