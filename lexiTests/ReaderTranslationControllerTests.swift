@@ -56,7 +56,7 @@ final class ReaderTranslationControllerTests: XCTestCase {
 
         client.yield(#"data: {"choices":[{"delta":{"content":"partial "}}]}"#)
         await waitUntil("partial text is visible in memory") {
-            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) == .cached("partial ")
+            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) == .streaming("partial ")
         }
 
         let partialTranslation = try await database.cachedTranslation(
@@ -78,6 +78,42 @@ final class ReaderTranslationControllerTests: XCTestCase {
             )
             return stored == "partial done"
         }
+    }
+
+    func testPartialStreamWithoutCompletionMarkerDoesNotPersistAsCached() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(
+            database: database,
+            paragraphTexts: ["Talking about AI can be confusing, in part because AI has meant many things."]
+        )
+        let client = ControlledReaderEngineHTTPClient()
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+        await waitUntil("stream starts") {
+            client.hasStream
+        }
+
+        client.yield(#"data: {"choices":[{"delta":{"content":"谈论人工智能可能会令人"}}]}"#)
+        await waitUntil("partial text is visible but not cached") {
+            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) == .streaming("谈论人工智能可能会令人")
+        }
+        client.finish()
+
+        await waitUntil("partial stream is marked as error") {
+            if case .error = controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) {
+                return true
+            }
+            return false
+        }
+
+        let stored = try await database.cachedTranslation(
+            paragraphId: chapter.paragraphs[0].id,
+            engine: .deepseek,
+            model: "deepseek-chat"
+        )
+        XCTAssertNil(stored)
     }
 
     func testCachedChapterDoesNotCallEngine() async throws {

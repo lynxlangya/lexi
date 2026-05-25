@@ -41,6 +41,24 @@ nonisolated struct SSEParser {
         return text.isEmpty ? nil : text
     }
 
+    static func isOpenAITerminalPayload(_ payload: String) throws -> Bool {
+        guard payload != "[DONE]" else {
+            return true
+        }
+
+        let chunk = try JSONDecoder().decode(OpenAIStreamPayload.self, from: Data(payload.utf8))
+        return chunk.choices.contains { $0.finishReason != nil }
+    }
+
+    static func openAIFinishReasons(from payload: String) throws -> [String] {
+        guard payload != "[DONE]" else {
+            return []
+        }
+
+        let chunk = try JSONDecoder().decode(OpenAIStreamPayload.self, from: Data(payload.utf8))
+        return chunk.choices.compactMap(\.finishReason)
+    }
+
     static func anthropicText(from payload: String) throws -> String? {
         guard payload != "[DONE]" else {
             return nil
@@ -51,6 +69,16 @@ nonisolated struct SSEParser {
             return nil
         }
         return chunk.delta?.text
+    }
+
+    static func isAnthropicMessageStop(from payload: String) throws -> Bool {
+        let chunk = try JSONDecoder().decode(AnthropicStreamPayload.self, from: Data(payload.utf8))
+        return chunk.type == "message_stop"
+    }
+
+    static func anthropicStopReason(from payload: String) throws -> String? {
+        let chunk = try JSONDecoder().decode(AnthropicStreamPayload.self, from: Data(payload.utf8))
+        return chunk.delta?.stopReason
     }
 
     private func nextEventRange() -> Range<Data.Index>? {
@@ -91,6 +119,12 @@ nonisolated private struct OpenAIStreamPayload: Decodable {
         }
 
         var delta: Delta
+        var finishReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case delta
+            case finishReason = "finish_reason"
+        }
     }
 
     var choices: [Choice]
@@ -99,6 +133,12 @@ nonisolated private struct OpenAIStreamPayload: Decodable {
 nonisolated private struct AnthropicStreamPayload: Decodable {
     struct Delta: Decodable {
         var text: String?
+        var stopReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case text
+            case stopReason = "stop_reason"
+        }
     }
 
     var type: String

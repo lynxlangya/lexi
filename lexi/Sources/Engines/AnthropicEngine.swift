@@ -87,8 +87,13 @@ nonisolated struct AnthropicEngine: TranslationEngine {
             }
 
             var parser = SSEParser()
+            var sawMessageStop = false
+            var stopReason: String?
             for try await data in stream {
                 for payload in parser.feed(data) {
+                    let isMessageStop = try SSEParser.isAnthropicMessageStop(from: payload)
+                    sawMessageStop = sawMessageStop || isMessageStop
+                    stopReason = try SSEParser.anthropicStopReason(from: payload) ?? stopReason
                     if let text = try SSEParser.anthropicText(from: payload) {
                         continuation.yield(TranslationChunk(index: index, text: text))
                     }
@@ -96,14 +101,36 @@ nonisolated struct AnthropicEngine: TranslationEngine {
             }
 
             for payload in parser.finish() {
+                let isMessageStop = try SSEParser.isAnthropicMessageStop(from: payload)
+                sawMessageStop = sawMessageStop || isMessageStop
+                stopReason = try SSEParser.anthropicStopReason(from: payload) ?? stopReason
                 if let text = try SSEParser.anthropicText(from: payload) {
                     continuation.yield(TranslationChunk(index: index, text: text))
                 }
             }
+
+            try validateAnthropicStreamCompletion(sawMessageStop: sawMessageStop, stopReason: stopReason)
         } catch let error as EngineError {
             throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
         } catch {
             throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
+        }
+    }
+
+    private func validateAnthropicStreamCompletion(sawMessageStop: Bool, stopReason: String?) throws {
+        guard sawMessageStop else {
+            throw EngineError.invalidResponseWithReason("Translation stream ended before message_stop.")
+        }
+
+        guard let stopReason else {
+            return
+        }
+
+        switch stopReason {
+        case "end_turn", "stop_sequence":
+            return
+        default:
+            throw EngineError.invalidResponseWithReason("Translation stream stopped with stop_reason=\(stopReason).")
         }
     }
 

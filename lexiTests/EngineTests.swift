@@ -94,9 +94,13 @@ final class EngineTests: XCTestCase {
             .success((sseStream([
                 #"data: {"type":"content_block_delta","delta":{"text":"甲"}}"#,
                 #"data: {"type":"content_block_delta","delta":{"text":"乙"}}"#,
+                #"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+                #"data: {"type":"message_stop"}"#,
             ]), response(status: 200))),
             .success((sseStream([
                 #"data: {"type":"content_block_delta","delta":{"text":"丙"}}"#,
+                #"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+                #"data: {"type":"message_stop"}"#,
             ]), response(status: 200))),
         ])
         let engine = AnthropicEngine(apiKey: "key", client: client)
@@ -121,6 +125,8 @@ final class EngineTests: XCTestCase {
         let client = MockEngineHTTPClient(streamResponses: [
             .success((sseStream([
                 #"data: {"type":"content_block_delta","delta":{"text":"当前译文"}}"#,
+                #"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+                #"data: {"type":"message_stop"}"#,
             ]), response(status: 200))),
         ])
         let engine = AnthropicEngine(apiKey: "key", client: client)
@@ -174,6 +180,7 @@ final class EngineTests: XCTestCase {
         let client = MockEngineHTTPClient(streamResponses: [
             .success((sseStream([
                 #"data: {"choices":[{"delta":{"content":"第一段"}}]}"#,
+                "data: [DONE]",
             ]), response(status: 200))),
             .success((sseStream([]), response(status: 500))),
         ])
@@ -193,6 +200,31 @@ final class EngineTests: XCTestCase {
                 return XCTFail("Expected taskFailed, got \(error)")
             }
             XCTAssertEqual(index, 1)
+        }
+    }
+
+    func testOpenAIStreamWithoutCompletionMarkerFailsAfterPartialChunk() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([
+                #"data: {"choices":[{"delta":{"content":"半句译文"}}]}"#,
+            ]), response(status: 200))),
+        ])
+        let engine = OpenAIEngine(apiKey: "key", client: client)
+
+        do {
+            _ = try await collect(engine.translate(
+                [
+                    .paragraph(text: "A paragraph that should not be cached from a partial stream.", context: ParagraphContext()),
+                ],
+                model: "gpt-5.4-mini"
+            ))
+            XCTFail("Expected stream completion failure")
+        } catch let error as EngineError {
+            guard case .taskFailed(let index, let reason) = error else {
+                return XCTFail("Expected taskFailed, got \(error)")
+            }
+            XCTAssertEqual(index, 0)
+            XCTAssertTrue(reason.contains("completion marker"))
         }
     }
 

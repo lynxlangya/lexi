@@ -81,8 +81,14 @@ nonisolated struct OpenAIEngine: TranslationEngine {
             }
 
             var parser = SSEParser()
+            var sawCompletionMarker = false
+            var finishReasons: [String] = []
             for try await data in stream {
                 for payload in parser.feed(data) {
+                    if try SSEParser.isOpenAITerminalPayload(payload) {
+                        sawCompletionMarker = true
+                    }
+                    finishReasons.append(contentsOf: try SSEParser.openAIFinishReasons(from: payload))
                     if let text = try SSEParser.openAIText(from: payload) {
                         continuation.yield(TranslationChunk(index: index, text: text))
                     }
@@ -90,14 +96,39 @@ nonisolated struct OpenAIEngine: TranslationEngine {
             }
 
             for payload in parser.finish() {
+                if try SSEParser.isOpenAITerminalPayload(payload) {
+                    sawCompletionMarker = true
+                }
+                finishReasons.append(contentsOf: try SSEParser.openAIFinishReasons(from: payload))
                 if let text = try SSEParser.openAIText(from: payload) {
                     continuation.yield(TranslationChunk(index: index, text: text))
                 }
             }
+
+            try validateOpenAIStreamCompletion(
+                sawCompletionMarker: sawCompletionMarker,
+                finishReasons: finishReasons
+            )
         } catch let error as EngineError {
             throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
         } catch {
             throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
+        }
+    }
+
+    private func validateOpenAIStreamCompletion(
+        sawCompletionMarker: Bool,
+        finishReasons: [String]
+    ) throws {
+        guard sawCompletionMarker else {
+            throw EngineError.invalidResponseWithReason("Translation stream ended before completion marker.")
+        }
+
+        let invalidReason = finishReasons.first { reason in
+            reason != "stop"
+        }
+        if let invalidReason {
+            throw EngineError.invalidResponseWithReason("Translation stream stopped with finish_reason=\(invalidReason).")
         }
     }
 

@@ -80,6 +80,8 @@ struct ParaView: View {
         switch state {
         case .cached(let zh):
             translatedText(zh)
+        case .streaming(let zh):
+            translatedText(zh)
         case .translating:
             ShimmerLines(
                 fontSize: zhSize,

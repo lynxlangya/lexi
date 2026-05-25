@@ -23,6 +23,7 @@ enum ChapterTranslationState: Equatable, Sendable {
 
 enum ParagraphTranslationState: Equatable, Sendable {
     case cached(String)
+    case streaming(String)
     case translating
     case error(String)
 }
@@ -215,11 +216,11 @@ final class ChapterTranslationController {
                     for try await chunk in engine.translate([task], model: config.model) {
                         try Task.checkCancellation()
                         zh += chunk.text
-                        snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
+                        snapshots[chapter.id]?.paragraphStates[paragraph.id] = .streaming(zh)
                         reconcileChapterState(for: chapter)
                     }
 
-                    if case .translating = snapshots[chapter.id]?.paragraphStates[paragraph.id] {
+                    if zh.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         markTranslatingParagraphsAsError(
                             in: chapter,
                             candidates: Array(missing[missingIndex...]),
@@ -228,6 +229,8 @@ final class ChapterTranslationController {
                         reconcileChapterState(for: chapter)
                         return
                     }
+                    snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
+                    reconcileChapterState(for: chapter)
                     try await database.upsertTranslation(
                         Translation(
                             id: nil,
@@ -295,11 +298,11 @@ final class ChapterTranslationController {
             for try await chunk in engine.translate([task], model: config.model) {
                 try Task.checkCancellation()
                 zh += chunk.text
-                snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
+                snapshots[chapter.id]?.paragraphStates[paragraph.id] = .streaming(zh)
                 reconcileChapterState(for: chapter)
             }
 
-            if case .translating = snapshots[chapter.id]?.paragraphStates[paragraph.id] {
+            if zh.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 markTranslatingParagraphsAsError(
                     in: chapter,
                     candidates: [paragraph],
@@ -309,6 +312,8 @@ final class ChapterTranslationController {
                 return
             }
 
+            snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
+            reconcileChapterState(for: chapter)
             try await database.upsertTranslation(
                 Translation(
                     id: nil,
@@ -402,7 +407,7 @@ final class ChapterTranslationController {
             switch snapshot.paragraphStates[paragraph.id] {
             case .cached:
                 cachedCount += 1
-            case .translating:
+            case .streaming, .translating:
                 hasTranslating = true
             case .error(let reason):
                 errorReason = errorReason ?? reason
@@ -431,8 +436,11 @@ final class ChapterTranslationController {
         excluding excludedParagraphId: Int64? = nil
     ) {
         for paragraph in candidates where paragraph.id != excludedParagraphId {
-            if case .translating = snapshots[chapter.id]?.paragraphStates[paragraph.id] {
+            switch snapshots[chapter.id]?.paragraphStates[paragraph.id] {
+            case .translating, .streaming:
                 snapshots[chapter.id]?.paragraphStates[paragraph.id] = .error(reason)
+            default:
+                break
             }
         }
     }
