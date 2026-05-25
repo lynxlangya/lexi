@@ -200,6 +200,25 @@ private struct ReaderWindowContent: View {
         }
     }
 
+    private var readAloudShowsReadingPaneBinding: Binding<Bool> {
+        Binding {
+            readAloudShowsReadingPane
+        } set: { nextValue in
+            readAloudShowsReadingPane = nextValue
+            if !nextValue {
+                columnVisibility = .detailOnly
+            }
+        }
+    }
+
+    private var shouldShowReaderPane: Bool {
+        !showsReadAloudPanel || readAloudShowsReadingPane
+    }
+
+    private var isCompactReadAloudWindow: Bool {
+        showsReadAloudPanel && !readAloudShowsReadingPane
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             content
@@ -234,6 +253,11 @@ private struct ReaderWindowContent: View {
                 isReaderSurface: surface == .reader
             )
         )
+        .background(
+            ReaderWindowSizeUpdater(
+                isCompactReadAloud: isCompactReadAloudWindow
+            )
+        )
         .background(WindowAppearanceUpdater(colorScheme: themeMode.preferredColorScheme))
         .background(ReaderWindowCloseBehavior(willClose: flushVisibleScrollProgress))
         .background(preferences.theme.paper)
@@ -241,7 +265,7 @@ private struct ReaderWindowContent: View {
         .onChange(of: theme) { _, _ in
             systemAppearance.refresh()
         }
-        .frame(minWidth: 920, minHeight: 620)
+        .frame(minWidth: isCompactReadAloudWindow ? 680 : 920, minHeight: 620)
         .confirmationDialog(
             "清除翻译缓存？",
             isPresented: Binding(
@@ -358,7 +382,7 @@ private struct ReaderWindowContent: View {
             VStack(spacing: 0) {
                 ZStack(alignment: .top) {
                     HStack(spacing: 0) {
-                        if columnVisibility != .detailOnly {
+                        if shouldShowReaderPane, columnVisibility != .detailOnly {
                             TOCSidebar(
                                 book: book,
                                 chapters: chapters,
@@ -371,7 +395,7 @@ private struct ReaderWindowContent: View {
                             )
                         }
 
-                        if !showsReadAloudPanel || readAloudShowsReadingPane {
+                        if shouldShowReaderPane {
                             ReadingColumn(
                                 bookTitle: book.title,
                                 chapter: selectedChapter,
@@ -404,7 +428,7 @@ private struct ReaderWindowContent: View {
                                 language: $readAloudLanguage,
                                 showsText: $readAloudPanelShowsText,
                                 mode: $readAloudPanelMode,
-                                showsReadingPane: $readAloudShowsReadingPane,
+                                showsReadingPane: readAloudShowsReadingPaneBinding,
                                 status: readAloudController?.status ?? .idle,
                                 progress: readAloudController?.progress ?? .empty,
                                 currentHighlight: readAloudController?.currentHighlight,
@@ -422,10 +446,11 @@ private struct ReaderWindowContent: View {
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .animation(.easeInOut(duration: 0.18), value: showsReadAloudPanel)
                     .animation(.easeInOut(duration: 0.18), value: readAloudShowsReadingPane)
 
-                    if !showsReadAloudPanel || readAloudShowsReadingPane {
+                    if shouldShowReaderPane {
                         ReaderChromeOverlay(
                             columnVisibility: $columnVisibility,
                             bookTitle: book.title,
@@ -435,7 +460,7 @@ private struct ReaderWindowContent: View {
                             preferences: preferences,
                             readAloudStatus: readAloudController?.status ?? .idle,
                             cycleThemeMode: cycleThemeMode,
-                            openReadAloud: { openReadAloudPanel() },
+                            openReadAloud: toggleReadAloudPanel,
                             openVocab: { openVocab(for: book) },
                             openSettings: { showsSettings = true },
                             sidebarVisible: columnVisibility != .detailOnly
@@ -444,7 +469,7 @@ private struct ReaderWindowContent: View {
                 }
                 .toolbar(removing: .sidebarToggle)
 
-                if !showsReadAloudPanel || readAloudShowsReadingPane {
+                if shouldShowReaderPane {
                     ReaderProgressHairline(
                         progress: Double(chapterProgress) / 100,
                         preferences: preferences
@@ -755,6 +780,17 @@ private struct ReaderWindowContent: View {
     private func openReadAloudPanel() {
         withAnimation(.easeInOut(duration: 0.18)) {
             showsReadAloudPanel = true
+        }
+    }
+
+    private func toggleReadAloudPanel() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if showsReadAloudPanel {
+                showsReadAloudPanel = false
+                readAloudShowsReadingPane = true
+            } else {
+                showsReadAloudPanel = true
+            }
         }
     }
 
@@ -1151,6 +1187,106 @@ private struct ReaderWindowTitleUpdater: NSViewRepresentable {
 
             window.title = title
             window.titleVisibility = isReaderSurface ? .hidden : .visible
+        }
+    }
+}
+
+private struct ReaderWindowSizeUpdater: NSViewRepresentable {
+    let isCompactReadAloud: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async {
+            guard let window = view.window else {
+                return
+            }
+            context.coordinator.apply(isCompactReadAloud: isCompactReadAloud, to: window)
+        }
+    }
+
+    final class Coordinator {
+        private let compactWidth: CGFloat = 720
+        private let compactMinWidth: CGFloat = 680
+        private let expandedMinWidth: CGFloat = 920
+        private let minHeight: CGFloat = 620
+        private var previousExpandedFrame: NSRect?
+        private var wasCompact = false
+
+        func apply(isCompactReadAloud: Bool, to window: NSWindow) {
+            guard !window.styleMask.contains(.fullScreen) else {
+                return
+            }
+
+            if isCompactReadAloud {
+                if !wasCompact {
+                    previousExpandedFrame = window.frame
+                }
+                wasCompact = true
+                window.contentMinSize = NSSize(width: compactMinWidth, height: minHeight)
+
+                guard abs(window.frame.width - compactWidth) > 1 else {
+                    return
+                }
+                window.setFrame(
+                    constrainedFrame(width: compactWidth, height: max(window.frame.height, minHeight), basedOn: window.frame, screen: window.screen),
+                    display: true,
+                    animate: true
+                )
+            } else {
+                window.contentMinSize = NSSize(width: expandedMinWidth, height: minHeight)
+                guard wasCompact else {
+                    return
+                }
+                wasCompact = false
+
+                let target = previousExpandedFrame ?? defaultExpandedFrame(from: window.frame, screen: window.screen)
+                previousExpandedFrame = nil
+                window.setFrame(
+                    constrainedFrame(width: max(target.width, expandedMinWidth), height: max(target.height, minHeight), basedOn: target, screen: window.screen),
+                    display: true,
+                    animate: true
+                )
+            }
+        }
+
+        private func defaultExpandedFrame(from frame: NSRect, screen: NSScreen?) -> NSRect {
+            constrainedFrame(width: 1200, height: max(frame.height, 760), basedOn: frame, screen: screen)
+        }
+
+        private func constrainedFrame(width: CGFloat, height: CGFloat, basedOn frame: NSRect, screen: NSScreen?) -> NSRect {
+            var next = NSRect(
+                x: frame.midX - width / 2,
+                y: frame.midY - height / 2,
+                width: width,
+                height: height
+            )
+
+            guard let visibleFrame = screen?.visibleFrame else {
+                return next
+            }
+
+            if next.width > visibleFrame.width {
+                next.size.width = visibleFrame.width
+                next.origin.x = visibleFrame.minX
+            } else {
+                next.origin.x = min(max(next.origin.x, visibleFrame.minX), visibleFrame.maxX - next.width)
+            }
+
+            if next.height > visibleFrame.height {
+                next.size.height = visibleFrame.height
+                next.origin.y = visibleFrame.minY
+            } else {
+                next.origin.y = min(max(next.origin.y, visibleFrame.minY), visibleFrame.maxY - next.height)
+            }
+
+            return next
         }
     }
 }

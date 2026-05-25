@@ -38,6 +38,8 @@ struct ReaderReadAloudPanel: View {
                     toolRow
                     contentBlock
                 }
+                .frame(maxWidth: contentMaxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, 18)
                 .padding(.top, 58)
                 .padding(.bottom, 20)
@@ -46,20 +48,26 @@ struct ReaderReadAloudPanel: View {
         }
         .frame(width: panelWidth)
         .frame(maxWidth: panelMaxWidth, maxHeight: .infinity)
-        .background(preferences.theme.raised)
+        .background(showsReadingPane ? preferences.theme.raised : preferences.theme.paper)
         .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(preferences.theme.rule)
-                .frame(width: 1)
+            if showsReadingPane {
+                Rectangle()
+                    .fill(preferences.theme.rule)
+                    .frame(width: 1)
+            }
         }
     }
 
     private var panelWidth: CGFloat? {
-        showsReadingPane ? 362 : nil
+        showsReadingPane ? 336 : nil
     }
 
     private var panelMaxWidth: CGFloat? {
         showsReadingPane ? nil : .infinity
+    }
+
+    private var contentMaxWidth: CGFloat? {
+        showsReadingPane ? nil : 620
     }
 
     private var header: some View {
