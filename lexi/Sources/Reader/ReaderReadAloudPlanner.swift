@@ -45,6 +45,10 @@ nonisolated enum ReadAloudChunkPlanner {
         guard chapter.paragraphs.indices.contains(startIndex) else {
             return []
         }
+        if language == .target,
+           text(for: chapter.paragraphs[startIndex], snapshot: snapshot, language: .target) == nil {
+            return []
+        }
 
         var chunks: [ReadAloudChunk] = []
         var pendingParagraphs: [(paragraph: ReaderParagraph, text: String)] = []
@@ -72,9 +76,7 @@ nonisolated enum ReadAloudChunkPlanner {
 
         for paragraph in chapter.paragraphs[startIndex...] {
             guard let text = text(for: paragraph, snapshot: snapshot, language: language) else {
-                if language == .target {
-                    break
-                }
+                flushPending()
                 continue
             }
 

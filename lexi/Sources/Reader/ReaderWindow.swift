@@ -129,6 +129,7 @@ private struct ReaderWindowContent: View {
     @State private var showsReadAloudPanel = false
     @State private var readAloudPanelShowsText = true
     @State private var readAloudPanelMode = ReaderReadAloudPanelMode.nowReading
+    @State private var readAloudShowsReadingPane = true
     @AppStorage(LexiDefaultsKey.readerFontSize) private var fontSize = 17.0
     @AppStorage(LexiDefaultsKey.readerTranslationMode) private var transModeRaw = ReaderTranslationMode.both.rawValue
     @AppStorage(LexiDefaultsKey.readerPrefetch) private var prefetchCount = 1
@@ -370,27 +371,29 @@ private struct ReaderWindowContent: View {
                             )
                         }
 
-                        ReadingColumn(
-                            bookTitle: book.title,
-                            chapter: selectedChapter,
-                            previousChapter: chapters[safe: selectedChapterIndex - 1],
-                            nextChapter: chapters[safe: selectedChapterIndex + 1],
-                            fontSize: fontSize,
-                            snapshot: controller.snapshot(for: selectedChapter.id),
-                            transMode: transMode,
-                            preferences: preferences,
-                            readAloudHighlight: readAloudController?.currentHighlight,
-                            visibleParagraphId: $visibleParagraphId,
-                            selectedTextContext: $selectedTextContext,
-                            goToPreviousChapter: previousChapter,
-                            goToNextChapter: nextChapter,
-                            onParagraphChange: handleVisibleParagraphChange
-                        ) { paragraph in
-                            controller.retryParagraph(paragraph, in: selectedChapter, bookTitle: book.title)
+                        if !showsReadAloudPanel || readAloudShowsReadingPane {
+                            ReadingColumn(
+                                bookTitle: book.title,
+                                chapter: selectedChapter,
+                                previousChapter: chapters[safe: selectedChapterIndex - 1],
+                                nextChapter: chapters[safe: selectedChapterIndex + 1],
+                                fontSize: fontSize,
+                                snapshot: controller.snapshot(for: selectedChapter.id),
+                                transMode: transMode,
+                                preferences: preferences,
+                                readAloudHighlight: readAloudController?.currentHighlight,
+                                visibleParagraphId: $visibleParagraphId,
+                                selectedTextContext: $selectedTextContext,
+                                goToPreviousChapter: previousChapter,
+                                goToNextChapter: nextChapter,
+                                onParagraphChange: handleVisibleParagraphChange
+                            ) { paragraph in
+                                controller.retryParagraph(paragraph, in: selectedChapter, bookTitle: book.title)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(preferences.theme.paper)
+                            .tint(preferences.accent.primary)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(preferences.theme.paper)
-                        .tint(preferences.accent.primary)
 
                         if showsReadAloudPanel {
                             ReaderReadAloudPanel(
@@ -401,17 +404,13 @@ private struct ReaderWindowContent: View {
                                 language: $readAloudLanguage,
                                 showsText: $readAloudPanelShowsText,
                                 mode: $readAloudPanelMode,
+                                showsReadingPane: $readAloudShowsReadingPane,
                                 status: readAloudController?.status ?? .idle,
                                 progress: readAloudController?.progress ?? .empty,
                                 currentHighlight: readAloudController?.currentHighlight,
                                 canMoveToPreviousChapter: selectedChapterIndex > 0,
                                 canMoveToNextChapter: selectedChapterIndex + 1 < chapters.count,
                                 preferences: preferences,
-                                close: {
-                                    withAnimation(.easeInOut(duration: 0.18)) {
-                                        showsReadAloudPanel = false
-                                    }
-                                },
                                 primaryAction: handleReadAloudEntry,
                                 previousChunk: { readAloudController?.previousChunk() },
                                 nextChunk: { readAloudController?.nextChunk() },
@@ -424,36 +423,41 @@ private struct ReaderWindowContent: View {
                         }
                     }
                     .animation(.easeInOut(duration: 0.18), value: showsReadAloudPanel)
+                    .animation(.easeInOut(duration: 0.18), value: readAloudShowsReadingPane)
 
-                    ReaderChromeOverlay(
-                        columnVisibility: $columnVisibility,
-                        bookTitle: book.title,
-                        transMode: transModeBinding,
-                        paragraphLayout: paragraphLayoutBinding,
-                        themeMode: themeMode,
-                        preferences: preferences,
-                        readAloudStatus: readAloudController?.status ?? .idle,
-                        cycleThemeMode: cycleThemeMode,
-                        openReadAloud: { openReadAloudPanel() },
-                        openVocab: { openVocab(for: book) },
-                        openSettings: { showsSettings = true },
-                        sidebarVisible: columnVisibility != .detailOnly
-                    )
+                    if !showsReadAloudPanel || readAloudShowsReadingPane {
+                        ReaderChromeOverlay(
+                            columnVisibility: $columnVisibility,
+                            bookTitle: book.title,
+                            transMode: transModeBinding,
+                            paragraphLayout: paragraphLayoutBinding,
+                            themeMode: themeMode,
+                            preferences: preferences,
+                            readAloudStatus: readAloudController?.status ?? .idle,
+                            cycleThemeMode: cycleThemeMode,
+                            openReadAloud: { openReadAloudPanel() },
+                            openVocab: { openVocab(for: book) },
+                            openSettings: { showsSettings = true },
+                            sidebarVisible: columnVisibility != .detailOnly
+                        )
+                    }
                 }
                 .toolbar(removing: .sidebarToggle)
 
-                ReaderProgressHairline(
-                    progress: Double(chapterProgress) / 100,
-                    preferences: preferences
-                )
+                if !showsReadAloudPanel || readAloudShowsReadingPane {
+                    ReaderProgressHairline(
+                        progress: Double(chapterProgress) / 100,
+                        preferences: preferences
+                    )
 
-                ReaderStatusBar(
-                    chapterProgress: chapterProgress,
-                    bookProgress: bookProgress,
-                    state: controller.chapterState(for: selectedChapter.id),
-                    readAloudStatus: readAloudController?.status ?? .idle,
-                    preferences: preferences
-                )
+                    ReaderStatusBar(
+                        chapterProgress: chapterProgress,
+                        bookProgress: bookProgress,
+                        state: controller.chapterState(for: selectedChapter.id),
+                        readAloudStatus: readAloudController?.status ?? .idle,
+                        preferences: preferences
+                    )
+                }
             }
         } else {
             ProgressView()

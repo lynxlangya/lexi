@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import XCTest
 @testable import lexi
 
@@ -26,14 +27,15 @@ final class ReaderReadAloudTests: XCTestCase {
         XCTAssertEqual(chunks.first?.text, "Two.")
     }
 
-    func testChunkPlannerUsesCachedTranslationsAndStopsAtMissingTarget() {
-        let chapter = makeChapter(paragraphTexts: ["One.", "Two.", "Three."])
+    func testChunkPlannerUsesCachedTranslationsAndSkipsMissingTargetWithoutTruncatingLaterCachedParagraphs() {
+        let chapter = makeChapter(paragraphTexts: ["One.", "Two.", "Three.", "Four."])
         let snapshot = ChapterTranslationSnapshot(
-            chapterState: .translating(done: 2),
+            chapterState: .translating(done: 3),
             paragraphStates: [
                 1: .cached("一。"),
-                2: .cached("二。"),
+                2: .translating,
                 3: .translating,
+                4: .cached("四。"),
             ]
         )
 
@@ -47,9 +49,38 @@ final class ReaderReadAloudTests: XCTestCase {
             maxParagraphs: 3
         )
 
-        XCTAssertEqual(chunks.count, 1)
-        XCTAssertEqual(chunks.first?.text, "一。\n\n二。")
-        XCTAssertEqual(chunks.first?.paragraphIds, [1, 2])
+        XCTAssertEqual(chunks.count, 2)
+        XCTAssertEqual(chunks.first?.text, "一。")
+        XCTAssertEqual(chunks.first?.paragraphIds, [1])
+        XCTAssertEqual(chunks.first?.paragraphStart, 0)
+        XCTAssertEqual(chunks.first?.paragraphEnd, 0)
+        XCTAssertEqual(chunks.last?.text, "四。")
+        XCTAssertEqual(chunks.last?.paragraphIds, [4])
+        XCTAssertEqual(chunks.last?.paragraphStart, 3)
+        XCTAssertEqual(chunks.last?.paragraphEnd, 3)
+    }
+
+    func testChunkPlannerKeepsClearUnavailableReasonWhenStartingFromMissingTargetParagraph() {
+        let chapter = makeChapter(paragraphTexts: ["One.", "Two.", "Three.", "Four."])
+        let snapshot = ChapterTranslationSnapshot(
+            chapterState: .translating(done: 3),
+            paragraphStates: [
+                1: .cached("一。"),
+                2: .cached("二。"),
+                3: .translating,
+                4: .cached("四。"),
+            ]
+        )
+
+        XCTAssertTrue(ReadAloudChunkPlanner.chunks(
+            for: chapter,
+            snapshot: snapshot,
+            language: .target,
+            startParagraphId: 3,
+            minCharacters: 1,
+            maxCharacters: 50,
+            maxParagraphs: 3
+        ).isEmpty)
         XCTAssertEqual(
             ReadAloudChunkPlanner.unavailableReason(
                 for: .target,
@@ -109,6 +140,75 @@ final class ReaderReadAloudTests: XCTestCase {
         XCTAssertFalse(target.matches(chapterId: 10, paragraphId: 2, language: .source))
         XCTAssertFalse(target.matches(chapterId: 11, paragraphId: 2, language: .target))
         XCTAssertFalse(target.matches(chapterId: 10, paragraphId: 4, language: .target))
+    }
+
+    @MainActor
+    func testLateFinishedNotificationFromPreviousPlayerDoesNotSkipCurrentChunk() async throws {
+        let database = try AppDatabase.makeTransient()
+        let book = ReaderBook(
+            id: "book",
+            title: "Book",
+            author: "Author",
+            fileURL: URL(fileURLWithPath: "/tmp/book.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+        let chapter = makeChapter(paragraphTexts: ["One.", "Two.", "Three.", "Four."])
+        let playerFactory = ReadAloudFakePlayerFactory()
+        let controller = ReaderReadAloudController(
+            database: database,
+            registry: TTSRegistry(client: ReadAloudFailIfCalledHTTPClient(), apiKeyProvider: { _ in "key" }),
+            engineRegistry: EngineRegistry(client: ReadAloudFailIfCalledHTTPClient(), apiKeyProvider: { _ in nil }),
+            profileResolver: ReadAloudStaticProfileResolver(),
+            audioResolver: ReadAloudStaticAudioResolver(),
+            playerFactory: { url in playerFactory.makePlayer(url: url) },
+            systemSpeaker: ReadAloudFakeSystemSpeaker()
+        )
+
+        controller.start(
+            book: book,
+            chapters: [chapter],
+            chapter: chapter,
+            snapshot: ChapterTranslationSnapshot(),
+            visibleParagraphId: nil,
+            language: .source,
+            config: TTSProviderConfig(
+                provider: .doubao,
+                resourceId: "seed-tts-2.0",
+                speaker: "voice",
+                speechRate: 0,
+                format: "mp3",
+                sampleRate: 24_000
+            ),
+            engineConfig: EngineConfig(id: .deepseek, model: "model", lastTestedOK: false, lastTestedAt: nil)
+        )
+
+        await waitUntil("first chunk starts playing") {
+            controller.progress.currentIndex == 0
+                && controller.progress.totalCount == 2
+                && controller.status.canPause
+                && playerFactory.players.count == 1
+        }
+        let staleItem = try XCTUnwrap(playerFactory.players.first?.currentItem)
+
+        controller.nextChunk()
+        await waitUntil("second chunk starts playing") {
+            controller.progress.currentIndex == 1
+                && controller.status.canPause
+                && playerFactory.players.count == 2
+        }
+
+        NotificationCenter.default.post(name: .AVPlayerItemDidPlayToEndTime, object: staleItem)
+        await Task.yield()
+        await Task.yield()
+
+        XCTAssertEqual(controller.progress.currentIndex, 1)
+        XCTAssertEqual(controller.progress.currentRange, "段落 4")
+        XCTAssertTrue(controller.status.canPause)
     }
 
     func testAudioResolverUsesCacheHitBeforeProviderCall() async throws {
@@ -368,6 +468,22 @@ final class ReaderReadAloudTests: XCTestCase {
             }
         )
     }
+
+    @MainActor
+    private func waitUntil(
+        _ description: String,
+        timeout: TimeInterval = 2,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Timed out waiting for \(description)")
+    }
 }
 
 private final class ReadAloudFailIfCalledHTTPClient: EngineHTTPClient, @unchecked Sendable {
@@ -387,4 +503,69 @@ private final class ReadAloudFailIfCalledHTTPClient: EngineHTTPClient, @unchecke
         lock.withLock { _callCount += 1 }
         throw TTSProviderError.invalidResponse
     }
+}
+
+private struct ReadAloudStaticAudioResolver: ReadAloudAudioResolving {
+    func resolveAudioURL(
+        for chunk: ReadAloudChunk,
+        database: AppDatabase,
+        registry: TTSRegistry,
+        config: TTSProviderConfig
+    ) async throws -> URL {
+        URL(fileURLWithPath: "/tmp/\(chunk.id).mp3")
+    }
+}
+
+private struct ReadAloudStaticProfileResolver: NarrationProfileResolving {
+    func profile(
+        book: ReaderBook,
+        chapters: [ReaderChapter],
+        currentChapter: ReaderChapter,
+        provider: TTSProviderID,
+        forceRefresh: Bool,
+        database: AppDatabase,
+        engineConfig: EngineConfig,
+        engineRegistry: EngineRegistry
+    ) async -> NarrationProfile {
+        NarrationProfile.neutral(bookId: book.id, provider: provider, now: Date(lexiTimestamp: 1_800_000_001))
+    }
+}
+
+@MainActor
+private final class ReadAloudFakePlayerFactory {
+    private(set) var players: [ReadAloudFakePlayer] = []
+
+    func makePlayer(url: URL) -> ReadAloudFakePlayer {
+        let player = ReadAloudFakePlayer(url: url)
+        players.append(player)
+        return player
+    }
+}
+
+@MainActor
+private final class ReadAloudFakePlayer: ReaderAudioPlaying, @unchecked Sendable {
+    let currentItem: AVPlayerItem?
+    private(set) var didPlay = false
+    private(set) var didPause = false
+
+    init(url: URL) {
+        currentItem = AVPlayerItem(url: url)
+    }
+
+    func play() {
+        didPlay = true
+    }
+
+    func pause() {
+        didPause = true
+    }
+}
+
+@MainActor
+private final class ReadAloudFakeSystemSpeaker: ReaderSystemSpeaking, @unchecked Sendable {
+    var onFinish: (@MainActor @Sendable () -> Void)?
+
+    func speak(_ text: String) {}
+
+    func stop() {}
 }
