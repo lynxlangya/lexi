@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ReaderScrollViewStyler: NSViewRepresentable {
     let preferences: ReaderRuntimePreferences
+    var background: Color?
 
     func makeNSView(context: Context) -> NSView {
         NSView(frame: .zero)
@@ -15,7 +16,7 @@ struct ReaderScrollViewStyler: NSViewRepresentable {
             }
 
             scrollView.drawsBackground = true
-            scrollView.backgroundColor = NSColor(preferences.theme.paper)
+            scrollView.backgroundColor = NSColor(background ?? preferences.theme.paper)
             scrollView.scrollerStyle = .overlay
             scrollView.verticalScroller?.controlSize = .small
             scrollView.verticalScroller?.knobStyle = knobStyle

@@ -211,6 +211,72 @@ final class ReaderReadAloudTests: XCTestCase {
         XCTAssertTrue(controller.status.canPause)
     }
 
+    @MainActor
+    func testFinishingLastChunkNotifiesChapterFinishedHandler() async throws {
+        let database = try AppDatabase.makeTransient()
+        let book = ReaderBook(
+            id: "book",
+            title: "Book",
+            author: "Author",
+            fileURL: URL(fileURLWithPath: "/tmp/book.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+        let chapter = makeChapter(paragraphTexts: ["One."])
+        let playerFactory = ReadAloudFakePlayerFactory()
+        var didFinishChapter = false
+        let controller = ReaderReadAloudController(
+            database: database,
+            registry: TTSRegistry(client: ReadAloudFailIfCalledHTTPClient(), apiKeyProvider: { _ in "key" }),
+            engineRegistry: EngineRegistry(client: ReadAloudFailIfCalledHTTPClient(), apiKeyProvider: { _ in nil }),
+            profileResolver: ReadAloudStaticProfileResolver(),
+            audioResolver: ReadAloudStaticAudioResolver(),
+            playerFactory: { url in playerFactory.makePlayer(url: url) },
+            systemSpeaker: ReadAloudFakeSystemSpeaker(),
+            chapterFinishedHandler: {
+                didFinishChapter = true
+            }
+        )
+
+        controller.start(
+            book: book,
+            chapters: [chapter],
+            chapter: chapter,
+            snapshot: ChapterTranslationSnapshot(),
+            visibleParagraphId: nil,
+            language: .source,
+            config: TTSProviderConfig(
+                provider: .doubao,
+                resourceId: "seed-tts-2.0",
+                speaker: "voice",
+                speechRate: 0,
+                format: "mp3",
+                sampleRate: 24_000
+            ),
+            engineConfig: EngineConfig(id: .deepseek, model: "model", lastTestedOK: false, lastTestedAt: nil)
+        )
+
+        await waitUntil("single chunk starts playing") {
+            controller.progress.currentIndex == 0
+                && controller.progress.totalCount == 1
+                && controller.status.canPause
+                && playerFactory.players.count == 1
+        }
+
+        let item = try XCTUnwrap(playerFactory.players.first?.currentItem)
+        NotificationCenter.default.post(name: .AVPlayerItemDidPlayToEndTime, object: item)
+        await waitUntil("chapter finish handler fires") {
+            didFinishChapter
+        }
+
+        XCTAssertEqual(controller.status, .idle)
+        XCTAssertEqual(controller.progress, .empty)
+    }
+
     func testAudioResolverUsesCacheHitBeforeProviderCall() async throws {
         let database = try AppDatabase.makeTransient()
         let book = Book(

@@ -40,15 +40,16 @@ struct ReaderReadAloudPanel: View {
                 }
                 .frame(maxWidth: contentMaxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .background(ReaderScrollViewStyler(preferences: preferences, background: panelBackground))
                 .padding(.horizontal, 18)
                 .padding(.top, 58)
                 .padding(.bottom, 20)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.automatic)
         }
         .frame(width: panelWidth)
         .frame(maxWidth: panelMaxWidth, maxHeight: .infinity)
-        .background(showsReadingPane ? preferences.theme.raised : preferences.theme.paper)
+        .background(panelBackground)
         .overlay(alignment: .leading) {
             if showsReadingPane {
                 Rectangle()
@@ -67,7 +68,11 @@ struct ReaderReadAloudPanel: View {
     }
 
     private var contentMaxWidth: CGFloat? {
-        showsReadingPane ? nil : 620
+        showsReadingPane ? nil : 392
+    }
+
+    private var panelBackground: Color {
+        showsReadingPane ? preferences.theme.raised : preferences.theme.paper
     }
 
     private var header: some View {

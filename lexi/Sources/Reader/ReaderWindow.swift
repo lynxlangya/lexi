@@ -265,7 +265,7 @@ private struct ReaderWindowContent: View {
         .onChange(of: theme) { _, _ in
             systemAppearance.refresh()
         }
-        .frame(minWidth: isCompactReadAloudWindow ? 680 : 920, minHeight: 620)
+        .frame(minWidth: isCompactReadAloudWindow ? 440 : 920, minHeight: 620)
         .confirmationDialog(
             "清除翻译缓存？",
             isPresented: Binding(
@@ -575,7 +575,10 @@ private struct ReaderWindowContent: View {
             let loaded = try await ReaderFixtureStore.loadExistingBook(bookId: nextBook.id, from: database)
             let engineConfig = await EnginePreferences.chapterConfig(database: database)
             let nextController = ChapterTranslationController(database: database, engineConfig: engineConfig)
-            let nextReadAloudController = ReaderReadAloudController(database: database)
+            let nextReadAloudController = ReaderReadAloudController(
+                database: database,
+                chapterFinishedHandler: advanceReadAloudAfterChapterFinished
+            )
             visibleParagraphId = nil
             pendingScrollParagraphIdx = nil
             lastKnownScrollParagraphIndex = nil
@@ -785,13 +788,21 @@ private struct ReaderWindowContent: View {
 
     private func toggleReadAloudPanel() {
         withAnimation(.easeInOut(duration: 0.18)) {
-            if showsReadAloudPanel {
-                showsReadAloudPanel = false
-                readAloudShowsReadingPane = true
+            if showsReadAloudPanel
+                || readAloudController?.status.isActive == true
+                || readAloudController?.status.isError == true {
+                exitReadAloudMode()
             } else {
                 showsReadAloudPanel = true
             }
         }
+    }
+
+    private func exitReadAloudMode() {
+        readAloudController?.stop()
+        showsReadAloudPanel = false
+        readAloudShowsReadingPane = true
+        readAloudPanelMode = .nowReading
     }
 
     private func previousReadAloudChapter() {
@@ -802,6 +813,13 @@ private struct ReaderWindowContent: View {
     }
 
     private func nextReadAloudChapter() {
+        guard selectedChapterIndex + 1 < chapters.count else {
+            return
+        }
+        selectReadAloudChapter(at: selectedChapterIndex + 1)
+    }
+
+    private func advanceReadAloudAfterChapterFinished() {
         guard selectedChapterIndex + 1 < chapters.count else {
             return
         }
@@ -1212,8 +1230,8 @@ private struct ReaderWindowSizeUpdater: NSViewRepresentable {
     }
 
     final class Coordinator {
-        private let compactWidth: CGFloat = 720
-        private let compactMinWidth: CGFloat = 680
+        private let compactWidth: CGFloat = 480
+        private let compactMinWidth: CGFloat = 440
         private let expandedMinWidth: CGFloat = 920
         private let minHeight: CGFloat = 620
         private var previousExpandedFrame: NSRect?

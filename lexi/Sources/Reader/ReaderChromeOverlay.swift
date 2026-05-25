@@ -163,14 +163,11 @@ struct ReaderChromeOverlay: View {
     }
 
     private var readAloudHelp: String {
-        if readAloudStatus.isLoading {
-            return "\(readAloudStatus.label)，点击打开朗读器"
+        if readAloudStatus.isActive {
+            return "\(readAloudStatus.label)，点击退出朗读"
         }
         if readAloudStatus.isError {
-            return "\(readAloudStatus.label)，点击打开朗读器"
-        }
-        if readAloudStatus.isActive {
-            return "打开朗读器"
+            return "\(readAloudStatus.label)，点击退出朗读"
         }
         return "打开朗读器"
     }

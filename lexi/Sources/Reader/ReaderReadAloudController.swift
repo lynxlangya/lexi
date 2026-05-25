@@ -122,6 +122,7 @@ final class ReaderReadAloudController: NSObject {
     private let audioResolver: ReadAloudAudioResolving
     private let playerFactory: @MainActor (URL) -> ReaderAudioPlaying
     private let systemSpeaker: ReaderSystemSpeaking
+    private let chapterFinishedHandler: (@MainActor () -> Void)?
     private var chunks: [ReadAloudChunk] = []
     private var currentIndex = 0
     private var generationTask: Task<Void, Never>?
@@ -142,7 +143,8 @@ final class ReaderReadAloudController: NSObject {
         profileResolver: NarrationProfileResolving? = nil,
         audioResolver: ReadAloudAudioResolving? = nil,
         playerFactory: (@MainActor (URL) -> ReaderAudioPlaying)? = nil,
-        systemSpeaker: ReaderSystemSpeaking? = nil
+        systemSpeaker: ReaderSystemSpeaking? = nil,
+        chapterFinishedHandler: (@MainActor () -> Void)? = nil
     ) {
         self.database = database
         self.registry = registry
@@ -151,6 +153,7 @@ final class ReaderReadAloudController: NSObject {
         self.audioResolver = audioResolver ?? DefaultReadAloudAudioResolver()
         self.playerFactory = playerFactory ?? { AVPlayerReaderAudioPlayer(url: $0) }
         self.systemSpeaker = systemSpeaker ?? AVSpeechReaderSystemSpeaker()
+        self.chapterFinishedHandler = chapterFinishedHandler
         super.init()
         self.systemSpeaker.onFinish = { [weak self] in
             self?.advanceAfterCurrentChunk()
@@ -253,7 +256,7 @@ final class ReaderReadAloudController: NSObject {
 
     func nextChunk() {
         guard currentIndex + 1 < chunks.count else {
-            stop()
+            finishChapter()
             return
         }
         currentIndex += 1
@@ -377,6 +380,11 @@ final class ReaderReadAloudController: NSObject {
             return
         }
         nextChunk()
+    }
+
+    private func finishChapter() {
+        stop()
+        chapterFinishedHandler?()
     }
 
     private func updateProgress() {
