@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-Lexi MVP PR 1-10 have all been merged, and v2.0.1 is the current technical preview release line. Source code is organized by module under `lexi/Sources/`; see [DESIGN.md](DESIGN.md) for historical product decisions and [PR-PLAN.md](PR-PLAN.md) for the completed historical PR breakdown.
+Lexi MVP PR 1-10 have all been merged, and v2.1.0 is the current technical preview release line. Source code is organized by module under `lexi/Sources/`; see [DESIGN.md](DESIGN.md) for historical product decisions and [PR-PLAN.md](PR-PLAN.md) for the completed historical PR breakdown.
 
 The Core Data template has been removed. The app now has the main Reader/Shelf surface, EPUB import, streaming translation, right-side AI read-aloud, MenuBar selection popup, Settings sheet, and Vocab list. Persistence is GRDB-backed SQLite plus Keychain for API keys. The unit test target covers Data, EPUB parsing, translation engines, read-aloud planning/audio cache behavior, and Reader translation controller behavior. There is no CI or lint config yet.
 
