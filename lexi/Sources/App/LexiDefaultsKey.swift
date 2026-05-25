@@ -1,8 +1,6 @@
 enum LexiDefaultsKey {
     static let generalStartup = "general.startup"
     static let generalOnClose = "general.onClose"
-    static let generalAutoUpdate = "general.autoUpdate"
-    static let generalCrashLogs = "general.crashLogs"
 
     static let engineDefaultChapter = "engine.default.chapter"
     static let engineDefaultPopup = "engine.default.popup"
