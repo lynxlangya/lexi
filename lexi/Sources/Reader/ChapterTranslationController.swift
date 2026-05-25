@@ -1,6 +1,8 @@
 import Foundation
 import Observation
 
+private let paragraphTranslationMaxAttempts = 2
+
 enum ChapterTranslationState: Equatable, Sendable {
     case idle
     case translating(done: Int)
@@ -201,64 +203,50 @@ final class ChapterTranslationController {
 
             let engine = try registry.engine(for: config)
             for (missingIndex, paragraph) in missing.enumerated() {
-                do {
-                    snapshots[chapter.id]?.paragraphStates[paragraph.id] = .translating
-                    reconcileChapterState(for: chapter)
-                    let task = TranslationTask.paragraph(
-                        text: paragraph.en,
-                        context: paragraphContext(
-                            for: paragraph,
-                            in: chapter,
-                            exactCached: exactCached,
-                            bookTitle: bookTitle
-                        )
+                let task = TranslationTask.paragraph(
+                    text: paragraph.en,
+                    context: paragraphContext(
+                        for: paragraph,
+                        in: chapter,
+                        exactCached: exactCached,
+                        bookTitle: bookTitle
                     )
-                    var zh = ""
-                    for try await chunk in engine.translate([task], model: config.model) {
-                        try Task.checkCancellation()
-                        zh += chunk.text
-                        snapshots[chapter.id]?.paragraphStates[paragraph.id] = .streaming(zh)
-                        reconcileChapterState(for: chapter)
-                    }
+                )
 
-                    if zh.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        markTranslatingParagraphsAsError(
-                            in: chapter,
-                            candidates: Array(missing[missingIndex...]),
-                            reason: "翻译流提前结束，本段未译"
-                        )
-                        reconcileChapterState(for: chapter)
-                        return
-                    }
-                    guard ParagraphTranslationCompleteness.isComplete(source: paragraph.en, translation: zh) else {
-                        markTranslatingParagraphsAsError(
-                            in: chapter,
-                            candidates: Array(missing[missingIndex...]),
-                            reason: "翻译结果疑似不完整，本段未缓存"
-                        )
-                        reconcileChapterState(for: chapter)
-                        return
-                    }
+                switch await translateParagraphTextWithRetry(
+                    task,
+                    source: paragraph.en,
+                    paragraph: paragraph,
+                    chapter: chapter,
+                    engine: engine,
+                    model: config.model
+                ) {
+                case .success(let zh):
                     snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(zh)
                     reconcileChapterState(for: chapter)
-                    try await database.upsertTranslation(
-                        Translation(
-                            id: nil,
-                            paragraphId: paragraph.id,
-                            engine: config.id,
-                            model: config.model,
-                            zh: zh,
-                            createdAt: Date()
+                    do {
+                        try await database.upsertTranslation(
+                            Translation(
+                                id: nil,
+                                paragraphId: paragraph.id,
+                                engine: config.id,
+                                model: config.model,
+                                zh: zh,
+                                createdAt: Date()
+                            )
                         )
-                    )
+                    } catch is CancellationError {
+                        return
+                    } catch {
+                        apply(reason: error.localizedDescription, to: chapter, translating: Array(missing[missingIndex...]))
+                        return
+                    }
                     exactCached[paragraph.id] = zh
-                } catch is CancellationError {
-                    return
-                } catch let error as EngineError {
-                    apply(error: error, to: chapter, translating: Array(missing[missingIndex...]))
-                    return
-                } catch {
-                    apply(reason: error.localizedDescription, to: chapter, translating: Array(missing[missingIndex...]))
+                case .failure(let reason):
+                    snapshots[chapter.id]?.paragraphStates[paragraph.id] = .error(reason)
+                    reconcileChapterState(for: chapter)
+                    continue
+                case .cancelled:
                     return
                 }
             }
@@ -276,6 +264,80 @@ final class ChapterTranslationController {
         } catch {
             apply(reason: error.localizedDescription, to: chapter, translating: missing)
         }
+    }
+
+    private func translateParagraphTextWithRetry(
+        _ task: TranslationTask,
+        source: String,
+        paragraph: ReaderParagraph,
+        chapter: ReaderChapter,
+        engine: any TranslationEngine,
+        model: String
+    ) async -> ParagraphTranslationAttemptResult {
+        var lastReason = "翻译失败"
+
+        for _ in 1...paragraphTranslationMaxAttempts {
+            snapshots[chapter.id]?.paragraphStates[paragraph.id] = .translating
+            reconcileChapterState(for: chapter)
+
+            do {
+                let zh = try await translateParagraphText(
+                    task,
+                    source: source,
+                    paragraph: paragraph,
+                    chapter: chapter,
+                    engine: engine,
+                    model: model
+                )
+                return .success(zh)
+            } catch is CancellationError {
+                return .cancelled
+            } catch let error as ParagraphTranslationFailure {
+                lastReason = error.localizedDescription
+            } catch {
+                lastReason = paragraphFailureReason(error)
+            }
+        }
+
+        return .failure(lastReason)
+    }
+
+    private func translateParagraphText(
+        _ task: TranslationTask,
+        source: String,
+        paragraph: ReaderParagraph,
+        chapter: ReaderChapter,
+        engine: any TranslationEngine,
+        model: String
+    ) async throws -> String {
+        var zh = ""
+        for try await chunk in engine.translate([task], model: model) {
+            try Task.checkCancellation()
+            zh += chunk.text
+            snapshots[chapter.id]?.paragraphStates[paragraph.id] = .streaming(zh)
+            reconcileChapterState(for: chapter)
+        }
+
+        if zh.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw ParagraphTranslationFailure.emptyStream
+        }
+        guard ParagraphTranslationCompleteness.isComplete(source: source, translation: zh) else {
+            throw ParagraphTranslationFailure.incomplete
+        }
+        return zh
+    }
+
+    private func paragraphFailureReason(_ error: Error) -> String {
+        if let engineError = error as? EngineError {
+            switch engineError {
+            case .taskFailed(_, let reason):
+                return reason
+            default:
+                return engineError.localizedDescription
+            }
+        }
+
+        return error.localizedDescription
     }
 
     private func translateParagraph(
@@ -568,6 +630,26 @@ actor ChapterPrefetchWorker {
             previousEN: previousParagraph?.en,
             previousZH: previousParagraph.flatMap { exactCached[$0.id] }
         )
+    }
+}
+
+private enum ParagraphTranslationAttemptResult {
+    case success(String)
+    case failure(String)
+    case cancelled
+}
+
+private enum ParagraphTranslationFailure: LocalizedError {
+    case emptyStream
+    case incomplete
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyStream:
+            return "翻译流提前结束，本段未译"
+        case .incomplete:
+            return "翻译结果疑似不完整，本段未缓存"
+        }
     }
 }
 
