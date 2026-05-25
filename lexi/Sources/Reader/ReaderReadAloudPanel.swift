@@ -30,22 +30,19 @@ struct ReaderReadAloudPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            fixedControls
+
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
-                    progressBlock
-                    playbackControls
-                    toolRow
-                    contentBlock
-                }
+                contentBlock
                 .frame(maxWidth: contentMaxWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .background(ReaderScrollViewStyler(preferences: preferences, background: panelBackground))
                 .padding(.horizontal, 18)
-                .padding(.top, 58)
+                .padding(.top, 12)
                 .padding(.bottom, 20)
             }
             .scrollIndicators(.automatic)
+            .background(panelBackground)
         }
         .frame(width: panelWidth)
         .frame(maxWidth: panelMaxWidth, maxHeight: .infinity)
@@ -73,6 +70,21 @@ struct ReaderReadAloudPanel: View {
 
     private var panelBackground: Color {
         showsReadingPane ? preferences.theme.raised : preferences.theme.paper
+    }
+
+    private var fixedControls: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            header
+            progressBlock
+            playbackControls
+            toolRow
+        }
+        .frame(maxWidth: contentMaxWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, 18)
+        .padding(.top, 58)
+        .padding(.bottom, 12)
+        .background(panelBackground)
     }
 
     private var header: some View {
