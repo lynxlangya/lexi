@@ -172,6 +172,7 @@ final class ChapterTranslationController {
                 engine: config.id,
                 model: config.model
             )
+            exactCached = completeCachedTranslations(exactCached, in: chapter)
             let cachedCount = chapter.paragraphs.filter { paragraph in
                 if case .cached = snapshot.paragraphStates[paragraph.id] {
                     return true
@@ -225,6 +226,15 @@ final class ChapterTranslationController {
                             in: chapter,
                             candidates: Array(missing[missingIndex...]),
                             reason: "翻译流提前结束，本段未译"
+                        )
+                        reconcileChapterState(for: chapter)
+                        return
+                    }
+                    guard ParagraphTranslationCompleteness.isComplete(source: paragraph.en, translation: zh) else {
+                        markTranslatingParagraphsAsError(
+                            in: chapter,
+                            candidates: Array(missing[missingIndex...]),
+                            reason: "翻译结果疑似不完整，本段未缓存"
                         )
                         reconcileChapterState(for: chapter)
                         return
@@ -291,7 +301,7 @@ final class ChapterTranslationController {
                 context: paragraphContext(
                     for: paragraph,
                     in: chapter,
-                    exactCached: exactCached,
+                    exactCached: completeCachedTranslations(exactCached, in: chapter),
                     bookTitle: bookTitle
                 )
             )
@@ -307,6 +317,15 @@ final class ChapterTranslationController {
                     in: chapter,
                     candidates: [paragraph],
                     reason: "翻译流提前结束，本段未译"
+                )
+                reconcileChapterState(for: chapter)
+                return
+            }
+            guard ParagraphTranslationCompleteness.isComplete(source: paragraph.en, translation: zh) else {
+                markTranslatingParagraphsAsError(
+                    in: chapter,
+                    candidates: [paragraph],
+                    reason: "翻译结果疑似不完整，本段未缓存"
                 )
                 reconcileChapterState(for: chapter)
                 return
@@ -346,8 +365,11 @@ final class ChapterTranslationController {
         )
         var snapshot = snapshots[chapter.id] ?? ChapterTranslationSnapshot()
         for paragraph in chapter.paragraphs {
-            if let zh = cached[paragraph.id] {
+            if let zh = cached[paragraph.id],
+               ParagraphTranslationCompleteness.isComplete(source: paragraph.en, translation: zh) {
                 snapshot.paragraphStates[paragraph.id] = .cached(zh)
+            } else if case .cached = snapshot.paragraphStates[paragraph.id] {
+                snapshot.paragraphStates[paragraph.id] = nil
             }
         }
         return snapshot
@@ -478,16 +500,20 @@ actor ChapterPrefetchWorker {
 
     func prefetch(chapter: ReaderChapter, config: EngineConfig, bookTitle: String? = nil) async {
         do {
-            let cached = try await database.cachedTranslations(
-                chapterId: chapter.id,
-                preferredEngine: config.id,
-                preferredModel: config.model
+            let cached = completeCachedTranslations(
+                try await database.cachedTranslations(
+                    chapterId: chapter.id,
+                    preferredEngine: config.id,
+                    preferredModel: config.model
+                ),
+                in: chapter
             )
             var exactCached = try await database.cachedTranslations(
                 chapterId: chapter.id,
                 engine: config.id,
                 model: config.model
             )
+            exactCached = completeCachedTranslations(exactCached, in: chapter)
             let missing = chapter.paragraphs.filter { cached[$0.id] == nil }
             guard !missing.isEmpty else {
                 return
@@ -509,7 +535,8 @@ actor ChapterPrefetchWorker {
                     try Task.checkCancellation()
                     zh += chunk.text
                 }
-                if !zh.isEmpty {
+                if !zh.isEmpty,
+                   ParagraphTranslationCompleteness.isComplete(source: paragraph.en, translation: zh) {
                     try await database.upsertTranslation(
                         Translation(
                             id: nil,
@@ -542,6 +569,45 @@ actor ChapterPrefetchWorker {
             previousZH: previousParagraph.flatMap { exactCached[$0.id] }
         )
     }
+}
+
+private enum ParagraphTranslationCompleteness {
+    private static let sourceTerminalCharacters: Set<Character> = [".", "!", "?", "。", "！", "？", "”", "\"", "'", "’"]
+    private static let translationTerminalCharacters: Set<Character> = [
+        "。", "！", "？", "…", "”", "」", "』", "）", ")", ".", "!", "?", "\"", "'", "’",
+    ]
+
+    static func isComplete(source: String, translation: String) -> Bool {
+        let normalizedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTranslation = translation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTranslation.isEmpty else {
+            return false
+        }
+
+        guard requiresTerminalPunctuation(normalizedSource) else {
+            return true
+        }
+
+        return normalizedTranslation.last.map(translationTerminalCharacters.contains) == true
+    }
+
+    private static func requiresTerminalPunctuation(_ source: String) -> Bool {
+        guard source.count >= 80,
+              let last = source.last else {
+            return false
+        }
+        return sourceTerminalCharacters.contains(last)
+    }
+}
+
+private func completeCachedTranslations(_ cached: [Int64: String], in chapter: ReaderChapter) -> [Int64: String] {
+    Dictionary(uniqueKeysWithValues: chapter.paragraphs.compactMap { paragraph in
+        guard let zh = cached[paragraph.id],
+              ParagraphTranslationCompleteness.isComplete(source: paragraph.en, translation: zh) else {
+            return nil
+        }
+        return (paragraph.id, zh)
+    })
 }
 
 private extension EngineConfig {
