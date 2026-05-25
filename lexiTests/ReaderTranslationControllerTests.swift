@@ -116,6 +116,81 @@ final class ReaderTranslationControllerTests: XCTestCase {
         XCTAssertNil(stored)
     }
 
+    func testCompletedButTruncatedParagraphDoesNotPersistAsCached() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(
+            database: database,
+            paragraphTexts: [
+                "AI doesn’t act like software, but it does act like a human being. This mindset can significantly improve your understanding of how and when to use AI in a practical sense.",
+                "The next paragraph should not remain translating when the previous output is incomplete.",
+            ]
+        )
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"人工智能的行为并不像软件，却像一个人。这种思"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+
+        await waitUntil("truncated completion marks chapter error") {
+            if case .error = controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id),
+               case .error = controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id),
+               case .error = controller.chapterState(for: chapter.id) {
+                return true
+            }
+            return false
+        }
+
+        let stored = try await database.cachedTranslation(
+            paragraphId: chapter.paragraphs[0].id,
+            engine: .deepseek,
+            model: "deepseek-chat"
+        )
+        XCTAssertNil(stored)
+    }
+
+    func testIncompleteCachedTranslationIsRetriedAndOverwritten() async throws {
+        let database = try AppDatabase.makeTransient()
+        let source = "There was music from my neighbor’s house through the summer nights. In his blue gardens men and girls came and went like moths among the whisperings and the champagne and the stars."
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: [source])
+        try await database.upsertTranslation(
+            Translation(
+                id: nil,
+                paragraphId: chapter.paragraphs[0].id,
+                engine: .deepseek,
+                model: "deepseek-chat",
+                zh: "整个夏夜里，邻家的屋子总有音乐传来。在他那幽蓝的花园中，男人和姑娘们在低语、香槟与星光之间来来去去",
+                createdAt: Date()
+            )
+        )
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"整个夏夜里，邻家的屋子总有音乐传来。在他那幽蓝的花园中，男人和姑娘们像飞蛾一样，在低语、香槟和星光之间来来去去。"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+
+        await waitUntil("incomplete cache is refreshed") {
+            controller.chapterState(for: chapter.id) == .cached
+        }
+
+        XCTAssertEqual(client.requestCount, 1)
+        let stored = try await database.cachedTranslation(
+            paragraphId: chapter.paragraphs[0].id,
+            engine: .deepseek,
+            model: "deepseek-chat"
+        )
+        XCTAssertEqual(stored, "整个夏夜里，邻家的屋子总有音乐传来。在他那幽蓝的花园中，男人和姑娘们像飞蛾一样，在低语、香槟和星光之间来来去去。")
+    }
+
     func testCachedChapterDoesNotCallEngine() async throws {
         let database = try AppDatabase.makeTransient()
         let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["cached"])
