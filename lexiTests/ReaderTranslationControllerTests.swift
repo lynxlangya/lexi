@@ -100,6 +100,10 @@ final class ReaderTranslationControllerTests: XCTestCase {
             controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) == .streaming("谈论人工智能可能会令人")
         }
         client.finish()
+        await waitUntil("retry stream starts after incomplete stream") {
+            client.requestCount == 2
+        }
+        client.finish()
 
         await waitUntil("partial stream is marked as error") {
             if case .error = controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) {
@@ -344,6 +348,9 @@ final class ReaderTranslationControllerTests: XCTestCase {
         )
         let client = ReaderMockEngineHTTPClient(streamResponses: [
             .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
         ])
         let controller = makeController(database: database, client: client)
         await controller.prepare(chapters: [chapter])
@@ -377,6 +384,85 @@ final class ReaderTranslationControllerTests: XCTestCase {
         } else {
             XCTFail("Expected chapter to stay in error state")
         }
+    }
+
+    func testChapterContinuesAfterParagraphFailureAndCachesLaterParagraphs() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["first", "fails", "later"])
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"first zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"later zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+
+        await waitUntil("later paragraph is cached after earlier failure") {
+            if case .cached("first zh") = controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id),
+               case .error = controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id),
+               case .cached("later zh") = controller.paragraphState(for: chapter.paragraphs[2], in: chapter.id),
+               case .error = controller.chapterState(for: chapter.id) {
+                return true
+            }
+            return false
+        }
+
+        let failedTranslation = try await database.cachedTranslation(
+            paragraphId: chapter.paragraphs[1].id,
+            engine: .deepseek,
+            model: "deepseek-chat"
+        )
+        let laterTranslation = try await database.cachedTranslation(
+            paragraphId: chapter.paragraphs[2].id,
+            engine: .deepseek,
+            model: "deepseek-chat"
+        )
+        XCTAssertNil(failedTranslation)
+        XCTAssertEqual(laterTranslation, "later zh")
+        XCTAssertEqual(client.requestCount, 4)
+    }
+
+    func testChapterRetriesTransientParagraphFailureBeforeContinuing() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["transient", "next"])
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"transient zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"next zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+
+        await waitUntil("transient failure is retried and chapter completes") {
+            controller.chapterState(for: chapter.id) == .cached
+        }
+
+        XCTAssertEqual(
+            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id),
+            .cached("transient zh")
+        )
+        XCTAssertEqual(
+            controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id),
+            .cached("next zh")
+        )
+        XCTAssertEqual(client.requestCount, 3)
     }
 
     func testEngineSetupFailureMarksMissingParagraphsAsError() async throws {
@@ -474,6 +560,7 @@ final class ReaderTranslationControllerTests: XCTestCase {
         )
         let client = ReaderMockEngineHTTPClient(streamResponses: [
             .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
             .success((readerSSEStream([
                 #"data: {"choices":[{"delta":{"content":"retry zh"}}]}"#,
                 "data: [DONE]",
@@ -517,6 +604,9 @@ final class ReaderTranslationControllerTests: XCTestCase {
                 #"data: {"choices":[{"delta":{"content":"first zh"}}]}"#,
                 "data: [DONE]",
             ]), readerResponse(status: 200))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
+            .success((readerSSEStream([]), readerResponse(status: 500))),
             .success((readerSSEStream([]), readerResponse(status: 500))),
             .success((readerSSEStream([
                 #"data: {"choices":[{"delta":{"content":"retry zh"}}]}"#,
@@ -702,6 +792,12 @@ private final class ControlledReaderEngineHTTPClient: EngineHTTPClient, @uncheck
         lock.lock()
         defer { lock.unlock() }
         return observedCancellation
+    }
+
+    var requestCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests.count
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
