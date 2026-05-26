@@ -8,7 +8,7 @@ Module ownership:
 - `Data/` — GRDB-backed SQLite, migrations, record models, and Keychain API key storage.
 - `EPUB/` — EPUB parsing, OPF/NAV resolution, cover extraction, and import payload construction.
 - `Engines/` — OpenAI, Anthropic, DeepSeek, SSE parsing, and engine preferences.
-- `Audio/` — Doubao TTS provider, narration style profile generation, audio cache, and read-aloud request models.
+- `Audio/` — OpenAI / Doubao TTS providers, narration style profile generation, audio cache, and read-aloud request models.
 - `MenuBar/` — MenuBarExtra, selection monitoring, NSPanel popup, global shortcuts, text replacement, toast, and speech.
 - `Reader/` — Reader window, Shelf, import flow, translation controller, reading views, read-aloud drawer/controller, shortcuts, Vocab, and fixture seeding.
 - `UI/` — shared colors, fonts, spacing tokens, Settings sheet, and reusable controls.

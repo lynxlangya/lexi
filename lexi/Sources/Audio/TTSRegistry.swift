@@ -24,6 +24,8 @@ nonisolated struct TTSRegistry: Sendable {
         switch config.provider {
         case .doubao:
             return DoubaoTTSProvider(apiKey: apiKey, client: client)
+        case .openai:
+            return OpenAITTSProvider(apiKey: apiKey, client: client)
         }
     }
 }

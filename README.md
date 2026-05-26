@@ -40,7 +40,7 @@ Most "AI translation" tools treat the translation as the final artifact. Lexi tr
 - **Right-side drawer.** The reader can become a compact playback surface: cover, chapter, progress, play/pause, previous/next chunk, previous/next chapter, and a scrollable read-aloud transcript.
 - **Original or translation.** Narration is intentionally single-language at a time. The drawer can read the English original or the cached Chinese translation, and the transcript follows the same choice.
 - **Book-aware style profile.** Before narration, Lexi samples the book and current chapter through the configured translation engine to build a compact tone/pace/pronunciation profile for TTS.
-- **Doubao-first TTS.** The current AI voice provider is Doubao TTS (`seed-tts-2.0` by default), with API key stored in Keychain and audio cached locally. The system voice is used only as a fallback when the TTS key or speaker is missing.
+- **OpenAI or Doubao TTS.** OpenAI `gpt-4o-mini-tts` is the lower-cost default cloud path, while Doubao TTS remains available for users who prefer that voice stack. Provider keys live in Keychain and audio is cached locally.
 
 ### A MenuBar surface that follows you everywhere
 
@@ -67,7 +67,7 @@ Most "AI translation" tools treat the translation as the final artifact. Lexi tr
 - **macOS 26.4 or later**
 - **Xcode 26 or later** (Swift 5.0 toolchain)
 - API key for at least one of: OpenAI · Anthropic · DeepSeek
-- Optional Doubao TTS API key and speaker ID for AI read-aloud
+- Optional OpenAI TTS or Doubao TTS API key for AI read-aloud
 
 ---
 
@@ -107,7 +107,7 @@ First-run setup:
 
 1. Launch the app. The shelf opens empty.
 2. **Settings → Engines.** Paste an API key for OpenAI, Anthropic, or DeepSeek and enter the model name (defaults are suggested). Click **Test** to verify.
-3. Optional: **Settings → Read Aloud.** Paste the Doubao TTS key, resource ID, and speaker ID if you want AI narration.
+3. Optional: **Settings → Read Aloud.** Select OpenAI TTS (`gpt-4o-mini-tts`) or Doubao TTS, then paste the provider key and voice settings if you want AI narration.
 4. **Drag an EPUB onto the shelf** (or use `⌘O`). Lexi parses the file, extracts the cover, and adds it to your shelf.
 5. Click the book to open the reader. Translation starts streaming for the visible chapter immediately.
 
@@ -122,7 +122,7 @@ First-run setup:
 | Display mode | Toolbar button · `⌘B` | English-only / Chinese-only / both. |
 | Font, line height, theme, accent | Settings → Reader | Independent of OS appearance; supports system-follow, day, night. |
 | Chapter prefetch | Settings → Reader → Translation Display | 0–2 chapters ahead. |
-| AI read-aloud | Settings → Read Aloud | Doubao TTS provider, resource ID, speaker ID, speech rate, local audio cache. |
+| AI read-aloud | Settings → Read Aloud | OpenAI TTS (`gpt-4o-mini-tts`) or Doubao TTS, provider-specific API key, voice/model settings, speech rate, local audio cache. |
 | Keyboard shortcuts | Settings → Shortcuts | Most are remappable; conflict detection optional. |
 
 ### Key shortcuts
@@ -144,7 +144,7 @@ Lexi is an Xcode project (`lexi.xcodeproj`) — **not** a Swift package — with
 | `Reader/` | Reader window, Shelf, EPUB import flow, paragraph rendering, translation state UI, vocab sheet |
 | `MenuBar/` | Status-bar agent, selection monitoring (Accessibility API), `NSPanel` popup, speech, global shortcuts |
 | `Engines/` | OpenAI / Anthropic / DeepSeek integrations, SSE parsing, structured lookup schema, prompts |
-| `Audio/` | Doubao TTS provider, narration profile generation, audio cache, read-aloud request models |
+| `Audio/` | OpenAI / Doubao TTS providers, narration profile generation, audio cache, read-aloud request models |
 | `Data/` | GRDB-backed `AppDatabase` actor, migrations, models, Keychain wrapper |
 | `EPUB/` | Archive extraction, OPF/Nav parsing, cover extraction |
 | `UI/` | Design tokens, fonts, Settings sheet, reusable controls |
@@ -161,7 +161,7 @@ See [`DESIGN.md`](DESIGN.md) for v1 product decisions and [`PR-PLAN.md`](PR-PLAN
 - **[SwiftSoup](https://github.com/scinfu/SwiftSoup)** — XHTML chapter parsing
 - **[KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)** — User-rebindable global shortcuts
 - **macOS Keychain** — API key storage
-- **Doubao TTS + AVFoundation** — AI narration via Doubao SSE audio, local playback/cache via `AVPlayer`, system speech fallback via `AVSpeechSynthesizer`
+- **OpenAI / Doubao TTS + AVFoundation** — AI narration via cloud speech audio, local playback/cache via `AVPlayer`, system speech fallback via `AVSpeechSynthesizer`
 
 No iOS / iPadOS target. Targets macOS 26.4, `SDKROOT=macosx`.
 
@@ -181,7 +181,7 @@ The test script uses a temporary DerivedData directory and removes it on exit, s
 
 ### Security
 
-- API keys must stay in Keychain. This includes translation engine keys and Doubao TTS keys. There is no `.env`, no DEBUG-only override, no build-time secret path.
+- API keys must stay in Keychain. This includes translation engine keys and TTS provider keys. There is no `.env`, no DEBUG-only override, no build-time secret path.
 - If a key is exposed in logs, screenshots, PRs, or issues, rotate it at the provider's dashboard immediately.
 
 ---

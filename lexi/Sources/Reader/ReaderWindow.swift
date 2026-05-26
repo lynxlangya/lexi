@@ -61,10 +61,13 @@ private struct ReaderWindowContent: View {
     @AppStorage(LexiDefaultsKey.readerTranslationStyle) private var translationStyle = ReaderTranslationStyle.demote.rawValue
     @AppStorage(LexiDefaultsKey.readerParagraphLayout) private var paragraphLayoutRaw = ReaderParagraphLayout.defaultValue.rawValue
     @AppStorage(LexiDefaultsKey.generalStartup) private var startupBehavior = "last"
-    @AppStorage(LexiDefaultsKey.ttsProvider) private var ttsProvider = TTSProviderID.doubao.rawValue
-    @AppStorage(LexiDefaultsKey.ttsResourceId) private var ttsResourceId = TTSProviderConfig.doubaoDefault.resourceId
-    @AppStorage(LexiDefaultsKey.ttsSpeaker) private var ttsSpeaker = TTSProviderConfig.doubaoDefault.speaker
-    @AppStorage(LexiDefaultsKey.ttsSpeechRate) private var ttsSpeechRate = TTSProviderConfig.doubaoDefault.speechRate
+    @AppStorage(LexiDefaultsKey.ttsProvider) private var ttsProvider = TTSProviderID.openai.rawValue
+    @AppStorage(LexiDefaultsKey.ttsDoubaoResourceId) private var ttsDoubaoResourceId = TTSProviderConfig.doubaoDefault.resourceId
+    @AppStorage(LexiDefaultsKey.ttsDoubaoSpeaker) private var ttsDoubaoSpeaker = TTSProviderConfig.doubaoDefault.speaker
+    @AppStorage(LexiDefaultsKey.ttsDoubaoSpeechRate) private var ttsDoubaoSpeechRate = TTSProviderConfig.doubaoDefault.speechRate
+    @AppStorage(LexiDefaultsKey.ttsOpenAIModel) private var ttsOpenAIModel = TTSProviderConfig.openAIDefault.resourceId
+    @AppStorage(LexiDefaultsKey.ttsOpenAIVoice) private var ttsOpenAIVoice = TTSProviderConfig.openAIDefault.speaker
+    @AppStorage(LexiDefaultsKey.ttsOpenAISpeechRate) private var ttsOpenAISpeechRate = TTSProviderConfig.openAIDefault.speechRate
     @State private var readAloudLanguage = TTSAudioLanguage.source
 
     private var preferences: ReaderRuntimePreferences {
@@ -355,6 +358,7 @@ private struct ReaderWindowContent: View {
                                 canMoveToPreviousChapter: selectedChapterIndex > 0,
                                 canMoveToNextChapter: selectedChapterIndex + 1 < chapters.count,
                                 preferences: preferences,
+                                providerName: currentTTSConfig.provider.displayName,
                                 primaryAction: handleReadAloudEntry,
                                 previousChunk: { readAloudController?.previousChunk() },
                                 nextChunk: { readAloudController?.nextChunk() },
@@ -757,14 +761,30 @@ private struct ReaderWindowContent: View {
     }
 
     private var currentTTSConfig: TTSProviderConfig {
-        let trimmedResource = ttsResourceId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let provider = TTSProviderID(rawValue: ttsProvider) ?? .openai
+        let defaultConfig = TTSProviderConfig.defaultConfig(for: provider)
+        let resourceId: String
+        let speaker: String
+        let speechRate: Int
+        switch provider {
+        case .doubao:
+            resourceId = ttsDoubaoResourceId
+            speaker = ttsDoubaoSpeaker
+            speechRate = ttsDoubaoSpeechRate
+        case .openai:
+            resourceId = ttsOpenAIModel
+            speaker = ttsOpenAIVoice
+            speechRate = ttsOpenAISpeechRate
+        }
+        let trimmedResource = resourceId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSpeaker = speaker.trimmingCharacters(in: .whitespacesAndNewlines)
         return TTSProviderConfig(
-            provider: TTSProviderID(rawValue: ttsProvider) ?? .doubao,
-            resourceId: trimmedResource.isEmpty ? TTSProviderConfig.doubaoDefault.resourceId : trimmedResource,
-            speaker: ttsSpeaker.trimmingCharacters(in: .whitespacesAndNewlines),
-            speechRate: ttsSpeechRate,
-            format: TTSProviderConfig.doubaoDefault.format,
-            sampleRate: TTSProviderConfig.doubaoDefault.sampleRate
+            provider: provider,
+            resourceId: trimmedResource.isEmpty ? defaultConfig.resourceId : trimmedResource,
+            speaker: trimmedSpeaker.isEmpty ? defaultConfig.speaker : trimmedSpeaker,
+            speechRate: speechRate,
+            format: defaultConfig.format,
+            sampleRate: defaultConfig.sampleRate
         )
     }
 
