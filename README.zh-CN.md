@@ -40,7 +40,7 @@
 - **右侧抽屉式朗读器。** 阅读器可以切成紧凑播放界面：封面、章节、进度、播放 / 暂停、上一段 / 下一段、上一章 / 下一章，以及可滚动的朗读文本。
 - **只朗读原文或译文。** 朗读不是双语混读。你选择原文或已缓存的译文，下方文本也跟随同一种语言。
 - **按书生成朗读风格。** 朗读前，Lexi 会用当前翻译引擎抽样书名、章节和正文，生成紧凑的语气、节奏、发音提示。
-- **豆包语音优先。** 当前 AI 语音供应商是豆包语音（默认 `seed-tts-2.0`），Key 存 Keychain，音频本地缓存；未配置 Key 或音色时才走系统朗读兜底。
+- **OpenAI 或豆包语音。** OpenAI `gpt-4o-mini-tts` 是成本更友好的默认云端路径，豆包语音继续作为可选供应商保留。供应商 Key 存 Keychain，音频本地缓存。
 
 ### 一个跟随你到全局的 MenuBar 浮窗
 
@@ -67,7 +67,7 @@
 - **macOS 26.4 及以上**
 - **Xcode 26 及以上**（Swift 5.0）
 - 至少一个 LLM 引擎的 API Key：OpenAI / Anthropic / DeepSeek 任选其一
-- AI 朗读可选：豆包语音 API Key + 音色 ID
+- AI 朗读可选：OpenAI TTS 或豆包语音 API Key + 音色配置
 
 ---
 
@@ -107,7 +107,7 @@ xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug build
 
 1. 启动 app，书架是空的。
 2. **Settings → 引擎。** 粘贴 OpenAI / Anthropic / DeepSeek 任一个的 API Key，填上 model 名（有默认建议），点 **测试** 验证。
-3. 可选：**Settings → 朗读。** 如果要用 AI 朗读，填入豆包语音 Key、Resource ID 和音色 ID。
+3. 可选：**Settings → 朗读。** 如果要用 AI 朗读，选择 OpenAI TTS（`gpt-4o-mini-tts`）或豆包语音，然后填入对应 Key 和音色配置。
 4. **拖一本 EPUB 进书架**（或 `⌘O`）。Lexi 解析文件、抽取封面、入架。
 5. 点击书打开阅读器。当前章节立即开始流式翻译。
 
@@ -122,7 +122,7 @@ xcodebuild -project lexi.xcodeproj -scheme lexi -configuration Debug build
 | 显示模式 | 顶栏按钮 · `⌘B` | 双语 / 仅原文 / 仅译文。 |
 | 字体、行距、主题、强调色 | Settings → 阅读器 | 独立于系统外观，支持跟随系统 / 白天 / 夜间。 |
 | 章节预取 | Settings → 阅读器 → 译文显示 | 0–2 章预译。 |
-| AI 朗读 | Settings → 朗读 | 豆包语音供应商、Resource ID、音色 ID、语速、本地音频缓存。 |
+| AI 朗读 | Settings → 朗读 | OpenAI TTS（`gpt-4o-mini-tts`）或豆包语音、独立 API Key、模型 / 音色、语速、本地音频缓存。 |
 | 快捷键 | Settings → 快捷键 | 大多数可改键，冲突检测可选。 |
 
 ### 常用快捷键
@@ -144,7 +144,7 @@ Lexi 是一个 Xcode 项目（`lexi.xcodeproj`），**不是** Swift Package，�
 | `Reader/` | 阅读器主窗、书架、EPUB 导入、段落渲染、翻译状态 UI、生词本 sheet |
 | `MenuBar/` | 状态栏 agent、选区监听（Accessibility API）、`NSPanel` 浮窗、朗读、全局快捷键 |
 | `Engines/` | OpenAI / Anthropic / DeepSeek 接入、SSE 解析、结构化 lookup schema、prompt |
-| `Audio/` | 豆包 TTS 接入、朗读风格生成、音频缓存、朗读请求模型 |
+| `Audio/` | OpenAI / 豆包 TTS 接入、朗读风格生成、音频缓存、朗读请求模型 |
 | `Data/` | GRDB `AppDatabase` actor、迁移、模型、Keychain 包装 |
 | `EPUB/` | 归档解压、OPF/Nav 解析、封面抽取 |
 | `UI/` | 设计 token、字体、Settings sheet、可复用控件 |
@@ -161,7 +161,7 @@ v1 产品决议见 [`DESIGN.md`](DESIGN.md)，MVP 的历史 PR 拆解见 [`PR-PL
 - **[SwiftSoup](https://github.com/scinfu/SwiftSoup)** —— XHTML 章节解析
 - **[KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)** —— 可改键的全局快捷键
 - **macOS Keychain** —— API Key 存储
-- **豆包 TTS + AVFoundation** —— 豆包 SSE 音频流合成，`AVPlayer` 本地播放 / 缓存，`AVSpeechSynthesizer` 作为系统朗读兜底
+- **OpenAI / 豆包 TTS + AVFoundation** —— 云端语音合成，`AVPlayer` 本地播放 / 缓存，`AVSpeechSynthesizer` 作为系统朗读兜底
 
 无 iOS / iPadOS target。目标 macOS 26.4，`SDKROOT=macosx`。
 
@@ -181,7 +181,7 @@ v1 产品决议见 [`DESIGN.md`](DESIGN.md)，MVP 的历史 PR 拆解见 [`PR-PL
 
 ### 安全
 
-- API Key 必须留在 Keychain，包括翻译引擎 Key 和豆包语音 Key。没有 `.env`、没有 DEBUG-only 覆盖、没有构建期注入路径。
+- API Key 必须留在 Keychain，包括翻译引擎 Key 和 TTS 供应商 Key。没有 `.env`、没有 DEBUG-only 覆盖、没有构建期注入路径。
 - 一旦 Key 出现在日志、截图、PR、issue 里，立即去对应供应商 dashboard 重置。
 
 ---

@@ -6,9 +6,12 @@ enum LexiDefaultsKey {
     static let engineDefaultPopup = "engine.default.popup"
 
     static let ttsProvider = "tts.provider"
-    static let ttsResourceId = "tts.doubao.resourceId"
-    static let ttsSpeaker = "tts.doubao.speaker"
-    static let ttsSpeechRate = "tts.doubao.speechRate"
+    static let ttsDoubaoResourceId = "tts.doubao.resourceId"
+    static let ttsDoubaoSpeaker = "tts.doubao.speaker"
+    static let ttsDoubaoSpeechRate = "tts.doubao.speechRate"
+    static let ttsOpenAIModel = "tts.openai.model"
+    static let ttsOpenAIVoice = "tts.openai.voice"
+    static let ttsOpenAISpeechRate = "tts.openai.speechRate"
 
     static let readerFontSize = "reader.fontSize"
     static let readerTranslationMode = "reader.transMode"

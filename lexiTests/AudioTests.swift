@@ -3,6 +3,47 @@ import XCTest
 @testable import lexi
 
 final class AudioTests: XCTestCase {
+    func testOpenAIRequestIncludesSpeechPayloadAndInstructions() throws {
+        let config = TTSProviderConfig(
+            provider: .openai,
+            resourceId: "gpt-4o-mini-tts",
+            speaker: "marin",
+            speechRate: 25,
+            format: "mp3",
+            sampleRate: 24_000
+        )
+        let request = try OpenAITTSProvider(apiKey: "openai-key").makeRequest(TTSRequest(
+            text: "Hello Lexi.",
+            config: config,
+            contextInstruction: "Read with a calm nonfiction audiobook tone."
+        ))
+
+        XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/audio/speech")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer openai-key")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        XCTAssertEqual(json?["model"] as? String, "gpt-4o-mini-tts")
+        XCTAssertEqual(json?["voice"] as? String, "marin")
+        XCTAssertEqual(json?["input"] as? String, "Hello Lexi.")
+        XCTAssertEqual(json?["response_format"] as? String, "mp3")
+        XCTAssertEqual(json?["speed"] as? Double, 1.25)
+        XCTAssertEqual(json?["instructions"] as? String, "Read with a calm nonfiction audiobook tone.")
+    }
+
+    func testOpenAIRequestRequiresVoice() {
+        var config = TTSProviderConfig.openAIDefault
+        config.speaker = "   "
+
+        XCTAssertThrowsError(try OpenAITTSProvider(apiKey: "openai-key").makeRequest(TTSRequest(
+            text: "Hello Lexi.",
+            config: config
+        ))) { error in
+            XCTAssertEqual(error as? TTSProviderError, .missingSpeaker)
+        }
+    }
+
     func testDoubaoRequestIncludesRequiredHeadersAndPayload() throws {
         let config = TTSProviderConfig(
             provider: .doubao,
@@ -91,10 +132,15 @@ final class AudioTests: XCTestCase {
         changedText.textHash = TTSAudioCacheKey.makeTextHash("hello!")
         var changedSpeaker = base
         changedSpeaker.speaker = "voice-2"
+        var changedProvider = base
+        changedProvider.provider = .openai
+        changedProvider.resourceId = "gpt-4o-mini-tts"
+        changedProvider.speaker = "marin"
 
         XCTAssertEqual(base.value, base.value)
         XCTAssertNotEqual(base.value, changedText.value)
         XCTAssertNotEqual(base.value, changedSpeaker.value)
+        XCTAssertNotEqual(base.value, changedProvider.value)
     }
 
     func testTTSRegistryBuildsDoubaoProviderFromKeyProvider() throws {
@@ -103,6 +149,14 @@ final class AudioTests: XCTestCase {
         })
         let provider = try registry.provider(for: .doubaoDefault)
         XCTAssertEqual(provider.id, .doubao)
+    }
+
+    func testTTSRegistryBuildsOpenAIProviderFromKeyProvider() throws {
+        let registry = TTSRegistry(client: AudioMockHTTPClient(), apiKeyProvider: { provider in
+            provider == .openai ? "openai-key" : nil
+        })
+        let provider = try registry.provider(for: .openAIDefault)
+        XCTAssertEqual(provider.id, .openai)
     }
 
     func testTTSRegistryWithoutKeyFails() {
@@ -115,7 +169,11 @@ final class AudioTests: XCTestCase {
     func testMissingAPIKeyErrorIsUserFacingChinese() {
         XCTAssertEqual(
             TTSProviderError.missingAPIKey(.doubao).errorDescription,
-            "请先在设置里配置豆包语音 API Key"
+            "请先在设置里配置 豆包语音 API Key"
+        )
+        XCTAssertEqual(
+            TTSProviderError.missingAPIKey(.openai).errorDescription,
+            "请先在设置里配置 OpenAI TTS API Key"
         )
     }
 

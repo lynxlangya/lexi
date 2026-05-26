@@ -20,6 +20,7 @@ struct ReaderReadAloudPanel: View {
     let canMoveToPreviousChapter: Bool
     let canMoveToNextChapter: Bool
     let preferences: ReaderRuntimePreferences
+    let providerName: String
     let primaryAction: () -> Void
     let previousChunk: () -> Void
     let nextChunk: () -> Void
@@ -443,13 +444,13 @@ struct ReaderReadAloudPanel: View {
     private var statusText: String {
         switch status {
         case .idle:
-            return "豆包语音 · 就绪 · \(languageLabel)"
+            return "\(providerName) · 就绪 · \(languageLabel)"
         case .planning, .preparingStyle, .generating:
-            return "豆包语音 · 准备中 · \(languageLabel)"
+            return "\(providerName) · 准备中 · \(languageLabel)"
         case .playing:
-            return "豆包语音 · 自然清晰 · \(languageLabel)"
+            return "\(providerName) · 自然清晰 · \(languageLabel)"
         case .paused:
-            return "豆包语音 · 已暂停 · \(languageLabel)"
+            return "\(providerName) · 已暂停 · \(languageLabel)"
         case .fallback(_, let reason):
             return "\(reason) · 系统朗读 · \(languageLabel)"
         case .error:

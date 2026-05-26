@@ -1001,15 +1001,20 @@ final class DataTests: XCTestCase {
         let store = GenericKeychainStore(servicePrefix: "com.lexi.tests.tts.\(UUID().uuidString)")
         defer {
             try? store.delete(account: TTSProviderID.doubao.rawValue)
+            try? store.delete(account: TTSProviderID.openai.rawValue)
         }
 
         XCTAssertNil(try store.apiKey(account: TTSProviderID.doubao.rawValue))
+        XCTAssertNil(try store.apiKey(account: TTSProviderID.openai.rawValue))
 
         try store.setApiKey("doubao-key", account: TTSProviderID.doubao.rawValue)
+        try store.setApiKey("openai-key", account: TTSProviderID.openai.rawValue)
         XCTAssertEqual(try store.apiKey(account: TTSProviderID.doubao.rawValue), "doubao-key")
+        XCTAssertEqual(try store.apiKey(account: TTSProviderID.openai.rawValue), "openai-key")
 
         try store.delete(account: TTSProviderID.doubao.rawValue)
         XCTAssertNil(try store.apiKey(account: TTSProviderID.doubao.rawValue))
+        XCTAssertEqual(try store.apiKey(account: TTSProviderID.openai.rawValue), "openai-key")
     }
 
     func testSettingsKeychainPersistenceTrimsAndSavesEngineKeys() throws {
@@ -1080,9 +1085,9 @@ final class DataTests: XCTestCase {
         )
 
         XCTAssertThrowsError(
-            try persistence.saveTTSAPIKey("doubao-key", loadedKey: "")
+            try persistence.saveTTSAPIKey("openai-key", loadedKey: "", provider: .openai)
         ) { error in
-            XCTAssertEqual(error as? SettingsKeychainSaveError, .tts(.doubao))
+            XCTAssertEqual(error as? SettingsKeychainSaveError, .tts(.openai))
         }
     }
 }

@@ -3,11 +3,14 @@ import Foundation
 
 nonisolated enum TTSProviderID: String, Codable, CaseIterable, Sendable {
     case doubao
+    case openai
 
     var displayName: String {
         switch self {
         case .doubao:
             return "豆包语音"
+        case .openai:
+            return "OpenAI TTS"
         }
     }
 }
@@ -33,6 +36,24 @@ nonisolated struct TTSProviderConfig: Codable, Equatable, Sendable {
         format: "mp3",
         sampleRate: 24_000
     )
+
+    static let openAIDefault = TTSProviderConfig(
+        provider: .openai,
+        resourceId: "gpt-4o-mini-tts",
+        speaker: "marin",
+        speechRate: 0,
+        format: "mp3",
+        sampleRate: 24_000
+    )
+
+    static func defaultConfig(for provider: TTSProviderID) -> TTSProviderConfig {
+        switch provider {
+        case .doubao:
+            return doubaoDefault
+        case .openai:
+            return openAIDefault
+        }
+    }
 }
 
 nonisolated struct TTSRequest: Equatable, Sendable {
@@ -72,9 +93,9 @@ nonisolated enum TTSProviderError: Error, Equatable, LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey(let provider):
-            return "请先在设置里配置\(provider.displayName) API Key"
+            return "请先在设置里配置 \(provider.displayName) API Key"
         case .missingSpeaker:
-            return "请先配置豆包语音音色 ID"
+            return "请先配置语音音色"
         case .invalidResponse:
             return "Invalid TTS provider response."
         case .httpStatus(let status, let reason):

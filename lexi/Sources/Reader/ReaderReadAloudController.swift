@@ -129,7 +129,7 @@ final class ReaderReadAloudController: NSObject {
     private var prefetchTask: Task<Void, Never>?
     private var player: ReaderAudioPlaying?
     private var playerObserver: NSObjectProtocol?
-    private var currentConfig = TTSProviderConfig.doubaoDefault
+    private var currentConfig = TTSProviderConfig.openAIDefault
 
     private(set) var status: ReadAloudPlaybackStatus = .idle
     private(set) var language: TTSAudioLanguage = .source
