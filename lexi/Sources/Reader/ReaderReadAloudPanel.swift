@@ -74,37 +74,42 @@ struct ReaderReadAloudPanel: View {
     }
 
     private var fixedControls: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 12) {
             header
-            progressBlock
-            playbackControls
+            playbackDeck
             toolRow
         }
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 18)
-        .padding(.top, 58)
-        .padding(.bottom, 12)
+        .padding(.top, 54)
+        .padding(.bottom, 14)
         .background(panelBackground)
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: 13) {
             BookCover(
                 book: book,
-                width: 82,
-                height: 122,
+                width: 72,
+                height: 108,
                 cornerRadius: 3,
                 shadowRadius: 0,
                 shadowYOffset: 0
             )
-            .shadow(color: .black.opacity(preferences.theme.isDark ? 0.26 : 0.12), radius: 12, y: 6)
+            .shadow(color: .black.opacity(preferences.theme.isDark ? 0.22 : 0.10), radius: 10, y: 5)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("朗读")
-                    .font(LexiFont.zh(11))
-                    .foregroundStyle(preferences.theme.ink3)
-                    .textCase(.uppercase)
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 7) {
+                    Text("朗读器")
+                        .font(LexiFont.zh(11))
+                        .foregroundStyle(preferences.theme.ink3)
+                        .textCase(.uppercase)
+
+                    Spacer(minLength: 4)
+
+                    statusBadge
+                }
 
                 Text(book.title)
                     .font(LexiFont.sans(15))
@@ -124,10 +129,9 @@ struct ReaderReadAloudPanel: View {
                     .font(LexiFont.zh(11.5))
                     .foregroundStyle(preferences.theme.ink3)
                     .lineLimit(2)
-
-                statusBadge
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 2)
         }
     }
 
@@ -141,12 +145,28 @@ struct ReaderReadAloudPanel: View {
                 .font(LexiFont.zh(11))
                 .foregroundStyle(preferences.theme.ink2)
                 .lineLimit(1)
+                .truncationMode(.middle)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .frame(maxWidth: 128, alignment: .leading)
         .background {
             Capsule(style: .continuous)
-                .fill(preferences.theme.paper.opacity(preferences.theme.isDark ? 0.52 : 0.68))
+                .fill(controlFill)
+        }
+    }
+
+    private var playbackDeck: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            progressBlock
+            playbackControls
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(controlFill)
         }
     }
 
@@ -161,7 +181,7 @@ struct ReaderReadAloudPanel: View {
                         .frame(width: proxy.size.width * progressValue)
                 }
             }
-            .frame(height: 4)
+            .frame(height: 3)
 
             HStack {
                 Text(progressLeadingLabel)
@@ -174,7 +194,7 @@ struct ReaderReadAloudPanel: View {
     }
 
     private var playbackControls: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             panelIconButton(
                 "backward.end",
                 help: "上一章并开始朗读",
@@ -190,12 +210,13 @@ struct ReaderReadAloudPanel: View {
 
             Button(action: primaryAction) {
                 Image(systemName: primaryIcon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: 44, height: 44)
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 42, height: 42)
                     .foregroundStyle(preferences.theme.paper)
                     .background {
                         Circle()
                             .fill(preferences.accent.primary)
+                            .shadow(color: preferences.accent.primary.opacity(preferences.theme.isDark ? 0.20 : 0.16), radius: 8, y: 3)
                     }
             }
             .buttonStyle(.plain)
@@ -221,20 +242,27 @@ struct ReaderReadAloudPanel: View {
 
     private var toolRow: some View {
         HStack(spacing: 8) {
-            panelToggleButton(
-                "textformat.abc",
-                help: "朗读原文",
-                isSelected: language == .source
-            ) {
-                language = .source
-            }
+            HStack(spacing: 2) {
+                panelToggleButton(
+                    "textformat.abc",
+                    help: "朗读原文",
+                    isSelected: language == .source
+                ) {
+                    language = .source
+                }
 
-            panelToggleButton(
-                "translate",
-                help: "朗读译文",
-                isSelected: language == .target
-            ) {
-                language = .target
+                panelToggleButton(
+                    "translate",
+                    help: "朗读译文",
+                    isSelected: language == .target
+                ) {
+                    language = .target
+                }
+            }
+            .padding(2)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(controlFill)
             }
 
             Spacer(minLength: 4)
@@ -269,10 +297,10 @@ struct ReaderReadAloudPanel: View {
                 }
             }
         }
-        .padding(8)
+        .padding(6)
         .background {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(preferences.theme.paper.opacity(preferences.theme.isDark ? 0.42 : 0.68))
+                .fill(preferences.theme.paper.opacity(preferences.theme.isDark ? 0.38 : 0.60))
         }
     }
 
@@ -408,7 +436,12 @@ struct ReaderReadAloudPanel: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 14, weight: .medium))
+                .symbolRenderingMode(.hierarchical)
                 .frame(width: 30, height: 30)
+                .background {
+                    Circle()
+                        .fill(isEnabled ? preferences.theme.paper.opacity(preferences.theme.isDark ? 0.42 : 0.54) : Color.clear)
+                }
         }
         .buttonStyle(.plain)
         .foregroundStyle(isEnabled ? preferences.theme.ink : preferences.theme.ink4)
@@ -428,7 +461,7 @@ struct ReaderReadAloudPanel: View {
             Image(systemName: systemName)
                 .font(.system(size: 13, weight: .medium))
                 .symbolRenderingMode(.hierarchical)
-                .frame(width: 30, height: 28)
+                .frame(width: 30, height: 26)
         }
         .buttonStyle(.plain)
         .foregroundStyle(isSelected ? preferences.accent.primary : preferences.theme.ink2)
@@ -439,6 +472,10 @@ struct ReaderReadAloudPanel: View {
         .help(help)
         .accessibilityLabel(help)
         .focusable(false)
+    }
+
+    private var controlFill: Color {
+        preferences.theme.paper.opacity(preferences.theme.isDark ? 0.46 : 0.70)
     }
 
     private var statusText: String {
