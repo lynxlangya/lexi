@@ -32,10 +32,10 @@ final class SelectionContextTests: XCTestCase {
     }
 
     func testScreenAnchorConvertsAccessibilityTopLeftBounds() throws {
-        let screen = try XCTUnwrap(NSScreen.main)
+        let screen = try XCTUnwrap(NSScreen.screens.first)
         let bounds = CGRect(
             x: screen.frame.midX - 20,
-            y: 120,
+            y: screen.frame.midY - 8,
             width: 40,
             height: 16
         )
