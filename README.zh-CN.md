@@ -8,7 +8,7 @@
 
 一款原生 macOS 英文阅读器，原文身侧实时流式中译；同时带有右侧 AI 朗读器和全局划词翻译浮窗，跟随你进入任何 app。
 
-> **状态 — v2.1.0 MVP release line。** 阅读器、EPUB 导入、流式翻译、AI 朗读、MenuBar 浮窗、生词本、左右双栏布局都已上线。当前技术预览包通过 GitHub Releases 和 Homebrew Cask 分发。
+> **状态 — v2.1.1 MVP release line。** 阅读器、EPUB 导入、流式翻译、AI 朗读、MenuBar 浮窗、生词本、左右双栏布局都已上线。当前技术预览包通过 GitHub Releases 和 Homebrew Cask 分发。
 
 ---
 
@@ -188,7 +188,7 @@ v1 产品决议见 [`DESIGN.md`](DESIGN.md)，MVP 的历史 PR 拆解见 [`PR-PL
 
 ## 项目状态
 
-v2.1.0 是当前 MVP 技术预览版本线：计划中的 PR 1–10 已合入，后续修复和朗读迭代也已落地，并已通过 GitHub Releases 和 `lynxlangya/tap` 提供可安装构建包。
+v2.1.1 是当前 MVP 技术预览版本线：计划中的 PR 1–10 已合入，后续修复、OpenAI TTS 支持和朗读 UI 迭代也已落地，并已通过 GitHub Releases 和 `lynxlangya/tap` 提供可安装构建包。
 
 路线图和产品决议见 [`DESIGN.md`](DESIGN.md)。
 

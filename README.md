@@ -8,7 +8,7 @@
 
 A native macOS reader for English books, with streaming Chinese translation rendered next to the original text, AI read-aloud in a right-side player drawer, and a global selection-translation popup that follows you into any app.
 
-> **Status — v2.1.0 MVP release line.** Reader, EPUB import, streaming translation, AI read-aloud, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed through GitHub Releases and Homebrew Cask.
+> **Status — v2.1.1 MVP release line.** Reader, EPUB import, streaming translation, AI read-aloud, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed through GitHub Releases and Homebrew Cask.
 
 ---
 
@@ -188,7 +188,7 @@ The test script uses a temporary DerivedData directory and removes it on exit, s
 
 ## Project status
 
-v2.1.0 is the current MVP technical preview release line: PR 1–10 have landed, follow-up fixes and read-aloud iteration are merged, and installable builds are available through GitHub Releases and `lynxlangya/tap`.
+v2.1.1 is the current MVP technical preview release line: PR 1–10 have landed, follow-up fixes, OpenAI TTS support, and read-aloud UI iteration are merged, and installable builds are available through GitHub Releases and `lynxlangya/tap`.
 
 For roadmap and product decisions, see [`DESIGN.md`](DESIGN.md).
 
