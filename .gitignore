@@ -48,6 +48,9 @@ Secrets.local.*
 *.pem
 *.p12
 
+# ─── Cloudflare local state ────────────────────────────
+.wrangler/
+
 # ─── Editor / OS scratch ───────────────────────────────
 *.swp
 *.swo
