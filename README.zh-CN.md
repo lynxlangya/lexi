@@ -8,7 +8,7 @@
 
 一款原生 macOS 英文阅读器，原文身侧实时流式中译；同时带有右侧 AI 朗读器和全局划词翻译浮窗，跟随你进入任何 app。
 
-> **状态 — v2.1.1 MVP release line。** 阅读器、EPUB 导入、流式翻译、AI 朗读、MenuBar 浮窗、生词本、左右双栏布局都已上线。当前技术预览包通过 GitHub Releases 和 Homebrew Cask 分发。
+> **状态 — v2.1.1 MVP release line。** 阅读器、EPUB 导入、流式翻译、AI 朗读、MenuBar 浮窗、生词本、左右双栏布局都已上线。当前技术预览包已使用 Developer ID 签名并通过 Apple 公证，通过 R2 和 Homebrew Cask 分发。
 
 ---
 
@@ -80,14 +80,11 @@ brew tap lynxlangya/tap
 brew install --cask lexi
 ```
 
-也可以从 [GitHub Releases](https://github.com/lynxlangya/lexi/releases) 下载最新 zip。
+也可以直接下载已使用 Developer ID 签名并通过 Apple 公证的 zip：
 
-当前预览包是 ad-hoc 签名，尚未经过 Apple notarization。若 macOS 首次启动时拦截，可在「系统设置 → 隐私与安全性」中允许打开 Lexi，或执行：
+[下载 Lexi 2.1.1](https://pub-971ee03b82ad411a9bb26c62a06ca755.r2.dev/lexi/releases/2.1.1/Lexi-2.1.1-notarized.zip)
 
-```sh
-xattr -dr com.apple.quarantine /Applications/Lexi.app
-open /Applications/Lexi.app
-```
+解压后把 `Lexi.app` 移到 `/Applications`，正常打开即可。macOS 仍可能显示标准的首次打开确认，或因为全局划词翻译请求「辅助功能」权限，但当前安装包不应再需要旧的命令行绕过方式。
 
 ## 从源码运行
 
@@ -188,7 +185,7 @@ v1 产品决议见 [`DESIGN.md`](DESIGN.md)，MVP 的历史 PR 拆解见 [`PR-PL
 
 ## 项目状态
 
-v2.1.1 是当前 MVP 技术预览版本线：计划中的 PR 1–10 已合入，后续修复、OpenAI TTS 支持和朗读 UI 迭代也已落地，并已通过 GitHub Releases 和 `lynxlangya/tap` 提供可安装构建包。
+v2.1.1 是当前 MVP 技术预览版本线：计划中的 PR 1–10 已合入，后续修复、OpenAI TTS 支持和朗读 UI 迭代也已落地，并已通过 R2 和 `lynxlangya/tap` 提供 Developer ID 签名且通过 Apple 公证的可安装构建包。
 
 路线图和产品决议见 [`DESIGN.md`](DESIGN.md)。
 
