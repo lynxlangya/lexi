@@ -12,6 +12,15 @@ APP_SIGN_IDENTITY="${APP_SIGN_IDENTITY:-Developer ID Application: Yunfan Wang (P
 DMG_SIGN_IDENTITY="${DMG_SIGN_IDENTITY:-$APP_SIGN_IDENTITY}"
 APP_NAME="${APP_NAME:-Lexi}"
 RELEASE_ENTITLEMENTS="${RELEASE_ENTITLEMENTS:-$ROOT_DIR/lexi/lexi.release.entitlements}"
+DMG_BACKGROUND_SCRIPT="${DMG_BACKGROUND_SCRIPT:-$ROOT_DIR/scripts/render-dmg-background.swift}"
+DMG_WINDOW_WIDTH="${DMG_WINDOW_WIDTH:-720}"
+DMG_WINDOW_HEIGHT="${DMG_WINDOW_HEIGHT:-420}"
+DMG_WINDOW_TITLEBAR_HEIGHT="${DMG_WINDOW_TITLEBAR_HEIGHT:-38}"
+DMG_ICON_SIZE="${DMG_ICON_SIZE:-104}"
+DMG_APP_ICON_X="${DMG_APP_ICON_X:-178}"
+DMG_APPLICATIONS_ICON_X="${DMG_APPLICATIONS_ICON_X:-542}"
+DMG_ICON_Y="${DMG_ICON_Y:-232}"
+SKIP_DMG_CUSTOMIZATION="${SKIP_DMG_CUSTOMIZATION:-0}"
 SKIP_NOTARIZATION="${SKIP_NOTARIZATION:-0}"
 NOTARIZE_APP_FIRST="${NOTARIZE_APP_FIRST:-1}"
 
@@ -30,6 +39,8 @@ Environment:
   APP_SIGN_IDENTITY="Developer ID Application: ..."
   DMG_SIGN_IDENTITY="$APP_SIGN_IDENTITY"
   RELEASE_ENTITLEMENTS=lexi/lexi.release.entitlements
+  DMG_BACKGROUND_SCRIPT=scripts/render-dmg-background.swift
+  SKIP_DMG_CUSTOMIZATION=1         Create a plain icon-only DMG.
   NOTARY_PROFILE=lexi-notary       Keychain profile for xcrun notarytool.
   SKIP_NOTARIZATION=1              Build and sign only; not for public shipping.
   NOTARIZE_APP_FIRST=0             Skip the pre-DMG app notarization pass.
@@ -68,6 +79,11 @@ require_command hdiutil
 require_command codesign
 require_command shasum
 require_command xcrun
+if [[ "$SKIP_DMG_CUSTOMIZATION" != "1" ]]; then
+  require_command osascript
+  require_command swift
+  require_file "$DMG_BACKGROUND_SCRIPT"
+fi
 
 if [[ -z "${APP_PATH:-}" ]]; then
   require_file "$RELEASE_ENTITLEMENTS"
@@ -137,19 +153,79 @@ fi
 
 log "Creating DMG"
 mkdir -p "$OUTPUT_DIR"
-STAGING_DIR="$(mktemp -d)"
-trap 'rm -rf "$STAGING_DIR"' EXIT
+RW_DMG_PATH="$OUTPUT_DIR/$APP_NAME-$VERSION-rw.dmg"
+MOUNT_DIR=""
+cleanup() {
+  if [[ -n "$MOUNT_DIR" && -d "$MOUNT_DIR" ]]; then
+    hdiutil detach "$MOUNT_DIR" -quiet >/dev/null 2>&1 || true
+    rmdir "$MOUNT_DIR" >/dev/null 2>&1 || true
+  fi
+  rm -f "$RW_DMG_PATH"
+}
+trap cleanup EXIT
 
-ditto "$APP_PATH" "$STAGING_DIR/$APP_NAME.app"
-ln -s /Applications "$STAGING_DIR/Applications"
-rm -f "$DMG_PATH"
+DMG_SIZE_MB="$(du -sm "$APP_PATH" | awk '{ print $1 + 80 }')"
+rm -f "$DMG_PATH" "$RW_DMG_PATH"
 hdiutil create \
   -volname "$VOLUME_NAME" \
-  -srcfolder "$STAGING_DIR" \
+  -size "${DMG_SIZE_MB}m" \
+  -fs HFS+ \
+  -type UDIF \
   -ov \
+  "$RW_DMG_PATH"
+
+MOUNT_DIR="$(mktemp -d)"
+hdiutil attach "$RW_DMG_PATH" \
+  -readwrite \
+  -noverify \
+  -noautoopen \
+  -mountpoint "$MOUNT_DIR" >/dev/null
+
+ditto "$APP_PATH" "$MOUNT_DIR/$APP_NAME.app"
+ln -s /Applications "$MOUNT_DIR/Applications"
+
+if [[ "$SKIP_DMG_CUSTOMIZATION" != "1" ]]; then
+  log "Rendering DMG background"
+  mkdir -p "$MOUNT_DIR/.background"
+  "$DMG_BACKGROUND_SCRIPT" "$MOUNT_DIR/.background/background.png" >/dev/null
+
+  log "Customizing DMG Finder window"
+  WINDOW_RIGHT=$((120 + DMG_WINDOW_WIDTH))
+  WINDOW_BOTTOM=$((120 + DMG_WINDOW_HEIGHT + DMG_WINDOW_TITLEBAR_HEIGHT))
+  BACKGROUND_POSIX="$MOUNT_DIR/.background/background.png"
+  osascript <<APPLESCRIPT
+tell application "Finder"
+  set dmgFolder to POSIX file "$MOUNT_DIR" as alias
+  open dmgFolder
+  delay 0.5
+  set dmgWindow to container window of dmgFolder
+  set current view of dmgWindow to icon view
+  set toolbar visible of dmgWindow to false
+  set statusbar visible of dmgWindow to false
+  set the bounds of dmgWindow to {120, 120, $WINDOW_RIGHT, $WINDOW_BOTTOM}
+  set viewOptions to the icon view options of dmgWindow
+  set arrangement of viewOptions to not arranged
+  set icon size of viewOptions to $DMG_ICON_SIZE
+  set background picture of viewOptions to POSIX file "$BACKGROUND_POSIX" as alias
+  set position of item "$APP_NAME.app" of dmgFolder to {$DMG_APP_ICON_X, $DMG_ICON_Y}
+  set position of item "Applications" of dmgFolder to {$DMG_APPLICATIONS_ICON_X, $DMG_ICON_Y}
+  update dmgFolder without registering applications
+  delay 1
+  close dmgWindow
+end tell
+APPLESCRIPT
+fi
+
+sync
+hdiutil detach "$MOUNT_DIR" >/dev/null
+rmdir "$MOUNT_DIR"
+MOUNT_DIR=""
+
+hdiutil convert "$RW_DMG_PATH" \
   -format UDZO \
   -imagekey zlib-level=9 \
-  "$DMG_PATH"
+  -o "$DMG_PATH"
+rm -f "$RW_DMG_PATH"
 
 log "Signing DMG"
 codesign --force --timestamp --sign "$DMG_SIGN_IDENTITY" "$DMG_PATH"
@@ -172,6 +248,10 @@ MOUNT_DIR="$(mktemp -d)"
 hdiutil attach "$DMG_PATH" -readonly -nobrowse -mountpoint "$MOUNT_DIR" >/dev/null
 test -d "$MOUNT_DIR/$APP_NAME.app"
 test -L "$MOUNT_DIR/Applications"
+if [[ "$SKIP_DMG_CUSTOMIZATION" != "1" ]]; then
+  test -f "$MOUNT_DIR/.background/background.png"
+  test -f "$MOUNT_DIR/.DS_Store"
+fi
 hdiutil detach "$MOUNT_DIR" >/dev/null
 rmdir "$MOUNT_DIR"
 
