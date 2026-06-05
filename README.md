@@ -82,7 +82,7 @@ brew install --cask lexi
 
 Or download the Developer ID signed, Apple-notarized DMG directly:
 
-[Download Lexi 2.1.1](https://pub-971ee03b82ad411a9bb26c62a06ca755.r2.dev/lexi/releases/2.1.1/Lexi-2.1.1.dmg)
+[Download Lexi 2.1.1](https://pub-971ee03b82ad411a9bb26c62a06ca755.r2.dev/lexi/releases/2.1.1/Lexi-2.1.1-installer.dmg)
 
 Open the DMG, drag `Lexi.app` to `/Applications`, and open it normally. macOS may still show a standard first-launch confirmation or request Accessibility permission for global selection translation, but the current package should not require the old command-line launch workaround.
 

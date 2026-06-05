@@ -82,7 +82,7 @@ brew install --cask lexi
 
 也可以直接下载已使用 Developer ID 签名并通过 Apple 公证的 DMG：
 
-[下载 Lexi 2.1.1](https://pub-971ee03b82ad411a9bb26c62a06ca755.r2.dev/lexi/releases/2.1.1/Lexi-2.1.1.dmg)
+[下载 Lexi 2.1.1](https://pub-971ee03b82ad411a9bb26c62a06ca755.r2.dev/lexi/releases/2.1.1/Lexi-2.1.1-installer.dmg)
 
 打开 DMG，把 `Lexi.app` 拖到 `/Applications`，正常打开即可。macOS 仍可能显示标准的首次打开确认，或因为全局划词翻译请求「辅助功能」权限，但当前安装包不应再需要旧的命令行绕过方式。
 
