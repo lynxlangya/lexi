@@ -17,6 +17,8 @@ struct ReadingColumn: View {
     let onParagraphChange: (Int64) -> Void
     let retryParagraph: (ReaderParagraph) -> Void
     @State private var isReportingVisibleParagraph = false
+    @State private var sourceSelectionCoordinator = ReaderTextSelectionCoordinator()
+    @State private var targetSelectionCoordinator = ReaderTextSelectionCoordinator()
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -34,15 +36,19 @@ struct ReadingColumn: View {
                             layout: activeParagraphLayout,
                             preferences: preferences,
                             readAloudHighlight: highlightTarget(for: paragraph),
+                            sourceSelectionCoordinator: sourceSelectionCoordinator,
+                            targetSelectionCoordinator: targetSelectionCoordinator,
                             onSelectionChange: { context in
-                                selectedTextContext = context.map {
-                                    SelectedTextContext(
-                                        text: $0.text,
-                                        anchor: $0.anchor,
+                                selectedTextContext = context.map { context in
+                                    let sentenceContext = context.sentenceContext
+                                    return SelectedTextContext(
+                                        text: context.text,
+                                        anchor: context.anchor,
                                         source: .reader,
                                         sentenceContext: SentenceContext(
-                                            fullSentence: paragraph.en,
-                                            bookTitle: bookTitle
+                                            fullSentence: sentenceContext?.fullSentence ?? paragraph.en,
+                                            bookTitle: bookTitle,
+                                            localDictionary: sentenceContext?.localDictionary
                                         )
                                     )
                                 }
@@ -81,6 +87,13 @@ struct ReadingColumn: View {
                 .animation(.easeInOut(duration: 0.16), value: activeParagraphLayout)
             }
             .id(chapter.id)
+            .onChange(of: chapter.id) { _, _ in
+                sourceSelectionCoordinator.clearSelection()
+                targetSelectionCoordinator.clearSelection()
+                sourceSelectionCoordinator = ReaderTextSelectionCoordinator()
+                targetSelectionCoordinator = ReaderTextSelectionCoordinator()
+                selectedTextContext = nil
+            }
             .coordinateSpace(name: ReaderScrollCoordinateSpace.name)
             .scrollIndicators(.automatic)
             .background(preferences.theme.paper)

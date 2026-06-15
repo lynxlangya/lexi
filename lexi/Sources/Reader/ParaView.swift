@@ -8,6 +8,8 @@ struct ParaView: View {
     let layout: ReaderParagraphLayout
     let preferences: ReaderRuntimePreferences
     let readAloudHighlight: TTSAudioLanguage?
+    let sourceSelectionCoordinator: ReaderTextSelectionCoordinator?
+    let targetSelectionCoordinator: ReaderTextSelectionCoordinator?
     let onSelectionChange: (SelectedTextContext?) -> Void
     let retry: () -> Void
 
@@ -59,6 +61,8 @@ struct ParaView: View {
             lineSpacing: enSize * preferences.lineHeight.englishSpacingRatio,
             foregroundColor: preferences.theme.ink,
             selectionColor: preferences.accent.primary.opacity(0.28),
+            selectionCoordinator: sourceSelectionCoordinator,
+            selectionOrder: paragraph.ord,
             selectionContext: {
                 SentenceContext(fullSentence: paragraph.en)
             },
@@ -140,6 +144,8 @@ struct ParaView: View {
             lineSpacing: zhSize * preferences.lineHeight.chineseSpacingRatio,
             foregroundColor: preferences.theme.ink2,
             selectionColor: preferences.accent.primary.opacity(0.28),
+            selectionCoordinator: targetSelectionCoordinator,
+            selectionOrder: paragraph.ord,
             selectionContext: {
                 SentenceContext(fullSentence: paragraph.en)
             },
