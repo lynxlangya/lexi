@@ -47,11 +47,19 @@ struct SelectableReaderText: NSViewRepresentable {
             textView.textStorage?.setAttributedString(attributed)
         }
         textView.typingAttributes = attributes()
-        textView.selectedTextAttributes = [
-            .backgroundColor: NSColor(selectionColor),
-            .foregroundColor: NSColor(foregroundColor)
-        ]
-        textView.insertionPointColor = NSColor(selectionColor)
+        let selectionBackgroundColor = NSColor(selectionColor)
+        if let textView = textView as? ContextTextView {
+            textView.configureReaderSelectionAppearance(
+                backgroundColor: selectionBackgroundColor,
+                foregroundColor: NSColor(foregroundColor)
+            )
+        } else {
+            textView.selectedTextAttributes = [
+                .backgroundColor: selectionBackgroundColor,
+                .foregroundColor: NSColor(foregroundColor)
+            ]
+        }
+        textView.insertionPointColor = selectionBackgroundColor
     }
 
     static func dismantleNSView(_ textView: NSTextView, coordinator: ()) {
@@ -122,8 +130,7 @@ final class ReaderTextSelectionCoordinator {
 
     func clearSelection(notify: Bool = false) {
         for textView in orderedTextViews() {
-            textView.setSelectedRange(NSRange(location: 0, length: 0))
-            textView.needsDisplay = true
+            textView.clearReaderSelection()
         }
         currentSelectedText = ""
         if notify {
@@ -131,7 +138,14 @@ final class ReaderTextSelectionCoordinator {
         }
     }
 
-    func forgetCurrentSelection() {
+    func clearCoordinatedSelection(preservingNativeSelectionIn preservedTextView: ContextTextView) {
+        for textView in orderedTextViews() {
+            if textView === preservedTextView {
+                textView.clearReaderSelectionHighlight()
+            } else {
+                textView.clearReaderSelection()
+            }
+        }
         currentSelectedText = ""
     }
 
@@ -216,8 +230,7 @@ final class ReaderTextSelectionCoordinator {
                 upper: upper,
                 upperPosition: upperPosition
             )
-            textView.setSelectedRange(range)
-            textView.needsDisplay = true
+            textView.setReaderSelectionRange(range)
             if range.length > 0 {
                 selectedSegments.append((textView, range))
             }
@@ -413,9 +426,23 @@ final class ContextTextView: NSTextView {
     var onSelectionChange: ((SelectedTextContext?) -> Void)?
     private(set) var selectionOrder = 0
     private weak var selectionCoordinator: ReaderTextSelectionCoordinator?
+    private var readerSelectionBackgroundColor = NSColor.selectedTextBackgroundColor
+    private var readerSelectionForegroundColor = NSColor.textColor
+    private var readerSelectionRange: NSRange?
 
     var utf16Length: Int {
         (string as NSString).length
+    }
+
+    var isDrawingReaderSelectionHighlight: Bool {
+        guard let readerSelectionRange else {
+            return false
+        }
+        return readerSelectionRange.length > 0
+    }
+
+    var readerSelectionHighlightColor: NSColor? {
+        isDrawingReaderSelectionHighlight ? readerSelectionBackgroundColor : nil
     }
 
     func configureSelectionCoordinator(_ coordinator: ReaderTextSelectionCoordinator?, order: Int) {
@@ -427,6 +454,13 @@ final class ContextTextView: NSTextView {
         selectionOrder = order
     }
 
+    func configureReaderSelectionAppearance(backgroundColor: NSColor, foregroundColor: NSColor) {
+        readerSelectionBackgroundColor = backgroundColor
+        readerSelectionForegroundColor = foregroundColor
+        applyNativeSelectedTextAttributes()
+        needsDisplay = true
+    }
+
     func setReaderAttributedString(_ attributed: NSAttributedString) {
         guard attributedString() != attributed else {
             return
@@ -434,6 +468,31 @@ final class ContextTextView: NSTextView {
 
         textStorage?.setAttributedString(attributed)
         selectionCoordinator?.clearSelection(notify: true)
+    }
+
+    func setReaderSelectionRange(_ range: NSRange) {
+        let boundedRange = boundedReaderRange(range)
+        readerSelectionRange = boundedRange.length > 0 ? boundedRange : nil
+        setSelectedRange(boundedRange)
+        applyNativeSelectedTextAttributes()
+        needsDisplay = true
+    }
+
+    func clearReaderSelection() {
+        readerSelectionRange = nil
+        setSelectedRange(NSRange(location: 0, length: 0))
+        applyNativeSelectedTextAttributes()
+        needsDisplay = true
+    }
+
+    func clearReaderSelectionHighlight() {
+        guard readerSelectionRange != nil else {
+            return
+        }
+
+        readerSelectionRange = nil
+        applyNativeSelectedTextAttributes()
+        needsDisplay = true
     }
 
     deinit {
@@ -456,12 +515,17 @@ final class ContextTextView: NSTextView {
         return super.accessibilitySelectedText()
     }
 
+    override func draw(_ dirtyRect: NSRect) {
+        drawReaderSelectionHighlight(in: dirtyRect)
+        super.draw(dirtyRect)
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard event.clickCount == 1,
               let selectionCoordinator else {
             selectionCoordinator?.clearSelection()
             super.mouseDown(with: event)
-            notifySelectionChange()
+            handleNativeSelectionChange()
             return
         }
 
@@ -470,12 +534,12 @@ final class ContextTextView: NSTextView {
 
     override func mouseUp(with event: NSEvent) {
         super.mouseUp(with: event)
-        notifySelectionChange()
+        handleNativeSelectionChange()
     }
 
     override func keyUp(with event: NSEvent) {
         super.keyUp(with: event)
-        notifySelectionChange()
+        handleNativeSelectionChange()
     }
 
     override func copy(_ sender: Any?) {
@@ -488,8 +552,8 @@ final class ContextTextView: NSTextView {
         super.copy(sender)
     }
 
-    private func notifySelectionChange() {
-        selectionCoordinator?.forgetCurrentSelection()
+    func handleNativeSelectionChange() {
+        selectionCoordinator?.clearCoordinatedSelection(preservingNativeSelectionIn: self)
         let range = selectedRange()
         guard range.location != NSNotFound,
               range.length > 0,
@@ -512,5 +576,75 @@ final class ContextTextView: NSTextView {
                 sentenceContext: selectionContext?()
             )
         )
+    }
+
+    private func applyNativeSelectedTextAttributes() {
+        // Cross-paragraph selections span multiple NSTextViews; Reader paints the
+        // shared background so AppKit's active/inactive selection colors cannot diverge.
+        selectedTextAttributes = [
+            .backgroundColor: isDrawingReaderSelectionHighlight ? NSColor.clear : readerSelectionBackgroundColor,
+            .foregroundColor: readerSelectionForegroundColor
+        ]
+    }
+
+    private func boundedReaderRange(_ range: NSRange) -> NSRange {
+        guard range.location != NSNotFound else {
+            return NSRange(location: 0, length: 0)
+        }
+
+        let textRange = NSRange(location: 0, length: utf16Length)
+        let bounded = NSIntersectionRange(range, textRange)
+        if bounded.location == NSNotFound {
+            return NSRange(location: 0, length: 0)
+        }
+        return bounded
+    }
+
+    private func drawReaderSelectionHighlight(in dirtyRect: NSRect) {
+        guard isDrawingReaderSelectionHighlight else {
+            return
+        }
+
+        readerSelectionBackgroundColor.setFill()
+        for rect in readerSelectionRects() where rect.intersects(dirtyRect) {
+            rect.fill()
+        }
+    }
+
+    private func readerSelectionRects() -> [NSRect] {
+        guard let readerSelectionRange,
+              readerSelectionRange.length > 0,
+              let layoutManager,
+              let textContainer else {
+            return []
+        }
+
+        let boundedRange = boundedReaderRange(readerSelectionRange)
+        guard boundedRange.length > 0 else {
+            return []
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        let glyphRange = layoutManager.glyphRange(
+            forCharacterRange: boundedRange,
+            actualCharacterRange: nil
+        )
+        guard glyphRange.length > 0 else {
+            return []
+        }
+
+        var rects: [NSRect] = []
+        layoutManager.enumerateEnclosingRects(
+            forGlyphRange: glyphRange,
+            withinSelectedGlyphRange: glyphRange,
+            in: textContainer
+        ) { rect, _ in
+            rects.append(
+                rect
+                    .offsetBy(dx: self.textContainerOrigin.x, dy: self.textContainerOrigin.y)
+                    .integral
+            )
+        }
+        return rects
     }
 }
