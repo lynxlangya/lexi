@@ -64,3 +64,5 @@ Secrets.local.*
 *.gcno
 *.profraw
 *.profdata
+
+.techne/
