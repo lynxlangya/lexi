@@ -582,7 +582,13 @@ private struct ReaderWindowContent: View {
             let parser = EPUBParser()
             for url in urls {
                 do {
-                    let payload = try await parser.parse(url)
+                    defer {
+                        BookFileStorage.removeImportStagingIfNeeded(at: url)
+                    }
+                    var payload = try await parser.parse(url)
+                    let storedURL = try BookFileStorage.copyIntoLibrary(sourceURL: url, bookId: payload.book.id)
+                    payload.book.fileURL = storedURL
+                    payload.book.sourceBookmark = nil
                     let outcome = try await database.importBook(payload)
                     try await reloadShelf(from: database)
                     if outcome == .contentReplaced, payload.book.id == book?.id {
@@ -611,6 +617,31 @@ private struct ReaderWindowContent: View {
     }
 
     private func revealInFinder(_ target: ReaderBook) {
+        if let bookmark = target.sourceBookmark {
+            var isStale = false
+            if let url = try? URL(
+                resolvingBookmarkData: bookmark,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ), !isStale {
+                let didStartAccessing = url.startAccessingSecurityScopedResource()
+                defer {
+                    if didStartAccessing {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+                if FileManager.default.fileExists(atPath: url.path) {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                    return
+                }
+            }
+        }
+
+        guard FileManager.default.fileExists(atPath: target.fileURL.path) else {
+            showToast("原文件已移动或删除")
+            return
+        }
         NSWorkspace.shared.activateFileViewerSelecting([target.fileURL])
     }
 
@@ -675,6 +706,7 @@ private struct ReaderWindowContent: View {
                 let audioFileURLs = try await database.audioCacheFileURLs(bookId: target.id)
                 try await database.deleteBook(id: target.id)
                 AudioCacheLocation.removeFiles(at: audioFileURLs)
+                try BookFileStorage.removeStoredCopy(at: target.fileURL)
                 if target.id == book?.id {
                     scrollWriteTask?.cancel()
                     visibleParagraphId = nil

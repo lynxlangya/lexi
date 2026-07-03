@@ -343,6 +343,59 @@ final class DataTests: XCTestCase {
         XCTAssertTrue(names.contains("narration_profiles"))
     }
 
+    func testBookSourceBookmarkRoundTrip() async throws {
+        let database = try AppDatabase.makeTransient()
+        let bookmark = Data([0x01, 0x02, 0x03])
+        let book = Book(
+            id: "bookmark-book",
+            title: "Bookmark Book",
+            author: "Author",
+            fileURL: URL(fileURLWithPath: "/tmp/bookmark.epub"),
+            sourceBookmark: bookmark,
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+
+        try await database.insertBook(book)
+        let stored = try await database.book(id: book.id)
+
+        XCTAssertEqual(stored?.fileURL, book.fileURL)
+        XCTAssertEqual(stored?.sourceBookmark, bookmark)
+    }
+
+    func testBookFileStorageRemovesOnlyManagedCopies() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "LexiBookStorage-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let booksDirectory = root.appending(path: "Books", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        let original = root.appending(path: "Original.epub")
+        try Data([0x01]).write(to: original)
+        let stored = try BookFileStorage.copyIntoLibrary(
+            sourceURL: original,
+            bookId: "book-a",
+            booksDirectory: booksDirectory
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stored.path))
+        XCTAssertEqual(stored.lastPathComponent, "book-a.epub")
+
+        try BookFileStorage.removeStoredCopy(at: original, booksDirectory: booksDirectory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+
+        try BookFileStorage.removeStoredCopy(at: stored, booksDirectory: booksDirectory)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stored.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: original.path))
+    }
+
     func testAudioCacheRoundTripAndByteCount() async throws {
         let database = try AppDatabase.makeTransient()
         try await database.insertBook(Book(

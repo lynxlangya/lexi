@@ -31,16 +31,8 @@ struct ShelfDropDelegate: DropDelegate {
                     return
                 }
 
-                let directory = FileManager.default.temporaryDirectory
-                    .appending(path: "LexiDrop-\(UUID().uuidString)", directoryHint: .isDirectory)
-                let fileName = url.lastPathComponent.isEmpty ? "Dropped.epub" : url.lastPathComponent
-                let destination = directory.appending(path: fileName)
                 do {
-                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                    if FileManager.default.fileExists(atPath: destination.path) {
-                        try FileManager.default.removeItem(at: destination)
-                    }
-                    try FileManager.default.copyItem(at: url, to: destination)
+                    let destination = try BookFileStorage.copyToImportStaging(sourceURL: url)
                     DispatchQueue.main.async {
                         importURLs([destination])
                     }
