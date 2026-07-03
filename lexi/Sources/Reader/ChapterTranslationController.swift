@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 private let paragraphTranslationMaxAttempts = 2
+private nonisolated let paragraphStreamingFlushInterval: Duration = .milliseconds(66)
 
 enum ChapterTranslationState: Equatable, Sendable {
     case idle
@@ -41,6 +42,8 @@ final class ChapterTranslationController {
     private let database: AppDatabase
     private let registry: EngineRegistry
     private let prefetchWorker: ChapterPrefetchWorker
+    private let streamClockNow: @Sendable () -> ContinuousClock.Instant
+    private let streamFlushInterval: Duration
     private var task: Task<Void, Never>?
     private var paragraphRetryTasks: [Int64: Task<Void, Never>] = [:]
     private var paragraphRetryTokens: [Int64: UUID] = [:]
@@ -52,12 +55,16 @@ final class ChapterTranslationController {
     init(
         database: AppDatabase,
         engineConfig: EngineConfig,
-        registry: EngineRegistry = .shared
+        registry: EngineRegistry = .shared,
+        streamClockNow: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock().now },
+        streamFlushInterval: Duration = paragraphStreamingFlushInterval
     ) {
         self.database = database
         self.currentEngineConfig = engineConfig
         self.registry = registry
         self.prefetchWorker = ChapterPrefetchWorker(database: database, registry: registry)
+        self.streamClockNow = streamClockNow
+        self.streamFlushInterval = streamFlushInterval
     }
 
     @MainActor deinit {
@@ -311,12 +318,16 @@ final class ChapterTranslationController {
         model: String
     ) async throws -> String {
         var zh = ""
+        var lastFlush = streamClockNow()
+        var didFlushStreamingText = false
         for try await chunk in engine.translate([task], model: model) {
             try Task.checkCancellation()
             zh += chunk.text
-            snapshots[chapter.id]?.paragraphStates[paragraph.id] = .streaming(zh)
-            reconcileChapterState(for: chapter)
+            if shouldFlushStreamingText(lastFlush: &lastFlush, didFlush: &didFlushStreamingText) {
+                flushStreamingText(zh, paragraph: paragraph, chapter: chapter)
+            }
         }
+        flushStreamingText(zh, paragraph: paragraph, chapter: chapter)
 
         if zh.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             throw ParagraphTranslationFailure.emptyStream
@@ -367,12 +378,16 @@ final class ChapterTranslationController {
                     bookTitle: bookTitle
                 )
             )
+            var lastFlush = streamClockNow()
+            var didFlushStreamingText = false
             for try await chunk in engine.translate([task], model: config.model) {
                 try Task.checkCancellation()
                 zh += chunk.text
-                snapshots[chapter.id]?.paragraphStates[paragraph.id] = .streaming(zh)
-                reconcileChapterState(for: chapter)
+                if shouldFlushStreamingText(lastFlush: &lastFlush, didFlush: &didFlushStreamingText) {
+                    flushStreamingText(zh, paragraph: paragraph, chapter: chapter)
+                }
             }
+            flushStreamingText(zh, paragraph: paragraph, chapter: chapter)
 
             if zh.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 markTranslatingParagraphsAsError(
@@ -405,7 +420,6 @@ final class ChapterTranslationController {
                     createdAt: Date()
                 )
             )
-            reconcileChapterState(for: chapter)
         } catch is CancellationError {
             return
         } catch let error as EngineError {
@@ -435,6 +449,36 @@ final class ChapterTranslationController {
             }
         }
         return snapshot
+    }
+
+    private func shouldFlushStreamingText(
+        lastFlush: inout ContinuousClock.Instant,
+        didFlush: inout Bool
+    ) -> Bool {
+        guard didFlush else {
+            didFlush = true
+            lastFlush = streamClockNow()
+            return true
+        }
+
+        let now = streamClockNow()
+        guard lastFlush.duration(to: now) >= streamFlushInterval else {
+            return false
+        }
+
+        lastFlush = now
+        return true
+    }
+
+    private func flushStreamingText(
+        _ text: String,
+        paragraph: ReaderParagraph,
+        chapter: ReaderChapter
+    ) {
+        guard !text.isEmpty else {
+            return
+        }
+        snapshots[chapter.id]?.paragraphStates[paragraph.id] = .streaming(text)
     }
 
     private func apply(error: EngineError, to chapter: ReaderChapter, translating: [ReaderParagraph]) {
