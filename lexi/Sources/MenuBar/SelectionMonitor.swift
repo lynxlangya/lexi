@@ -19,7 +19,7 @@ enum SelectionReadFailure: Error, Equatable {
 }
 
 @MainActor
-final class SelectionMonitor {
+enum SelectionMonitor {
     nonisolated static let clipboardFallbackWaitInterval: TimeInterval = 0.40
     nonisolated static let copyShortcutWarmupInterval: TimeInterval = 0.04
 
@@ -32,51 +32,6 @@ final class SelectionMonitor {
         "com.apple.keychainaccess",
         "com.apple.Passwords",
     ]
-
-    private var mouseUpMonitor: Any?
-    private var localMouseUpMonitor: Any?
-    var onSelection: ((SelectedTextContext) -> Void)?
-
-    func start() {
-        if mouseUpMonitor == nil {
-            mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
-                Task { @MainActor in
-                    guard let self,
-                          case .success(let context) = Self.currentSelectionResult(promptForPermission: false),
-                          !context.text.isEmpty else {
-                        return
-                    }
-                    self.onSelection?(context)
-                }
-            }
-        }
-
-        if localMouseUpMonitor == nil {
-            localMouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
-                Task { @MainActor in
-                    guard let self,
-                          case .success(let context) = Self.currentSelectionResult(promptForPermission: false),
-                          context.source == .reader,
-                          !context.text.isEmpty else {
-                        return
-                    }
-                    self.onSelection?(context)
-                }
-                return event
-            }
-        }
-    }
-
-    func stop() {
-        if let mouseUpMonitor {
-            NSEvent.removeMonitor(mouseUpMonitor)
-            self.mouseUpMonitor = nil
-        }
-        if let localMouseUpMonitor {
-            NSEvent.removeMonitor(localMouseUpMonitor)
-            self.localMouseUpMonitor = nil
-        }
-    }
 
     static func currentSelection(promptForPermission: Bool = true) -> SelectedTextContext? {
         try? currentSelectionResult(promptForPermission: promptForPermission).get()
