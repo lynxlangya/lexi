@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import ApplicationServices
 @testable import lexi
 
@@ -74,5 +75,121 @@ final class SelectionContextTests: XCTestCase {
 
         XCTAssertNil(SelectionMonitor.cfRange(from: "not an AXValue" as CFTypeRef))
         XCTAssertNil(SelectionMonitor.cgRect(from: "not an AXValue" as CFTypeRef))
+    }
+
+    func testClipboardFallbackPreferenceDefaultsOnAndReadsStoredValue() throws {
+        let suiteName = "lexi.selection.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        XCTAssertTrue(SelectionMonitor.clipboardFallbackEnabled(defaults: defaults))
+
+        defaults.set(false, forKey: LexiDefaultsKey.shortcutsClipboardFallback)
+        XCTAssertFalse(SelectionMonitor.clipboardFallbackEnabled(defaults: defaults))
+
+        defaults.set(true, forKey: LexiDefaultsKey.shortcutsClipboardFallback)
+        XCTAssertTrue(SelectionMonitor.clipboardFallbackEnabled(defaults: defaults))
+    }
+
+    func testClipboardFallbackDisabledReturnsEmptySelectionWithoutCopying() {
+        var copyAttempted = false
+
+        let result = SelectionMonitor.fallbackSelectionContext(
+            source: .global,
+            anchor: .zero,
+            focusedBundleIdentifier: "com.apple.TextEdit",
+            isClipboardFallbackEnabled: false,
+            copiedTextProvider: {
+                copyAttempted = true
+                return "secret"
+            }
+        )
+
+        XCTAssertFalse(copyAttempted)
+        assertEmptySelection(result)
+    }
+
+    func testClipboardFallbackBlocksPasswordManagersWithoutCopying() {
+        let blockedBundleIDs = [
+            "com.1password.browser-helper",
+            "com.agilebits.onepassword7",
+            "com.bitwarden.desktop",
+            "com.apple.keychainaccess",
+            "com.apple.Passwords",
+        ]
+
+        for bundleID in blockedBundleIDs {
+            var copyAttempted = false
+            let result = SelectionMonitor.fallbackSelectionContext(
+                source: .global,
+                anchor: .zero,
+                focusedBundleIdentifier: bundleID,
+                isClipboardFallbackEnabled: true,
+                copiedTextProvider: {
+                    copyAttempted = true
+                    return "secret"
+                }
+            )
+
+            XCTAssertTrue(SelectionMonitor.isClipboardFallbackBlocked(bundleIdentifier: bundleID), bundleID)
+            XCTAssertFalse(copyAttempted, bundleID)
+            assertEmptySelection(result, bundleID)
+        }
+    }
+
+    func testClipboardFallbackAllowsRegularAppsToUseCopyProvider() throws {
+        var copyAttempted = false
+
+        let result = SelectionMonitor.fallbackSelectionContext(
+            source: .global,
+            anchor: .zero,
+            focusedBundleIdentifier: "com.apple.TextEdit",
+            isClipboardFallbackEnabled: true,
+            copiedTextProvider: {
+                copyAttempted = true
+                return " observe "
+            }
+        )
+
+        let context = try result.get()
+        XCTAssertTrue(copyAttempted)
+        XCTAssertEqual(context.text, "observe")
+        XCTAssertFalse(SelectionMonitor.isClipboardFallbackBlocked(bundleIdentifier: "com.apple.TextEdit"))
+    }
+
+    func testClipboardFallbackTimingUsesShortPrivacyWindows() {
+        XCTAssertEqual(SelectionMonitor.clipboardFallbackWaitInterval, 0.40, accuracy: 0.001)
+        XCTAssertEqual(SelectionMonitor.copyShortcutWarmupInterval, 0.04, accuracy: 0.001)
+    }
+
+    func testRestorablePasteboardItemsPreserveAllTypes() throws {
+        let original = NSPasteboardItem()
+        let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
+        let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+
+        XCTAssertTrue(original.setString("secret", forType: .string))
+        XCTAssertTrue(original.setData(Data([0x01]), forType: transientType))
+        XCTAssertTrue(original.setData(Data([0x02]), forType: concealedType))
+
+        let copied = try XCTUnwrap(SelectionMonitor.restorablePasteboardItems(from: [original])?.first)
+
+        XCTAssertEqual(Set(copied.types.map(\.rawValue)), Set(original.types.map(\.rawValue)))
+        for type in original.types {
+            XCTAssertEqual(copied.data(forType: type), original.data(forType: type), type.rawValue)
+        }
+    }
+
+    private func assertEmptySelection(
+        _ result: Result<SelectedTextContext, SelectionReadFailure>,
+        _ message: String = "",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard case .failure(.emptySelection) = result else {
+            XCTFail("Expected emptySelection, got \(result)", file: file, line: line)
+            return
+        }
     }
 }

@@ -20,6 +20,19 @@ enum SelectionReadFailure: Error, Equatable {
 
 @MainActor
 final class SelectionMonitor {
+    nonisolated static let clipboardFallbackWaitInterval: TimeInterval = 0.40
+    nonisolated static let copyShortcutWarmupInterval: TimeInterval = 0.04
+
+    private nonisolated static let passwordManagerBundlePrefixes = [
+        "com.1password.",
+        "com.agilebits.",
+        "com.bitwarden.",
+    ]
+    private nonisolated static let passwordManagerBundleIdentifiers: Set<String> = [
+        "com.apple.keychainaccess",
+        "com.apple.Passwords",
+    ]
+
     private var mouseUpMonitor: Any?
     private var localMouseUpMonitor: Any?
     var onSelection: ((SelectedTextContext) -> Void)?
@@ -81,12 +94,21 @@ final class SelectionMonitor {
 
         let appElement = axElement(from: focusedApp) ?? systemWide
         let source = selectionSource(from: focusedApp)
+        let focusedBundleIdentifier = bundleIdentifier(from: focusedApp)
         AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
         guard let focusedElement else {
-            return fallbackSelectionContext(source: source, anchor: fallbackAnchor())
+            return fallbackSelectionContext(
+                source: source,
+                anchor: fallbackAnchor(),
+                focusedBundleIdentifier: focusedBundleIdentifier
+            )
         }
         guard let element = axElement(from: focusedElement) else {
-            return fallbackSelectionContext(source: source, anchor: fallbackAnchor())
+            return fallbackSelectionContext(
+                source: source,
+                anchor: fallbackAnchor(),
+                focusedBundleIdentifier: focusedBundleIdentifier
+            )
         }
 
         var selectedText: CFTypeRef?
@@ -103,12 +125,24 @@ final class SelectionMonitor {
             return .success(context)
         }
 
-        return fallbackSelectionContext(source: source, anchor: anchor)
+        return fallbackSelectionContext(
+            source: source,
+            anchor: anchor,
+            focusedBundleIdentifier: focusedBundleIdentifier
+        )
     }
 
-    private static func fallbackSelectionContext(source: SelectionSource, anchor: CGRect) -> Result<SelectedTextContext, SelectionReadFailure> {
+    static func fallbackSelectionContext(
+        source: SelectionSource,
+        anchor: CGRect,
+        focusedBundleIdentifier: String?,
+        isClipboardFallbackEnabled: Bool,
+        copiedTextProvider: () -> String?
+    ) -> Result<SelectedTextContext, SelectionReadFailure> {
         guard source != .reader,
-              let copiedText = selectedTextFromCopyShortcut(),
+              isClipboardFallbackEnabled,
+              !isClipboardFallbackBlocked(bundleIdentifier: focusedBundleIdentifier),
+              let copiedText = copiedTextProvider(),
               let context = context(
                 rawText: copiedText,
                 anchor: anchor,
@@ -119,6 +153,37 @@ final class SelectionMonitor {
         }
 
         return .success(context)
+    }
+
+    private static func fallbackSelectionContext(
+        source: SelectionSource,
+        anchor: CGRect,
+        focusedBundleIdentifier: String?
+    ) -> Result<SelectedTextContext, SelectionReadFailure> {
+        fallbackSelectionContext(
+            source: source,
+            anchor: anchor,
+            focusedBundleIdentifier: focusedBundleIdentifier,
+            isClipboardFallbackEnabled: clipboardFallbackEnabled(),
+            copiedTextProvider: selectedTextFromCopyShortcut
+        )
+    }
+
+    nonisolated static func clipboardFallbackEnabled(defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.object(forKey: LexiDefaultsKey.shortcutsClipboardFallback) != nil else {
+            return true
+        }
+        return defaults.bool(forKey: LexiDefaultsKey.shortcutsClipboardFallback)
+    }
+
+    nonisolated static func isClipboardFallbackBlocked(bundleIdentifier: String?) -> Bool {
+        guard let bundleIdentifier else {
+            return false
+        }
+        if passwordManagerBundleIdentifiers.contains(bundleIdentifier) {
+            return true
+        }
+        return passwordManagerBundlePrefixes.contains { bundleIdentifier.hasPrefix($0) }
     }
 
     static func ensureAccessibilityPermission(prompt: Bool) -> Bool {
@@ -294,18 +359,10 @@ final class SelectionMonitor {
     private static func selectedTextFromCopyShortcut() -> String? {
         let pasteboard = NSPasteboard.general
         let previousChangeCount = pasteboard.changeCount
-        let previousItems = pasteboard.pasteboardItems?.map { item in
-            let copy = NSPasteboardItem()
-            for type in item.types {
-                if let data = item.data(forType: type) {
-                    copy.setData(data, forType: type)
-                }
-            }
-            return copy
-        }
+        let previousItems = restorablePasteboardItems(from: pasteboard.pasteboardItems)
 
         sendCopyShortcut()
-        let deadline = Date().addingTimeInterval(0.70)
+        let deadline = Date().addingTimeInterval(clipboardFallbackWaitInterval)
         while pasteboard.changeCount == previousChangeCount, Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
         }
@@ -329,8 +386,20 @@ final class SelectionMonitor {
         return copied
     }
 
+    nonisolated static func restorablePasteboardItems(from items: [NSPasteboardItem]?) -> [NSPasteboardItem]? {
+        items?.map { item in
+            let copy = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    copy.setData(data, forType: type)
+                }
+            }
+            return copy
+        }
+    }
+
     private static func sendCopyShortcut() {
-        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.08))
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(copyShortcutWarmupInterval))
         let source = CGEventSource(stateID: .combinedSessionState)
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 8, keyDown: true)
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 8, keyDown: false)
@@ -388,6 +457,18 @@ final class SelectionMonitor {
         }
 
         return .reader
+    }
+
+    private static func bundleIdentifier(from focusedApp: CFTypeRef?) -> String? {
+        guard let focusedApp,
+              let app = axElement(from: focusedApp) else {
+            return nil
+        }
+        var pid = pid_t()
+        guard AXUIElementGetPid(app, &pid) == .success else {
+            return nil
+        }
+        return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
     }
 
     static func cfRange(from value: CFTypeRef?) -> CFRange? {

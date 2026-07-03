@@ -120,6 +120,7 @@ struct SettingsSheet: View {
     @AppStorage(LexiDefaultsKey.readerAccent) private var accent = "copper"
     @AppStorage(LexiDefaultsKey.readerPrefetch) private var prefetch = 1
     @AppStorage(LexiDefaultsKey.shortcutsConflictDetect) private var conflictDetect = true
+    @AppStorage(LexiDefaultsKey.shortcutsClipboardFallback) private var clipboardFallback = true
 
     private var settingsAccent: ReaderAccentChoice {
         ReaderAccentChoice(storageValue: accent)
@@ -726,7 +727,11 @@ struct SettingsSheet: View {
                 ShortcutSettingsRow(label: "显示 / 隐藏阅读器", hint: "全局", name: .toggleReaderWindow, isLast: true)
             }
 
-            SettingsSection(title: "") {
+            SettingsSection(title: "辅助") {
+                SettingsRow(label: "剪贴板回退", hint: "AX 读取失败时用 ⌘C 取词；剪贴板管理器可能记录该内容") {
+                    LexiToggle(isOn: $clipboardFallback, accent: settingsAccent.primary)
+                }
+
                 SettingsRow(label: "冲突检测", hint: "当 Lexi 快捷键与系统或其他 app 冲突时提示", isLast: true) {
                     LexiToggle(isOn: $conflictDetect, accent: settingsAccent.primary)
                 }
