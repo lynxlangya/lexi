@@ -30,7 +30,7 @@ enum ReaderFixtureStore {
             )
         }
 
-        try await database.importBook((book, chapters))
+        _ = try await database.importBook((book, chapters))
         try await seedCachedTranslations(into: database, model: defaultModel(for: .deepseek))
     }
 

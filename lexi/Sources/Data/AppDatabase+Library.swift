@@ -91,8 +91,9 @@ extension AppDatabase {
         }
     }
 
-    func importBook(_ payload: (book: Book, chapters: [(Chapter, [Paragraph])])) throws {
-        try pool.write { db in
+    func importBook(_ payload: (book: Book, chapters: [(Chapter, [Paragraph])])) throws -> ImportOutcome {
+        let incomingContentHash = Self.contentHash(for: payload.chapters)
+        return try pool.write { db in
             let alreadyImported = try Bool.fetchOne(
                 db,
                 sql: "SELECT EXISTS(SELECT 1 FROM books WHERE id = ?)",
@@ -121,7 +122,15 @@ extension AppDatabase {
                         payload.book.id,
                     ]
                 )
-                return
+                let storedContentHash = try Self.contentHash(bookId: payload.book.id, in: db)
+                guard storedContentHash != incomingContentHash else {
+                    return .unchanged
+                }
+
+                try db.execute(sql: "DELETE FROM chapters WHERE bookId = ?", arguments: [payload.book.id])
+                try Self.insertChapters(payload.chapters, bookId: payload.book.id, in: db)
+                try Self.clampProgressAfterContentReplacement(bookId: payload.book.id, chapters: payload.chapters, in: db)
+                return .contentReplaced
             }
 
             try db.execute(
@@ -145,26 +154,8 @@ extension AppDatabase {
                 ]
             )
 
-            for (chapter, paragraphs) in payload.chapters {
-                try db.execute(
-                    sql: """
-                    INSERT INTO chapters (bookId, idx, n, title)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    arguments: [payload.book.id, chapter.idx, chapter.n, chapter.title]
-                )
-                let chapterId = db.lastInsertedRowID
-
-                for paragraph in paragraphs {
-                    try db.execute(
-                        sql: """
-                        INSERT INTO paragraphs (chapterId, ord, en)
-                        VALUES (?, ?, ?)
-                        """,
-                        arguments: [chapterId, paragraph.ord, paragraph.en]
-                    )
-                }
-            }
+            try Self.insertChapters(payload.chapters, bookId: payload.book.id, in: db)
+            return .inserted
         }
     }
 
@@ -203,6 +194,106 @@ extension AppDatabase {
                 (row["id"] as String, row["title"] as String)
             })
         }
+    }
+}
+
+private extension AppDatabase {
+    nonisolated static func insertChapters(
+        _ chapters: [(Chapter, [Paragraph])],
+        bookId: String,
+        in db: Database
+    ) throws {
+        for (chapter, paragraphs) in chapters.sorted(by: { $0.0.idx < $1.0.idx }) {
+            try db.execute(
+                sql: """
+                INSERT INTO chapters (bookId, idx, n, title)
+                VALUES (?, ?, ?, ?)
+                """,
+                arguments: [bookId, chapter.idx, chapter.n, chapter.title]
+            )
+            let chapterId = db.lastInsertedRowID
+
+            for paragraph in paragraphs.sorted(by: { $0.ord < $1.ord }) {
+                try db.execute(
+                    sql: """
+                    INSERT INTO paragraphs (chapterId, ord, en)
+                    VALUES (?, ?, ?)
+                    """,
+                    arguments: [chapterId, paragraph.ord, paragraph.en]
+                )
+            }
+        }
+    }
+
+    nonisolated static func contentHash(for chapters: [(Chapter, [Paragraph])]) -> String {
+        chapters
+            .sorted(by: { $0.0.idx < $1.0.idx })
+            .map { _, paragraphs in
+                paragraphs
+                    .sorted(by: { $0.ord < $1.ord })
+                    .map(\.en)
+                    .joined(separator: "\u{1F}")
+            }
+            .joined(separator: "\u{1E}")
+            .lexiSHA256
+    }
+
+    nonisolated static func contentHash(bookId: String, in db: Database) throws -> String {
+        let chapterIds = try Int64.fetchAll(
+            db,
+            sql: "SELECT id FROM chapters WHERE bookId = ? ORDER BY idx",
+            arguments: [bookId]
+        )
+        let chapterBodies = try chapterIds.map { chapterId in
+            try String.fetchAll(
+                db,
+                sql: "SELECT en FROM paragraphs WHERE chapterId = ? ORDER BY ord",
+                arguments: [chapterId]
+            )
+            .joined(separator: "\u{1F}")
+        }
+        return chapterBodies.joined(separator: "\u{1E}").lexiSHA256
+    }
+
+    nonisolated static func clampProgressAfterContentReplacement(
+        bookId: String,
+        chapters: [(Chapter, [Paragraph])],
+        in db: Database
+    ) throws {
+        guard let progress = try Row.fetchOne(
+            db,
+            sql: "SELECT chapterIdx, scrollPct FROM progress WHERE bookId = ?",
+            arguments: [bookId]
+        ) else {
+            return
+        }
+
+        let orderedChapters = chapters.sorted(by: { $0.0.idx < $1.0.idx })
+        guard !orderedChapters.isEmpty else {
+            try db.execute(sql: "DELETE FROM progress WHERE bookId = ?", arguments: [bookId])
+            return
+        }
+
+        let chapterIndex = progress["chapterIdx"] as Int
+        let scrollPct = progress["scrollPct"] as Double
+        let clampedChapterIndex = min(max(0, chapterIndex), orderedChapters.count - 1)
+        let paragraphCount = orderedChapters[clampedChapterIndex].1.count
+        let clampedScrollPct: Double
+        if scrollPct.isFinite, paragraphCount > 0 {
+            clampedScrollPct = Double(min(max(0, Int(scrollPct)), paragraphCount - 1))
+        } else {
+            clampedScrollPct = 0
+        }
+
+        try db.execute(
+            sql: """
+            UPDATE progress
+            SET chapterIdx = ?,
+                scrollPct = ?
+            WHERE bookId = ?
+            """,
+            arguments: [clampedChapterIndex, clampedScrollPct, bookId]
+        )
     }
 }
 

@@ -94,32 +94,17 @@ final class DataTests: XCTestCase {
         XCTAssertEqual(engineConfig?.model, "gpt-5.4-mini")
     }
 
-    func testReimportingExistingBookPreservesReadingStateAndTranslations() async throws {
+    func testReimportingSameContentUpdatesMetadataAndPreservesTranslations() async throws {
         let database = try AppDatabase.makeTransient()
         let importedAt = Date(lexiTimestamp: 1_800_000_000)
         let readAt = Date(lexiTimestamp: 1_800_000_100)
         let translatedAt = Date(lexiTimestamp: 1_800_000_200)
-        let firstBook = Book(
-            id: "same-book",
-            title: "Original",
-            author: "Author",
-            fileURL: URL(fileURLWithPath: "/tmp/original.epub"),
-            addedAt: importedAt,
-            lastReadAt: nil,
-            progress: 0,
-            coverData: nil,
-            coverBg: "#d8c4a0",
-            coverInk: "#1f1b15"
-        )
-        try await database.importBook((
+        let firstBook = reimportBook(id: "same-book", title: "Original", filePath: "/tmp/original.epub", addedAt: importedAt)
+        let inserted = try await database.importBook((
             firstBook,
-            [
-                (
-                    Chapter(id: nil, bookId: firstBook.id, idx: 0, n: "1", title: "Chapter One"),
-                    [Paragraph(id: nil, chapterId: 0, ord: 0, en: "Original paragraph.")]
-                ),
-            ]
+            reimportPayload(bookId: firstBook.id, chapterTitle: "Chapter One", paragraphs: ["Original paragraph."])
         ))
+        XCTAssertEqual(inserted, .inserted)
 
         let importedChapters = try await database.chapters(bookId: firstBook.id)
         let chapterId = try XCTUnwrap(importedChapters.first?.id)
@@ -152,15 +137,11 @@ final class DataTests: XCTestCase {
             coverBg: nil,
             coverInk: nil
         )
-        try await database.importBook((
+        let outcome = try await database.importBook((
             replacementBook,
-            [
-                (
-                    Chapter(id: nil, bookId: replacementBook.id, idx: 0, n: "1", title: "Replacement Chapter"),
-                    [Paragraph(id: nil, chapterId: 0, ord: 0, en: "Replacement paragraph.")]
-                ),
-            ]
+            reimportPayload(bookId: replacementBook.id, chapterTitle: "Replacement Chapter", paragraphs: ["Original paragraph."])
         ))
+        XCTAssertEqual(outcome, .unchanged)
 
         let storedBook = try await database.book(id: firstBook.id)
         XCTAssertEqual(storedBook?.title, "Updated Metadata")
@@ -182,6 +163,109 @@ final class DataTests: XCTestCase {
             model: "gpt-5.4-mini"
         )
         XCTAssertEqual(cachedTranslation, "原始译文。")
+    }
+
+    func testReimportingChangedContentRefreshesParagraphsClearsTranslationsAndClampsProgress() async throws {
+        let database = try AppDatabase.makeTransient()
+        let importedAt = Date(lexiTimestamp: 1_800_000_000)
+        let readAt = Date(lexiTimestamp: 1_800_000_100)
+        let translatedAt = Date(lexiTimestamp: 1_800_000_200)
+        let firstBook = reimportBook(id: "same-book", title: "Original", filePath: "/tmp/original.epub", addedAt: importedAt)
+        _ = try await database.importBook((
+            firstBook,
+            reimportPayload(
+                bookId: firstBook.id,
+                chapterTitle: "Chapter One",
+                paragraphs: ["Original paragraph.", "Second original paragraph."]
+            )
+        ))
+
+        let importedChapters = try await database.chapters(bookId: firstBook.id)
+        let chapterId = try XCTUnwrap(importedChapters.first?.id)
+        let importedParagraphs = try await database.paragraphs(chapterId: chapterId)
+        let paragraphId = try XCTUnwrap(importedParagraphs.first?.id)
+        try await database.updateBookProgress(id: firstBook.id, progress: 0.72, at: readAt)
+        try await database.upsertProgress(
+            ProgressRecord(bookId: firstBook.id, chapterIdx: 4, scrollPct: 8, updatedAt: readAt)
+        )
+        try await database.upsertTranslation(
+            Translation(
+                id: nil,
+                paragraphId: paragraphId,
+                engine: .openai,
+                model: "gpt-5.4-mini",
+                zh: "原始译文。",
+                createdAt: translatedAt
+            )
+        )
+
+        let replacementBook = reimportBook(
+            id: firstBook.id,
+            title: "Updated Metadata",
+            filePath: "/tmp/reimported.epub",
+            addedAt: Date(lexiTimestamp: 1_800_000_300)
+        )
+        let outcome = try await database.importBook((
+            replacementBook,
+            reimportPayload(bookId: replacementBook.id, chapterTitle: "Replacement Chapter", paragraphs: ["Replacement paragraph."])
+        ))
+        XCTAssertEqual(outcome, .contentReplaced)
+
+        let storedBook = try await database.book(id: firstBook.id)
+        XCTAssertEqual(storedBook?.title, "Updated Metadata")
+        XCTAssertEqual(storedBook?.fileURL, URL(fileURLWithPath: "/tmp/reimported.epub"))
+        XCTAssertEqual(storedBook?.progress, 0.72)
+        XCTAssertEqual(storedBook?.lastReadAt, readAt)
+
+        let storedProgress = try await database.progress(for: firstBook.id)
+        XCTAssertEqual(storedProgress?.chapterIdx, 0)
+        XCTAssertEqual(storedProgress?.scrollPct, 0)
+
+        let chapters = try await database.chapters(bookId: firstBook.id)
+        XCTAssertEqual(chapters.count, 1)
+        XCTAssertEqual(chapters.first?.title, "Replacement Chapter")
+        let replacementChapterId = try XCTUnwrap(chapters.first?.id)
+        let paragraphs = try await database.paragraphs(chapterId: replacementChapterId)
+        XCTAssertEqual(paragraphs.map(\.en), ["Replacement paragraph."])
+
+        let oldCachedTranslation = try await database.cachedTranslation(
+            paragraphId: paragraphId,
+            engine: .openai,
+            model: "gpt-5.4-mini"
+        )
+        XCTAssertNil(oldCachedTranslation)
+        let replacementTranslationBytes = try await database.translationCacheBytes(bookId: firstBook.id)
+        XCTAssertEqual(replacementTranslationBytes, 0)
+    }
+
+    private func reimportBook(id: String, title: String, filePath: String, addedAt: Date) -> Book {
+        Book(
+            id: id,
+            title: title,
+            author: "Author",
+            fileURL: URL(fileURLWithPath: filePath),
+            addedAt: addedAt,
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: "#d8c4a0",
+            coverInk: "#1f1b15"
+        )
+    }
+
+    private func reimportPayload(
+        bookId: String,
+        chapterTitle: String,
+        paragraphs: [String]
+    ) -> [(Chapter, [Paragraph])] {
+        [
+            (
+                Chapter(id: nil, bookId: bookId, idx: 0, n: "1", title: chapterTitle),
+                paragraphs.enumerated().map { offset, text in
+                    Paragraph(id: nil, chapterId: 0, ord: offset, en: text)
+                }
+            ),
+        ]
     }
 
     func testV2VocabBackfillDedupesAndMergesBookIds() throws {
