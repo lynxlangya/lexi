@@ -145,11 +145,24 @@ private struct ReaderWindowContent: View {
     var body: some View {
         ZStack(alignment: .top) {
             content
-                .task(loadInitialData)
+                .task {
+                    refreshTerminationFlushRegistration()
+                    await loadInitialData()
+                    refreshTerminationFlushRegistration()
+                }
                 .onChange(of: selectedChapterIndex) { _, _ in
                     visibleParagraphId = nil
                     readAloudController?.cancelForReaderTransition()
                     translateSelectedChapter()
+                }
+                .onChange(of: surface) { _, _ in
+                    refreshTerminationFlushRegistration()
+                }
+                .onChange(of: book?.id) { _, _ in
+                    refreshTerminationFlushRegistration()
+                }
+                .onDisappear {
+                    TerminationFlushRegistry.shared.unregister()
                 }
                 .onChange(of: readAloudLanguage) { _, _ in
                     guard let status = readAloudController?.status,
@@ -809,17 +822,31 @@ private struct ReaderWindowContent: View {
     }
 
     private func flushVisibleScrollProgress(completion: @escaping () -> Void) {
-        scrollWriteTask?.cancel()
-        guard let context = currentScrollPersistenceContext() else {
-            completion()
-            return
-        }
-
         Task {
-            await persistScroll(context)
+            await flushVisibleScrollProgressForTermination()
             await MainActor.run {
                 completion()
             }
+        }
+    }
+
+    private func flushVisibleScrollProgressForTermination() async {
+        scrollWriteTask?.cancel()
+        guard let context = currentScrollPersistenceContext() else {
+            return
+        }
+
+        await persistScroll(context)
+    }
+
+    private func refreshTerminationFlushRegistration() {
+        guard surface == .reader, book != nil else {
+            TerminationFlushRegistry.shared.unregister()
+            return
+        }
+
+        TerminationFlushRegistry.shared.register {
+            await flushVisibleScrollProgressForTermination()
         }
     }
 

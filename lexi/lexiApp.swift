@@ -34,11 +34,23 @@ final class LexiAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        if UserDefaults.standard.string(forKey: "general.onClose") == "quit" {
+        if UserDefaults.standard.string(forKey: LexiDefaultsKey.generalOnClose) == "quit" {
             return true
         }
         sender.setActivationPolicy(.accessory)
         return false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let flush = TerminationFlushRegistry.shared.takeFlush() else {
+            return .terminateNow
+        }
+
+        Task { @MainActor in
+            await TerminationFlushRegistry.runWithTimeout(flush)
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
