@@ -363,6 +363,7 @@ struct SettingsSheet: View {
         }
         .onDisappear {
             saveAPIKeys()
+            persistDirtyEngineModelsOnDisappear()
             saveTTSAPIKey()
         }
     }
@@ -555,10 +556,14 @@ struct SettingsSheet: View {
                             apiKey: binding(for: engine, in: $apiKeys),
                             model: binding(for: engine, in: $models),
                             testing: testingEngine == engine,
-                            accent: settingsAccent
-                        ) {
-                            test(engine)
-                        }
+                            accent: settingsAccent,
+                            test: {
+                                test(engine)
+                            },
+                            onCommit: {
+                                commitEngineSettings(engine)
+                            }
+                        )
                     }
                 }
             }
@@ -1023,6 +1028,67 @@ struct SettingsSheet: View {
         }
     }
 
+    private func commitEngineSettings(_ engine: EngineID) {
+        let model = normalizedModel(for: engine)
+        models[engine] = model
+        statuses[engine] = apiKeys[engine, default: ""].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? .unset
+            : .keyOkModelUnknown
+
+        Task {
+            await persistUntestedEngineModel(engine, model: model, notify: true)
+        }
+    }
+
+    private func persistDirtyEngineModelsOnDisappear() {
+        let currentModels = Dictionary(
+            uniqueKeysWithValues: EngineID.allCases.map { engine in
+                (engine, normalizedModel(for: engine))
+            }
+        )
+
+        Task {
+            await persistDirtyEngineModels(currentModels)
+        }
+    }
+
+    private func persistDirtyEngineModels(_ currentModels: [EngineID: String]) async {
+        guard let database else {
+            return
+        }
+
+        var changed = false
+        for engine in EngineID.allCases {
+            let model = currentModels[engine, default: ReaderFixtureStore.defaultModel(for: engine)]
+            let stored = try? await database.engineConfig(for: engine)
+            if stored?.model == model {
+                continue
+            }
+            if stored == nil, model == ReaderFixtureStore.defaultModel(for: engine) {
+                continue
+            }
+            try? await database.upsertEngineConfig(settingsUntestedEngineConfig(for: engine, model: model))
+            changed = true
+        }
+
+        if changed {
+            notifyEngineSettingsChanged()
+        }
+    }
+
+    private func persistUntestedEngineModel(_ engine: EngineID, model: String, notify: Bool) async {
+        try? await database?.upsertEngineConfig(settingsUntestedEngineConfig(for: engine, model: model))
+        if notify {
+            notifyEngineSettingsChanged()
+        }
+    }
+
+    private func normalizedModel(for engine: EngineID) -> String {
+        let model = models[engine, default: ReaderFixtureStore.defaultModel(for: engine)]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return model.isEmpty ? ReaderFixtureStore.defaultModel(for: engine) : model
+    }
+
     private func testTTS() {
         let providerID = selectedTTSProvider
         let key = ttsAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1189,4 +1255,8 @@ struct SettingsSheet: View {
             dictionary.wrappedValue[engine] = value
         }
     }
+}
+
+nonisolated func settingsUntestedEngineConfig(for engine: EngineID, model: String) -> EngineConfig {
+    EngineConfig(id: engine, model: model, lastTestedOK: false, lastTestedAt: nil)
 }

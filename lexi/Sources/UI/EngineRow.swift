@@ -28,6 +28,7 @@ struct EngineRow: View {
     let testing: Bool
     let accent: ReaderAccentChoice
     let test: () -> Void
+    let onCommit: () -> Void
 
     @State private var isEditing = false
     @State private var draftAPIKey = ""
@@ -129,10 +130,16 @@ struct EngineRow: View {
                     .buttonStyle(EnginePlainButtonStyle())
 
                     Button("确认") {
-                        apiKey = draftAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let nextAPIKey = draftAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
                         let nextModel = draftModel.trimmingCharacters(in: .whitespacesAndNewlines)
-                        model = nextModel.isEmpty ? ReaderFixtureStore.defaultModel(for: engine) : nextModel
+                        let normalizedModel = nextModel.isEmpty ? ReaderFixtureStore.defaultModel(for: engine) : nextModel
+                        let didChange = nextAPIKey != apiKey || normalizedModel != model
+                        apiKey = nextAPIKey
+                        model = normalizedModel
                         isEditing = false
+                        if didChange {
+                            onCommit()
+                        }
                     }
                     .buttonStyle(EnginePrimaryButtonStyle(accent: accent.primary))
                 }

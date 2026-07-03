@@ -306,6 +306,39 @@ final class EngineTests: XCTestCase {
             XCTAssertEqual(error as? EngineError, .missingAPIKey(.deepseek))
         }
     }
+
+    func testSettingsUntestedEngineConfigResetsValidationState() {
+        let config = settingsUntestedEngineConfig(for: .openai, model: "gpt-x")
+
+        XCTAssertEqual(config.id, .openai)
+        XCTAssertEqual(config.model, "gpt-x")
+        XCTAssertFalse(config.lastTestedOK)
+        XCTAssertNil(config.lastTestedAt)
+    }
+
+    func testEnginePreferencesUsePersistedUntestedModel() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapterKey = LexiDefaultsKey.engineDefaultChapter
+        let popupKey = LexiDefaultsKey.engineDefaultPopup
+        let previousChapter = UserDefaults.standard.object(forKey: chapterKey)
+        let previousPopup = UserDefaults.standard.object(forKey: popupKey)
+        defer {
+            restoreUserDefaultsValue(previousChapter, forKey: chapterKey)
+            restoreUserDefaultsValue(previousPopup, forKey: popupKey)
+        }
+        UserDefaults.standard.set(EngineID.openai.rawValue, forKey: chapterKey)
+        UserDefaults.standard.set(EngineID.openai.rawValue, forKey: popupKey)
+
+        try await database.upsertEngineConfig(settingsUntestedEngineConfig(for: .openai, model: "gpt-x"))
+
+        let chapterConfig = await EnginePreferences.chapterConfig(database: database)
+        let popupConfig = await EnginePreferences.popupConfig(database: database)
+
+        XCTAssertEqual(chapterConfig.model, "gpt-x")
+        XCTAssertEqual(popupConfig.model, "gpt-x")
+        XCTAssertFalse(chapterConfig.lastTestedOK)
+        XCTAssertFalse(popupConfig.lastTestedOK)
+    }
 }
 
 private final class MockEngineHTTPClient: EngineHTTPClient, @unchecked Sendable {
@@ -366,4 +399,12 @@ private func collect(_ stream: AsyncThrowingStream<TranslationChunk, Error>) asy
 
 private func decodedJSONObject(_ data: Data) throws -> [String: Any] {
     try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+}
+
+private func restoreUserDefaultsValue(_ value: Any?, forKey key: String) {
+    if let value {
+        UserDefaults.standard.set(value, forKey: key)
+    } else {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 }
