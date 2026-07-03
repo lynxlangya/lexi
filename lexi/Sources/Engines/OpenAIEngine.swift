@@ -85,22 +85,24 @@ nonisolated struct OpenAIEngine: TranslationEngine {
             var finishReasons: [String] = []
             for try await data in stream {
                 for payload in parser.feed(data) {
-                    if try SSEParser.isOpenAITerminalPayload(payload) {
+                    let event = try SSEParser.openAIEvent(from: payload)
+                    if event.isTerminal {
                         sawCompletionMarker = true
                     }
-                    finishReasons.append(contentsOf: try SSEParser.openAIFinishReasons(from: payload))
-                    if let text = try SSEParser.openAIText(from: payload) {
+                    finishReasons.append(contentsOf: event.finishReasons)
+                    if let text = event.text {
                         continuation.yield(TranslationChunk(index: index, text: text))
                     }
                 }
             }
 
             for payload in parser.finish() {
-                if try SSEParser.isOpenAITerminalPayload(payload) {
+                let event = try SSEParser.openAIEvent(from: payload)
+                if event.isTerminal {
                     sawCompletionMarker = true
                 }
-                finishReasons.append(contentsOf: try SSEParser.openAIFinishReasons(from: payload))
-                if let text = try SSEParser.openAIText(from: payload) {
+                finishReasons.append(contentsOf: event.finishReasons)
+                if let text = event.text {
                     continuation.yield(TranslationChunk(index: index, text: text))
                 }
             }

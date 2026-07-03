@@ -2,6 +2,19 @@ import Foundation
 
 nonisolated struct SSEParser {
     private var buffer = Data()
+    private static let decoder = JSONDecoder()
+
+    struct OpenAIEventSummary {
+        var text: String?
+        var finishReasons: [String]
+        var isTerminal: Bool
+    }
+
+    struct AnthropicEventSummary {
+        var text: String?
+        var stopReason: String?
+        var isMessageStop: Bool
+    }
 
     mutating func feed(_ data: Data) -> [String] {
         buffer.append(data)
@@ -32,53 +45,50 @@ nonisolated struct SSEParser {
     }
 
     static func openAIText(from payload: String) throws -> String? {
-        guard payload != "[DONE]" else {
-            return nil
-        }
-
-        let chunk = try JSONDecoder().decode(OpenAIStreamPayload.self, from: Data(payload.utf8))
-        let text = chunk.choices.compactMap(\.delta.content).joined()
-        return text.isEmpty ? nil : text
+        try openAIEvent(from: payload).text
     }
 
     static func isOpenAITerminalPayload(_ payload: String) throws -> Bool {
-        guard payload != "[DONE]" else {
-            return true
-        }
-
-        let chunk = try JSONDecoder().decode(OpenAIStreamPayload.self, from: Data(payload.utf8))
-        return chunk.choices.contains { $0.finishReason != nil }
+        try openAIEvent(from: payload).isTerminal
     }
 
     static func openAIFinishReasons(from payload: String) throws -> [String] {
+        try openAIEvent(from: payload).finishReasons
+    }
+
+    static func openAIEvent(from payload: String) throws -> OpenAIEventSummary {
         guard payload != "[DONE]" else {
-            return []
+            return OpenAIEventSummary(text: nil, finishReasons: [], isTerminal: true)
         }
 
-        let chunk = try JSONDecoder().decode(OpenAIStreamPayload.self, from: Data(payload.utf8))
-        return chunk.choices.compactMap(\.finishReason)
+        let chunk = try decoder.decode(OpenAIStreamPayload.self, from: Data(payload.utf8))
+        let text = chunk.choices.compactMap(\.delta.content).joined()
+        return OpenAIEventSummary(
+            text: text.isEmpty ? nil : text,
+            finishReasons: chunk.choices.compactMap(\.finishReason),
+            isTerminal: chunk.choices.contains { $0.finishReason != nil }
+        )
     }
 
     static func anthropicText(from payload: String) throws -> String? {
-        guard payload != "[DONE]" else {
-            return nil
-        }
-
-        let chunk = try JSONDecoder().decode(AnthropicStreamPayload.self, from: Data(payload.utf8))
-        guard chunk.type == "content_block_delta" else {
-            return nil
-        }
-        return chunk.delta?.text
+        try anthropicEvent(from: payload).text
     }
 
     static func isAnthropicMessageStop(from payload: String) throws -> Bool {
-        let chunk = try JSONDecoder().decode(AnthropicStreamPayload.self, from: Data(payload.utf8))
-        return chunk.type == "message_stop"
+        try anthropicEvent(from: payload).isMessageStop
     }
 
     static func anthropicStopReason(from payload: String) throws -> String? {
-        let chunk = try JSONDecoder().decode(AnthropicStreamPayload.self, from: Data(payload.utf8))
-        return chunk.delta?.stopReason
+        try anthropicEvent(from: payload).stopReason
+    }
+
+    static func anthropicEvent(from payload: String) throws -> AnthropicEventSummary {
+        let chunk = try decoder.decode(AnthropicStreamPayload.self, from: Data(payload.utf8))
+        return AnthropicEventSummary(
+            text: chunk.type == "content_block_delta" ? chunk.delta?.text : nil,
+            stopReason: chunk.delta?.stopReason,
+            isMessageStop: chunk.type == "message_stop"
+        )
     }
 
     private func nextEventRange() -> Range<Data.Index>? {
