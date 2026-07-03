@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct VocabView: View {
     let database: AppDatabase?
@@ -140,6 +141,15 @@ struct VocabView: View {
             .frame(width: 120)
             Spacer()
             Button {
+                exportVisibleEntries()
+            } label: {
+                Label("导出", systemImage: "square.and.arrow.up")
+                    .font(LexiFont.zh(12))
+            }
+            .buttonStyle(.plain)
+            .disabled(exportEntries.isEmpty)
+
+            Button {
                 toggleAllVisibleSelection()
             } label: {
                 Label(allVisibleSelected ? "取消全选" : "全选", systemImage: allVisibleSelected ? "checkmark.circle" : "checkmark.circle.fill")
@@ -240,6 +250,15 @@ struct VocabView: View {
 
     private var allVisibleSelected: Bool {
         !visibleEntryIDs.isEmpty && visibleEntryIDs.isSubset(of: selection)
+    }
+
+    private var exportEntries: [VocabEntry] {
+        guard !selection.isEmpty else {
+            return filteredEntries
+        }
+        return filteredEntries.filter { entry in
+            entry.id.map(selection.contains) ?? false
+        }
     }
 
     private func load() async {
@@ -346,6 +365,71 @@ struct VocabView: View {
         } else {
             selection.formUnion(visibleEntryIDs)
         }
+    }
+
+    private func exportVisibleEntries() {
+        let entriesToExport = exportEntries
+        guard !entriesToExport.isEmpty else {
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.title = "导出生词本"
+        panel.nameFieldStringValue = defaultExportFileName()
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        do {
+            let markdown = VocabMarkdownExporter.markdown(
+                entries: entriesToExport,
+                bookTitles: bookTitles,
+                filterDescription: exportFilterDescription
+            )
+            try markdown.write(to: url, atomically: true, encoding: .utf8)
+            showToast("已导出 \(entriesToExport.count) 条 · \(url.lastPathComponent)")
+        } catch {
+            showToast("导出失败 · \(error.localizedDescription)")
+        }
+    }
+
+    private var exportFilterDescription: String {
+        var parts: [String] = []
+        if !selection.isEmpty {
+            parts.append("选中 \(exportEntries.count) 条")
+        }
+        if todayOnly {
+            parts.append("今日新增")
+        }
+        parts.append(masteryFilter.title)
+        parts.append(bookFilterTitle)
+
+        let needle = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !needle.isEmpty {
+            parts.append("搜索：\(needle)")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var bookFilterTitle: String {
+        switch bookFilter {
+        case .all:
+            return "全部来源"
+        case .global:
+            return "全局划词"
+        case .specific(let bookId):
+            return bookTitles[bookId] ?? bookId
+        }
+    }
+
+    private func defaultExportFileName(date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        return "Lexi-生词本-\(formatter.string(from: date)).md"
     }
 
     private func requery(_ entry: VocabEntry) {
