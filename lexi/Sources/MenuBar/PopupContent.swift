@@ -47,6 +47,7 @@ struct SentenceLookup: Equatable {
     var zh: String
     var engine: EngineID
     var model: String
+    var isStreaming = false
 }
 
 struct PopupActions {

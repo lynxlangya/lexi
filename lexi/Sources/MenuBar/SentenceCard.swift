@@ -30,7 +30,7 @@ struct SentenceCard: View {
                             .frame(height: 1)
                             .padding(.vertical, 14)
 
-                        Text(lookup.zh)
+                        Text(lookup.zh + (lookup.isStreaming ? " ..." : ""))
                             .font(LexiFont.zh(14))
                             .lineSpacing(10)
                             .foregroundStyle(theme.ink)
@@ -49,14 +49,29 @@ struct SentenceCard: View {
 
     private func footer(theme: PopupTheme) -> some View {
         PopupFooter(theme: theme) {
-            PopupEngineLabel(engine: lookup.engine, model: lookup.model, theme: theme)
+            if lookup.isStreaming {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
 
-            Spacer()
+                    Text("生成中")
+                        .font(LexiFont.sans(10.5))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(theme.ink2)
+                }
 
-            PopupOutlineButton(theme: theme) {
-                actions.speak(lookup.zh)
-            } label: {
-                Label("朗读", systemImage: "speaker.wave.2")
+                Spacer()
+            } else {
+                PopupEngineLabel(engine: lookup.engine, model: lookup.model, theme: theme)
+
+                Spacer()
+
+                PopupOutlineButton(theme: theme) {
+                    actions.speak(lookup.zh)
+                } label: {
+                    Label("朗读", systemImage: "speaker.wave.2")
+                }
             }
         }
     }
