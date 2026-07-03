@@ -82,27 +82,47 @@ nonisolated struct GenericKeychainStore: Sendable {
 
     func setApiKey(_ key: String, account: String) throws {
         let data = Data(key.utf8)
-        let query = baseQuery(account: account)
+        let protectedQuery = baseQuery(account: account, useDataProtection: true)
+        let legacyQuery = baseQuery(account: account, useDataProtection: false)
 
-        let status = SecItemCopyMatching(query as CFDictionary, nil)
-        switch status {
+        let protectedStatus = SecItemCopyMatching(protectedQuery as CFDictionary, nil)
+        switch protectedStatus {
         case errSecSuccess:
-            let attributes = [kSecValueData as String: data]
-            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-            try check(updateStatus)
+            try update(data: data, query: protectedQuery)
+            return
         case errSecItemNotFound:
-            var item = query
-            item[kSecValueData as String] = data
-            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            let addStatus = SecItemAdd(item as CFDictionary, nil)
-            try check(addStatus)
+            break
+        case errSecMissingEntitlement:
+            break
         default:
-            try check(status)
+            try check(protectedStatus)
+        }
+
+        let legacyStatus = SecItemCopyMatching(legacyQuery as CFDictionary, nil)
+        switch legacyStatus {
+        case errSecSuccess:
+            try update(data: data, query: legacyQuery)
+        case errSecItemNotFound:
+            let addStatus = add(data: data, query: protectedStatus == errSecMissingEntitlement ? legacyQuery : protectedQuery)
+            if addStatus == errSecMissingEntitlement {
+                try check(add(data: data, query: legacyQuery))
+            } else {
+                try check(addStatus)
+            }
+        default:
+            try check(legacyStatus)
         }
     }
 
     func apiKey(account: String) throws -> String? {
-        var query = baseQuery(account: account)
+        if let key = try apiKey(account: account, useDataProtection: true) {
+            return key
+        }
+        return try apiKey(account: account, useDataProtection: false)
+    }
+
+    private func apiKey(account: String, useDataProtection: Bool) throws -> String? {
+        var query = baseQuery(account: account, useDataProtection: useDataProtection)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -114,6 +134,8 @@ nonisolated struct GenericKeychainStore: Sendable {
             return String(data: data, encoding: .utf8)
         case errSecItemNotFound:
             return nil
+        case errSecMissingEntitlement where useDataProtection:
+            return nil
         default:
             try check(status)
             return nil
@@ -121,18 +143,42 @@ nonisolated struct GenericKeychainStore: Sendable {
     }
 
     func delete(account: String) throws {
-        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
-        if status != errSecItemNotFound {
-            try check(status)
+        let protectedStatus = SecItemDelete(baseQuery(account: account, useDataProtection: true) as CFDictionary)
+        if protectedStatus != errSecItemNotFound && protectedStatus != errSecMissingEntitlement {
+            try check(protectedStatus)
+        }
+
+        let legacyStatus = SecItemDelete(baseQuery(account: account, useDataProtection: false) as CFDictionary)
+        if legacyStatus != errSecItemNotFound {
+            try check(legacyStatus)
         }
     }
 
-    private func baseQuery(account: String) -> [String: Any] {
-        [
+    private func update(data: Data, query: [String: Any]) throws {
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        ]
+        try check(SecItemUpdate(query as CFDictionary, attributes as CFDictionary))
+    }
+
+    private func add(data: Data, query: [String: Any]) -> OSStatus {
+        var item = query
+        item[kSecValueData as String] = data
+        item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        return SecItemAdd(item as CFDictionary, nil)
+    }
+
+    private func baseQuery(account: String, useDataProtection: Bool) -> [String: Any] {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "\(servicePrefix).\(account)",
             kSecAttrAccount as String: "apiKey",
         ]
+        if useDataProtection {
+            query[kSecUseDataProtectionKeychain as String] = true
+        }
+        return query
     }
 
     private func check(_ status: OSStatus) throws {
