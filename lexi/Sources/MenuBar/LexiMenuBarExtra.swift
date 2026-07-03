@@ -373,7 +373,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
             lookupSenses: result.senses,
             example: WordExample(en: result.example?.en ?? word, zh: result.example?.zh ?? primaryMeaning),
             localDictionary: localEntry,
-            related: relatedWords(for: word),
+            related: result.synonyms ?? [],
             engine: currentEngine.id,
             model: currentEngine.model,
             history: recentWords,
@@ -591,11 +591,6 @@ final class LexiMenuBarCoordinator: ObservableObject {
         }
         lookup.masteredStatus = status
         show(kind: .word(lookup), near: activeAnchor)
-    }
-
-    private func relatedWords(for word: String) -> [String] {
-        let lower = word.lowercased()
-        return [lower + "s", lower + "ed", lower + "ing"].filter { $0 != lower }
     }
 
     private func remember(word: String) {

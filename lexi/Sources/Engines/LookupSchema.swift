@@ -37,6 +37,7 @@ nonisolated enum LookupSchema {
             ),
             "synonyms": .object([
                 "type": .array([.string("array"), .string("null")]),
+                "description": .string("True English synonyms for the headword in this context; do not include inflected forms or guessed word variants."),
                 "items": .object(["type": .string("string")]),
                 "maxItems": .number(3),
             ]),

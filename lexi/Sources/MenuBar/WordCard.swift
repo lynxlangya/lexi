@@ -21,6 +21,11 @@ struct WordCard: View {
                             .padding(.bottom, 14)
 
                         senses(theme: theme)
+
+                        if !lookup.related.isEmpty {
+                            related(theme: theme)
+                                .padding(.top, 12)
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 14)
@@ -106,6 +111,34 @@ struct WordCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    private func related(theme: PopupTheme) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("相关词")
+                .font(LexiFont.zh(10.5))
+                .fontWeight(.semibold)
+                .foregroundStyle(theme.ink3)
+
+            HStack(spacing: 6) {
+                ForEach(Array(lookup.related.prefix(3).enumerated()), id: \.offset) { _, word in
+                    Text(word)
+                        .font(LexiFont.sans(11))
+                        .foregroundStyle(theme.ink2)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 8)
+                        .frame(maxWidth: 92)
+                        .frame(height: 24)
+                        .background(theme.bgInset)
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .stroke(theme.rule, lineWidth: 1)
+                        }
                 }
             }
         }
