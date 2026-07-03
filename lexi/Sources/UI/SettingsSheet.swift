@@ -1155,10 +1155,13 @@ struct SettingsSheet: View {
 
     private func clearAudioCache() {
         Task {
+            NotificationCenter.default.post(name: .lexiAudioCacheWillClear, object: nil)
+            await Task.yield()
             try? await database?.clearAudioCache()
             if let directory = try? AudioCacheLocation.directory() {
                 try? FileManager.default.removeItem(at: directory)
             }
+            _ = try? AudioCacheLocation.directory()
             audioCacheBytes = 0
             toast("已清除音频缓存")
         }

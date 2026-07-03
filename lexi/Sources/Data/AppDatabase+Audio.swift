@@ -78,6 +78,56 @@ extension AppDatabase {
         }
     }
 
+    func pruneAudioCache(maxBytes: Int64, cacheDirectory: URL? = try? AudioCacheLocation.directory()) throws -> [URL] {
+        let targetBytes = max(0, maxBytes * 9 / 10)
+        let standardizedCacheDirectory = cacheDirectory?.standardizedFileURL
+
+        return try pool.write { db in
+            var removedFiles: [URL] = []
+            var removedPaths = Set<String>()
+            func appendRemovedFile(_ url: URL) {
+                if removedPaths.insert(url.standardizedFileURL.path).inserted {
+                    removedFiles.append(url)
+                }
+            }
+            var totalBytes = try Int64.fetchOne(db, sql: "SELECT COALESCE(SUM(byteCount), 0) FROM audio_cache") ?? 0
+
+            if totalBytes > maxBytes {
+                let rows = try Row.fetchAll(
+                    db,
+                    sql: """
+                    SELECT cacheKey, fileURL, byteCount
+                    FROM audio_cache
+                    ORDER BY lastAccessedAt ASC, createdAt ASC, cacheKey ASC
+                    """
+                )
+                for row in rows where totalBytes > targetBytes {
+                    let cacheKey: String = row["cacheKey"]
+                    let rawFileURL: String = row["fileURL"]
+                    let byteCount: Int64 = row["byteCount"]
+                    appendRemovedFile(audioCacheURL(from: rawFileURL))
+                    totalBytes -= byteCount
+                    try db.execute(sql: "DELETE FROM audio_cache WHERE cacheKey = ?", arguments: [cacheKey])
+                }
+            }
+
+            if let standardizedCacheDirectory,
+               let files = try? FileManager.default.contentsOfDirectory(
+                   at: standardizedCacheDirectory,
+                   includingPropertiesForKeys: nil
+               ) {
+                let recordedPaths = Set(try String.fetchAll(db, sql: "SELECT fileURL FROM audio_cache").map {
+                    audioCacheURL(from: $0).standardizedFileURL.path
+                })
+                for file in files where !recordedPaths.contains(file.standardizedFileURL.path) {
+                    appendRemovedFile(file)
+                }
+            }
+
+            return removedFiles
+        }
+    }
+
     func clearAudioCache() throws {
         try pool.write { db in
             try db.execute(sql: "DELETE FROM audio_cache")
@@ -146,6 +196,10 @@ extension AppDatabase {
     }
 }
 
+nonisolated private func audioCacheURL(from raw: String) -> URL {
+    URL(string: raw) ?? URL(fileURLWithPath: raw)
+}
+
 private extension AudioCacheRecord {
     nonisolated init(row: Row) {
         cacheKey = row["cacheKey"]
@@ -160,7 +214,7 @@ private extension AudioCacheRecord {
         speechRate = row["speechRate"]
         profileHash = row["profileHash"]
         textHash = row["textHash"]
-        fileURL = URL(string: row["fileURL"] as String) ?? URL(fileURLWithPath: row["fileURL"])
+        fileURL = audioCacheURL(from: row["fileURL"])
         byteCount = row["byteCount"]
         durationSeconds = row["durationSeconds"]
         createdAt = Date(lexiTimestamp: row["createdAt"])

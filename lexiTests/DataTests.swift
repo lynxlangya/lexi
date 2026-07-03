@@ -344,6 +344,71 @@ final class DataTests: XCTestCase {
         XCTAssertGreaterThan(bookTwoTranslationBytes, 0)
     }
 
+    func testPruneAudioCacheRemovesLeastRecentlyAccessedRowsUnderTarget() async throws {
+        let database = try AppDatabase.makeTransient()
+        let date = Date(lexiTimestamp: 1_800_000_000)
+        let book = try await insertBookWithOneTranslation(id: "book-prune", database: database, date: date)
+        let oldestFile = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString)-oldest.mp3")
+        let middleFile = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString)-middle.mp3")
+        let newestFile = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString)-newest.mp3")
+
+        try await database.upsertAudioCacheRecord(audioCacheRecord(
+            cacheKey: "audio-oldest",
+            bookId: "book-prune",
+            chapterId: book.chapterId,
+            fileURL: oldestFile,
+            byteCount: 40,
+            date: Date(lexiTimestamp: 1_800_000_001)
+        ))
+        try await database.upsertAudioCacheRecord(audioCacheRecord(
+            cacheKey: "audio-middle",
+            bookId: "book-prune",
+            chapterId: book.chapterId,
+            fileURL: middleFile,
+            byteCount: 40,
+            date: Date(lexiTimestamp: 1_800_000_002)
+        ))
+        try await database.upsertAudioCacheRecord(audioCacheRecord(
+            cacheKey: "audio-newest",
+            bookId: "book-prune",
+            chapterId: book.chapterId,
+            fileURL: newestFile,
+            byteCount: 80,
+            date: Date(lexiTimestamp: 1_800_000_003)
+        ))
+
+        let removedFiles = try await database.pruneAudioCache(maxBytes: 100, cacheDirectory: nil)
+        let prunedBytes = try await database.audioCacheBytes()
+        let oldestRecord = try await database.audioCacheRecord(cacheKey: "audio-oldest", accessedAt: nil)
+        let middleRecord = try await database.audioCacheRecord(cacheKey: "audio-middle", accessedAt: nil)
+        let newestRecord = try await database.audioCacheRecord(cacheKey: "audio-newest", accessedAt: nil)
+
+        XCTAssertEqual(removedFiles, [oldestFile, middleFile])
+        XCTAssertLessThanOrEqual(prunedBytes, 90)
+        XCTAssertNil(oldestRecord)
+        XCTAssertNil(middleRecord)
+        XCTAssertNotNil(newestRecord)
+    }
+
+    func testPruneAudioCacheReturnsOrphanFilesForSafeRemoval() async throws {
+        let database = try AppDatabase.makeTransient()
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "LexiAudioCache-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let orphan = directory.appending(path: "orphan.mp3")
+        try Data([0x01]).write(to: orphan)
+
+        let removedFiles = try await database.pruneAudioCache(maxBytes: AudioCachePolicy.maxBytes, cacheDirectory: directory)
+        AudioCacheLocation.removeFiles(at: removedFiles, cacheDirectory: directory)
+
+        XCTAssertEqual(removedFiles, [orphan])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+    }
+
     func testDeletingBookCascadesAudioCacheRowsAfterFileURLLookup() async throws {
         let database = try AppDatabase.makeTransient()
         let date = Date(lexiTimestamp: 1_800_000_000)
