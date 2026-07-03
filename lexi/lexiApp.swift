@@ -34,7 +34,7 @@ final class LexiAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        if UserDefaults.standard.string(forKey: "general.onClose") == "quit" {
+        if UserDefaults.standard.string(forKey: LexiDefaultsKey.generalOnClose) == "quit" {
             return true
         }
         sender.setActivationPolicy(.accessory)
