@@ -79,11 +79,28 @@ extension VocabEntry {
     }
 
     nonisolated var seenInBookIds: [String] {
-        (try? JSONDecoder().decode([String].self, from: Data(seenInBooks.utf8))) ?? []
+        VocabEntryBookIndex.decode(seenInBooks)
     }
 
     nonisolated var isGlobalSource: Bool {
         seenGlobally
+    }
+}
+
+nonisolated enum VocabEntryBookIndex {
+    static func decode(_ seenInBooks: String) -> [String] {
+        (try? JSONDecoder().decode([String].self, from: Data(seenInBooks.utf8))) ?? []
+    }
+
+    static func makeBookIdsByEntryId(_ entries: [VocabEntry]) -> [Int64: [String]] {
+        var result: [Int64: [String]] = [:]
+        for entry in entries {
+            guard let id = entry.id else {
+                continue
+            }
+            result[id] = decode(entry.seenInBooks)
+        }
+        return result
     }
 }
 

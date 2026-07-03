@@ -1,4 +1,47 @@
+import Foundation
 import SwiftUI
+
+enum CoverImageCache {
+    private static let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 200
+        return cache
+    }()
+
+    static func image(for book: ReaderBook) -> NSImage? {
+        guard let coverData = book.coverData else {
+            return nil
+        }
+
+        let key = cacheKey(bookID: book.id, coverData: coverData) as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached
+        }
+
+        guard let image = NSImage(data: coverData) else {
+            return nil
+        }
+        cache.setObject(image, forKey: key)
+        return image
+    }
+
+    static func cacheKey(bookID: String, coverData: Data) -> String {
+        let fingerprint = String(format: "%016llx", coverFingerprint(coverData))
+        return "\(bookID):\(coverData.count):\(fingerprint)"
+    }
+
+    private static func coverFingerprint(_ data: Data) -> UInt64 {
+        data.reduce(UInt64(14_695_981_039_346_656_037)) { hash, byte in
+            (hash ^ UInt64(byte)) &* 1_099_511_628_211
+        }
+    }
+
+    #if DEBUG
+    static func removeAll() {
+        cache.removeAllObjects()
+    }
+    #endif
+}
 
 struct BookCover: View {
     let book: ReaderBook
@@ -25,10 +68,7 @@ struct BookCover: View {
     }
 
     private var nsImage: NSImage? {
-        guard let coverData = book.coverData else {
-            return nil
-        }
-        return NSImage(data: coverData)
+        CoverImageCache.image(for: book)
     }
 
     private var fallbackCover: some View {

@@ -149,7 +149,7 @@ extension AppDatabase {
             let entries = try Row.fetchAll(db, sql: "SELECT * FROM vocab ORDER BY updatedAt DESC, id DESC")
                 .map(VocabEntry.init(row:))
             if let bookId {
-                return entries.filter { $0.seenInBookIds.contains(bookId) }
+                return entries.filter { VocabEntryBookIndex.decode($0.seenInBooks).contains(bookId) }
             }
 
             return entries.filter(\.seenGlobally)
