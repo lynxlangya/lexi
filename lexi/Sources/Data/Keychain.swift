@@ -137,6 +137,7 @@ nonisolated struct GenericKeychainStore: Sendable {
 
     private func check(_ status: OSStatus) throws {
         guard status == errSecSuccess else {
+            LexiLog.dbError("Keychain operation failed status=\(status)")
             throw KeychainError(status: status)
         }
     }

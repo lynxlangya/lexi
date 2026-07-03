@@ -43,12 +43,14 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         do {
             let (data, response) = try await client.data(for: request)
             guard response.isSuccess else {
+                LexiLog.engineError("OpenAI models request failed status=\(response.statusCode)")
                 return .fail(reason: engineErrorReason(from: data))
             }
 
             let models = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
             return models.data.contains { $0.id == model } ? .ok : .keyOkModelUnknown
         } catch {
+            LexiLog.engineError("OpenAI ping failed error=\(String(describing: type(of: error)))")
             return .fail(reason: error.localizedDescription)
         }
     }
@@ -57,6 +59,7 @@ nonisolated struct OpenAIEngine: TranslationEngine {
         let request = try makeLookupRequest(task: task, model: model, strict: true)
         let (data, response) = try await client.data(for: request)
         guard response.isSuccess else {
+            LexiLog.engineError("OpenAI lookup request failed status=\(response.statusCode)")
             throw EngineError.httpStatus(response.statusCode, engineErrorReason(from: data))
         }
 
@@ -77,6 +80,7 @@ nonisolated struct OpenAIEngine: TranslationEngine {
             let request = try makeTranslateRequest(task: task, model: model)
             let (stream, response) = try await client.bytes(for: request)
             guard response.isSuccess else {
+                LexiLog.engineError("OpenAI translation stream failed status=\(response.statusCode)")
                 throw EngineError.httpStatus(response.statusCode, HTTPURLResponse.localizedString(forStatusCode: response.statusCode))
             }
 
@@ -110,8 +114,10 @@ nonisolated struct OpenAIEngine: TranslationEngine {
                 finishReasons: finishReasons
             )
         } catch let error as EngineError {
+            LexiLog.engineError("OpenAI stream task failed error=\(String(describing: type(of: error)))")
             throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
         } catch {
+            LexiLog.engineError("OpenAI stream task failed error=\(String(describing: type(of: error)))")
             throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
         }
     }

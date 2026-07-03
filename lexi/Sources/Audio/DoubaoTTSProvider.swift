@@ -24,6 +24,7 @@ nonisolated struct DoubaoTTSProvider: TTSProvider {
                     let urlRequest = try makeRequest(request)
                     let (stream, response) = try await client.bytes(for: urlRequest)
                     guard response.isSuccess else {
+                        LexiLog.ttsError("Doubao TTS stream failed status=\(response.statusCode)")
                         throw TTSProviderError.httpStatus(
                             response.statusCode,
                             HTTPURLResponse.localizedString(forStatusCode: response.statusCode)
@@ -41,6 +42,7 @@ nonisolated struct DoubaoTTSProvider: TTSProvider {
                     }
                     continuation.finish()
                 } catch {
+                    LexiLog.ttsError("Doubao TTS stream failed error=\(String(describing: type(of: error)))")
                     continuation.finish(throwing: error)
                 }
             }
