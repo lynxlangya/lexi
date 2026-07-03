@@ -979,14 +979,6 @@ struct SettingsSheet: View {
     private func test(_ engine: EngineID) {
         guard let key = apiKeys[engine], !key.isEmpty else {
             statuses[engine] = .unset
-            do {
-                try SettingsKeychainPersistence.live.deleteEngineAPIKey(engine)
-                loadedAPIKeys[engine] = ""
-            } catch {
-                statuses[engine] = .fail
-                toast("\(engine.displayName) API Key 删除失败，请重试")
-                return
-            }
             toast("请先填写 \(engine.displayName) API Key")
             return
         }
@@ -1033,14 +1025,6 @@ struct SettingsSheet: View {
         let key = ttsAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
             ttsStatus = .unset
-            do {
-                try SettingsKeychainPersistence.live.deleteTTSAPIKey(providerID)
-                loadedTTSAPIKey = ""
-            } catch {
-                ttsStatus = .fail
-                toast("\(providerID.displayName) API Key 删除失败，请重试")
-                return
-            }
             toast("请先填写 \(providerID.displayName) API Key")
             return
         }
