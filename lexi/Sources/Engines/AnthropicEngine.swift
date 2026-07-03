@@ -1,6 +1,9 @@
 import Foundation
 
 nonisolated struct AnthropicEngine: TranslationEngine {
+    private static let minimumMaxTokens = 2_048
+    private static let maximumMaxTokens = 8_192
+
     let apiKey: String
     let baseURL: URL
     let client: EngineHTTPClient
@@ -79,8 +82,34 @@ nonisolated struct AnthropicEngine: TranslationEngine {
         model: String,
         continuation: AsyncThrowingStream<TranslationChunk, Error>.Continuation
     ) async throws {
+        var maxTokens = Self.estimatedMaxTokens(for: task)
+        var didRetryAfterTokenLimit = false
+
+        while true {
+            do {
+                let chunks = try await streamTaskChunks(task, model: model, maxTokens: maxTokens)
+                for text in chunks {
+                    continuation.yield(TranslationChunk(index: index, text: text))
+                }
+                return
+            } catch EngineError.truncatedByTokenLimit where !didRetryAfterTokenLimit && maxTokens < Self.maximumMaxTokens {
+                didRetryAfterTokenLimit = true
+                maxTokens = min(Self.maximumMaxTokens, maxTokens * 2)
+            } catch let error as EngineError {
+                throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
+            } catch {
+                throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
+            }
+        }
+    }
+
+    private func streamTaskChunks(
+        _ task: TranslationTask,
+        model: String,
+        maxTokens: Int
+    ) async throws -> [String] {
         do {
-            let request = try makeMessageRequest(task: task, model: model, stream: true)
+            let request = try makeMessageRequest(task: task, model: model, stream: true, maxTokens: maxTokens)
             let (stream, response) = try await client.bytes(for: request)
             guard response.isSuccess else {
                 throw EngineError.httpStatus(response.statusCode, HTTPURLResponse.localizedString(forStatusCode: response.statusCode))
@@ -89,13 +118,14 @@ nonisolated struct AnthropicEngine: TranslationEngine {
             var parser = SSEParser()
             var sawMessageStop = false
             var stopReason: String?
+            var chunks: [String] = []
             for try await data in stream {
                 for payload in parser.feed(data) {
                     let event = try SSEParser.anthropicEvent(from: payload)
                     sawMessageStop = sawMessageStop || event.isMessageStop
                     stopReason = event.stopReason ?? stopReason
                     if let text = event.text {
-                        continuation.yield(TranslationChunk(index: index, text: text))
+                        chunks.append(text)
                     }
                 }
             }
@@ -105,15 +135,16 @@ nonisolated struct AnthropicEngine: TranslationEngine {
                 sawMessageStop = sawMessageStop || event.isMessageStop
                 stopReason = event.stopReason ?? stopReason
                 if let text = event.text {
-                    continuation.yield(TranslationChunk(index: index, text: text))
+                    chunks.append(text)
                 }
             }
 
             try validateAnthropicStreamCompletion(sawMessageStop: sawMessageStop, stopReason: stopReason)
+            return chunks
         } catch let error as EngineError {
-            throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
+            throw error
         } catch {
-            throw EngineError.taskFailed(index: index, reason: error.localizedDescription)
+            throw error
         }
     }
 
@@ -129,6 +160,8 @@ nonisolated struct AnthropicEngine: TranslationEngine {
         switch stopReason {
         case "end_turn", "stop_sequence":
             return
+        case "max_tokens":
+            throw EngineError.truncatedByTokenLimit
         default:
             throw EngineError.invalidResponseWithReason("Translation stream stopped with stop_reason=\(stopReason).")
         }
@@ -157,6 +190,10 @@ nonisolated struct AnthropicEngine: TranslationEngine {
         return request
     }
 
+    private static func estimatedMaxTokens(for task: TranslationTask) -> Int {
+        min(maximumMaxTokens, max(minimumMaxTokens, task.sourceTextForTokenBudget.utf8.count * 3))
+    }
+
     func makeLookupRequest(task: TranslationTask, model: String) throws -> URLRequest {
         var request = URLRequest(url: baseURL.appending(path: "v1/messages"))
         request.httpMethod = "POST"
@@ -180,6 +217,21 @@ nonisolated struct AnthropicEngine: TranslationEngine {
     private func anthropicMessages(for task: TranslationTask) -> [AnthropicMessageRequest.Message] {
         Prompts.conversationMessages(for: task).map {
             .init(role: $0.role, content: $0.content)
+        }
+    }
+}
+
+private extension TranslationTask {
+    nonisolated var sourceTextForTokenBudget: String {
+        switch self {
+        case .paragraph(let text, _), .sentence(let text, _):
+            return text
+        case .wordLookup(let word, _):
+            return word
+        case .phraseLookup(let phrase, _):
+            return phrase
+        case .narrationProfile:
+            return ""
         }
     }
 }

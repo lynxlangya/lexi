@@ -159,6 +159,59 @@ final class EngineTests: XCTestCase {
         XCTAssertTrue((messages[2]["content"] as? String)?.contains("Current paragraph.") == true)
     }
 
+    func testAnthropicMaxTokensScalesWithSourceLength() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([
+                #"data: {"type":"content_block_delta","delta":{"text":"长段落译文"}}"#,
+                #"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+                #"data: {"type":"message_stop"}"#,
+            ]), response(status: 200))),
+        ])
+        let engine = AnthropicEngine(apiKey: "key", client: client)
+
+        _ = try await collect(engine.translate(
+            [
+                .paragraph(text: String(repeating: "a", count: 3_000), context: ParagraphContext()),
+            ],
+            model: "claude-sonnet-4-6"
+        ))
+
+        let body = try XCTUnwrap(client.requests.first?.httpBody)
+        let payload = try decodedJSONObject(body)
+        XCTAssertEqual(payload["max_tokens"] as? Int, 8_192)
+    }
+
+    func testAnthropicMaxTokenStopRetriesOnceWithExpandedBudget() async throws {
+        let client = MockEngineHTTPClient(streamResponses: [
+            .success((sseStream([
+                #"data: {"type":"content_block_delta","delta":{"text":"半截"}}"#,
+                #"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"}}"#,
+                #"data: {"type":"message_stop"}"#,
+            ]), response(status: 200))),
+            .success((sseStream([
+                #"data: {"type":"content_block_delta","delta":{"text":"完整译文。"}}"#,
+                #"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+                #"data: {"type":"message_stop"}"#,
+            ]), response(status: 200))),
+        ])
+        let engine = AnthropicEngine(apiKey: "key", client: client)
+
+        let chunks = try await collect(engine.translate(
+            [
+                .paragraph(text: String(repeating: "a", count: 1_000), context: ParagraphContext()),
+            ],
+            model: "claude-sonnet-4-6"
+        ))
+
+        let maxTokens = try client.requests.map { request in
+            let body = try XCTUnwrap(request.httpBody)
+            let payload = try decodedJSONObject(body)
+            return payload["max_tokens"] as? Int
+        }
+        XCTAssertEqual(maxTokens, [3_000, 6_000])
+        XCTAssertEqual(chunks, [TranslationChunk(index: 0, text: "完整译文。")])
+    }
+
     func testParagraphPreviousTextIsTruncatedFromEnd() {
         let previousEN = String(repeating: "a", count: 4_010) + "tail"
         let previousZH = String(repeating: "中", count: 4_010) + "尾巴"
