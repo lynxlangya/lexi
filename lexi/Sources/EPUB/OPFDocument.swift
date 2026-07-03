@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSoup
 
-struct OPFDocument {
+nonisolated struct OPFDocument {
     struct ManifestItem: Equatable {
         var id: String
         var href: String
@@ -84,7 +84,7 @@ struct OPFDocument {
 }
 
 extension String {
-    var nilIfEmpty: String? {
+    nonisolated var nilIfEmpty: String? {
         isEmpty ? nil : self
     }
 }

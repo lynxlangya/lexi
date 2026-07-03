@@ -1,12 +1,12 @@
 import Foundation
 import SwiftSoup
 
-struct EPUBLocation: Equatable {
+nonisolated struct EPUBLocation: Equatable {
     var path: String
     var fragment: String?
 }
 
-struct EPUBTOCEntry: Equatable {
+nonisolated struct EPUBTOCEntry: Equatable {
     enum Source {
         case epub3Nav
         case epub2NCX
@@ -18,7 +18,7 @@ struct EPUBTOCEntry: Equatable {
     var source: Source
 }
 
-enum NavDocument {
+nonisolated enum NavDocument {
     static func chapterEntries(
         opf: OPFDocument,
         baseURL: URL,

@@ -2,22 +2,26 @@ import Foundation
 import SwiftSoup
 import ZIPFoundation
 
-struct EPUBParser {
+nonisolated struct EPUBParser {
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
     private let resourceLimits: EPUBResourceLimits
+    private let executionProbe: @Sendable () -> Void
 
     init(
         fileManager: FileManager = .default,
         resourceLimits: EPUBResourceLimits = .standard,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        executionProbe: @escaping @Sendable () -> Void = {}
     ) {
         self.fileManager = fileManager
         self.resourceLimits = resourceLimits
         self.now = now
+        self.executionProbe = executionProbe
     }
 
-    func parse(_ url: URL) async throws -> (book: Book, chapters: [(Chapter, [Paragraph])]) {
+    @concurrent func parse(_ url: URL) async throws -> (book: Book, chapters: [(Chapter, [Paragraph])]) {
+        executionProbe()
         let workingDirectory = fileManager.temporaryDirectory
             .appending(path: "LexiEPUB-\(UUID().uuidString)", directoryHint: .isDirectory)
         try fileManager.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
@@ -216,7 +220,7 @@ struct EPUBParser {
     }
 }
 
-private struct SpineDocument {
+nonisolated private struct SpineDocument {
     struct ParagraphUnit {
         var position: ChapterPosition
         var text: String
@@ -250,6 +254,10 @@ private struct SpineDocument {
             }
 
             let tag = element.tagName().lowercased()
+            guard tag == "p" || tag.range(of: #"^h[1-6]$"#, options: .regularExpression) != nil else {
+                continue
+            }
+
             let text = try element.text().normalizedWhitespace
             guard !text.isEmpty else {
                 continue
@@ -259,7 +267,7 @@ private struct SpineDocument {
             if tag == "p" {
                 try Self.registerBoundaryIDs(in: element, ordinal: ordinal, idOrdinals: &idOrdinals)
                 paragraphs.append(ParagraphUnit(position: position, text: text))
-            } else if tag.range(of: #"^h[1-6]$"#, options: .regularExpression) != nil {
+            } else {
                 try Self.registerBoundaryIDs(in: element, ordinal: ordinal, idOrdinals: &idOrdinals)
                 headings.append(HeadingUnit(position: position, matchKey: text.chapterTitleMatchKey))
             }
@@ -285,7 +293,7 @@ private struct SpineDocument {
     }
 }
 
-private struct ChapterPosition: Comparable, Hashable {
+nonisolated private struct ChapterPosition: Comparable, Hashable {
     var spineIndex: Int
     var ordinal: Int
 
@@ -297,12 +305,12 @@ private struct ChapterPosition: Comparable, Hashable {
     }
 }
 
-private struct ResolvedChapterBoundary {
+nonisolated private struct ResolvedChapterBoundary {
     var title: String
     var position: ChapterPosition
 }
 
-enum EPUBPath {
+nonisolated enum EPUBPath {
     static func resolve(_ path: String, relativeTo baseURL: URL, root: URL) throws -> URL {
         let resolved = URL(
             fileURLWithPath: path.normalizedEPUBPath,
@@ -316,7 +324,7 @@ enum EPUBPath {
     }
 }
 
-enum EPUBParserError: Error, Equatable, LocalizedError {
+nonisolated enum EPUBParserError: Error, Equatable, LocalizedError {
     case corruptZip
     case missingOPF
     case emptySpine
@@ -339,7 +347,7 @@ enum EPUBParserError: Error, Equatable, LocalizedError {
     }
 }
 
-struct EPUBResourceLimits: Equatable, Sendable {
+nonisolated struct EPUBResourceLimits: Equatable, Sendable {
     var maxEntryCount: Int
     var maxEntryUncompressedBytes: UInt64
     var maxTotalUncompressedBytes: UInt64
@@ -355,7 +363,7 @@ struct EPUBResourceLimits: Equatable, Sendable {
     )
 }
 
-enum EPUBResourceReader {
+nonisolated enum EPUBResourceReader {
     static func data(contentsOf url: URL, maxBytes: UInt64) throws -> Data {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         if let size = attributes[.size] as? NSNumber, size.uint64Value > maxBytes {
@@ -371,20 +379,20 @@ enum EPUBResourceReader {
 }
 
 extension String {
-    var normalizedWhitespace: String {
+    nonisolated var normalizedWhitespace: String {
         components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
 
-    var normalizedEPUBPath: String {
+    nonisolated var normalizedEPUBPath: String {
         removingPercentEncoding?
             .components(separatedBy: "#")[0]
             .replacingOccurrences(of: "\\", with: "/")
             ?? self
     }
 
-    var epubLocation: EPUBLocation {
+    nonisolated var epubLocation: EPUBLocation {
         let normalized = (removingPercentEncoding ?? self)
             .replacingOccurrences(of: "\\", with: "/")
         let parts = normalized.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
@@ -393,14 +401,14 @@ extension String {
         return EPUBLocation(path: path.normalizedEPUBPath, fragment: fragment)
     }
 
-    var chapterTitleMatchKey: String {
+    nonisolated var chapterTitleMatchKey: String {
         lowercased()
             .replacingOccurrences(of: #"[^\p{L}\p{N}]+"#, with: " ", options: .regularExpression)
             .normalizedWhitespace
     }
 }
 
-private func titleMatchVariants(for title: String) -> Set<String> {
+private nonisolated func titleMatchVariants(for title: String) -> Set<String> {
     let pieces = title
         .replacingOccurrences(of: "\u{00a0}", with: " ")
         .components(separatedBy: ":")
@@ -419,7 +427,7 @@ private func titleMatchVariants(for title: String) -> Set<String> {
 }
 
 private extension Array {
-    subscript(safe index: Int) -> Element? {
+    nonisolated subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
     }
 }

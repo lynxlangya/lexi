@@ -3,6 +3,27 @@ import ZIPFoundation
 @testable import lexi
 
 final class EPUBTests: XCTestCase {
+    @MainActor
+    func testParseRunsHeavyWorkOffMainThreadWhenCalledFromMainActor() async throws {
+        XCTAssertTrue(Thread.isMainThread)
+        let fixture = try fixtureURL("gatsby", "epub")
+        let probe = EPUBParseThreadProbe()
+        let parser = EPUBParser(
+            now: { Date(lexiTimestamp: 1_800_000_100) },
+            executionProbe: {
+                probe.record(isMainThread: Thread.isMainThread)
+            }
+        )
+
+        let payload = try await parser.parse(fixture)
+
+        XCTAssertEqual(probe.recordedMainThreadValues, [false])
+        XCTAssertEqual(payload.book.title, "The Great Gatsby")
+        XCTAssertEqual(payload.book.coverData, Data([0x89, 0x50, 0x4E, 0x47]))
+        XCTAssertEqual(payload.chapters.count, 2)
+        XCTAssertEqual(payload.chapters.map { $0.1.count }, [2, 2])
+    }
+
     func testParseAndImportEPUBWithCover() async throws {
         let fixture = try fixtureURL("gatsby", "epub")
         let parser = EPUBParser(now: { Date(lexiTimestamp: 1_800_000_100) })
@@ -371,6 +392,23 @@ final class EPUBTests: XCTestCase {
         }
 
         return archiveURL
+    }
+}
+
+nonisolated private final class EPUBParseThreadProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [Bool] = []
+
+    var recordedMainThreadValues: [Bool] {
+        lock.withLock {
+            values
+        }
+    }
+
+    func record(isMainThread: Bool) {
+        lock.withLock {
+            values.append(isMainThread)
+        }
     }
 }
 
