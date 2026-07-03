@@ -21,6 +21,7 @@ nonisolated struct DeepSeekEngine: TranslationEngine {
         do {
             return try await lookup(task, model: model, extraUserMessages: [])
         } catch let firstError {
+            LexiLog.engineError("DeepSeek lookup first attempt failed error=\(String(describing: type(of: firstError)))")
             do {
                 return try await lookup(
                     task,
@@ -28,6 +29,7 @@ nonisolated struct DeepSeekEngine: TranslationEngine {
                     extraUserMessages: [Self.lookupRetryInstruction]
                 )
             } catch {
+                LexiLog.engineError("DeepSeek lookup retry failed error=\(String(describing: type(of: error)))")
                 throw EngineError.invalidResponseWithReason(
                     "DeepSeek lookup failed after retry. First error: \(firstError.localizedDescription). Retry error: \(error.localizedDescription)"
                 )
@@ -52,6 +54,7 @@ nonisolated struct DeepSeekEngine: TranslationEngine {
         )
         let (data, response) = try await openAICompatible.client.data(for: request)
         guard response.isSuccess else {
+            LexiLog.engineError("DeepSeek lookup request failed status=\(response.statusCode)")
             throw EngineError.httpStatus(response.statusCode, engineErrorReason(from: data))
         }
 
