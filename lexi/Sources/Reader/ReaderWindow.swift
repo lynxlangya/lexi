@@ -457,7 +457,7 @@ private struct ReaderWindowContent: View {
         }
 
         do {
-            let sharedDatabase = try AppDatabase.makeShared()
+            let sharedDatabase = try AppDatabase.sharedInstance()
             database = sharedDatabase
             try await reloadShelf(from: sharedDatabase)
 
