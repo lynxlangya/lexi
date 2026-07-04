@@ -504,6 +504,7 @@ private struct ReaderWindowContent: View {
             }
             presentPendingVocabIfNeeded()
         } catch {
+            LexiLog.dbError("Initial database load failed error=\(String(describing: type(of: error)))")
             loadError = error.localizedDescription
         }
     }
@@ -596,6 +597,7 @@ private struct ReaderWindowContent: View {
                     }
                     showToast(ReaderImportToast.message(for: outcome, title: payload.book.title))
                 } catch {
+                    LexiLog.epubError("EPUB import failed file=\(url.lastPathComponent) error=\(String(describing: type(of: error)))")
                     showToast("导入失败 · \(error.localizedDescription)")
                 }
             }

@@ -53,11 +53,14 @@ nonisolated struct AnthropicEngine: TranslationEngine {
             }
 
             if response.statusCode == 400 || response.statusCode == 404 {
+                LexiLog.engineError("Anthropic ping model check failed status=\(response.statusCode)")
                 return .keyOkModelUnknown
             }
 
+            LexiLog.engineError("Anthropic ping failed status=\(response.statusCode)")
             return .fail(reason: engineErrorReason(from: data))
         } catch {
+            LexiLog.engineError("Anthropic ping failed error=\(String(describing: type(of: error)))")
             return .fail(reason: error.localizedDescription)
         }
     }
@@ -66,6 +69,7 @@ nonisolated struct AnthropicEngine: TranslationEngine {
         let request = try makeLookupRequest(task: task, model: model)
         let (data, response) = try await client.data(for: request)
         guard response.isSuccess else {
+            LexiLog.engineError("Anthropic lookup request failed status=\(response.statusCode)")
             throw EngineError.httpStatus(response.statusCode, engineErrorReason(from: data))
         }
 
@@ -112,6 +116,7 @@ nonisolated struct AnthropicEngine: TranslationEngine {
             let request = try makeMessageRequest(task: task, model: model, stream: true, maxTokens: maxTokens)
             let (stream, response) = try await client.bytes(for: request)
             guard response.isSuccess else {
+                LexiLog.engineError("Anthropic translation stream failed status=\(response.statusCode)")
                 throw EngineError.httpStatus(response.statusCode, HTTPURLResponse.localizedString(forStatusCode: response.statusCode))
             }
 
@@ -142,8 +147,10 @@ nonisolated struct AnthropicEngine: TranslationEngine {
             try validateAnthropicStreamCompletion(sawMessageStop: sawMessageStop, stopReason: stopReason)
             return chunks
         } catch let error as EngineError {
+            LexiLog.engineError("Anthropic stream task failed error=\(String(describing: type(of: error)))")
             throw error
         } catch {
+            LexiLog.engineError("Anthropic stream task failed error=\(String(describing: type(of: error)))")
             throw error
         }
     }

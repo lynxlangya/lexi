@@ -245,7 +245,9 @@ final class LexiMenuBarCoordinator: ObservableObject {
     }
 
     private var readerWindow: NSWindow? {
-        NSApp.windows.first(where: { $0.title == "Lexi" || $0.title == "书架" || $0.title.contains(" · Chapter ") })
+        NSApp.windows.first { window in
+            window.identifier?.rawValue.hasPrefix("reader") == true
+        }
     }
 
     private func openReaderWindow() {

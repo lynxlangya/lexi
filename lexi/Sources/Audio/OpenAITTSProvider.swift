@@ -24,6 +24,7 @@ nonisolated struct OpenAITTSProvider: TTSProvider {
                     let request = try makeRequest(speech)
                     let (stream, response) = try await client.bytes(for: request)
                     guard response.isSuccess else {
+                        LexiLog.ttsError("OpenAI TTS stream failed status=\(response.statusCode)")
                         throw TTSProviderError.httpStatus(
                             response.statusCode,
                             HTTPURLResponse.localizedString(forStatusCode: response.statusCode)
@@ -37,6 +38,7 @@ nonisolated struct OpenAITTSProvider: TTSProvider {
                     continuation.yield(TTSAudioChunk(data: Data(), isFinal: true))
                     continuation.finish()
                 } catch {
+                    LexiLog.ttsError("OpenAI TTS stream failed error=\(String(describing: type(of: error)))")
                     continuation.finish(throwing: error)
                 }
             }
