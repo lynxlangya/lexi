@@ -2,6 +2,8 @@ import Foundation
 import SwiftSoup
 import ZIPFoundation
 
+private nonisolated let epubExtractionBufferSize = 64 * 1_024
+
 nonisolated struct EPUBParser {
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
@@ -178,7 +180,8 @@ nonisolated struct EPUBParser {
         do {
             let archive = try Archive(url: url, accessMode: .read)
             var entryCount = 0
-            var totalUncompressedBytes: UInt64 = 0
+            var declaredTotalUncompressedBytes: UInt64 = 0
+            var actualTotalUncompressedBytes: UInt64 = 0
             for entry in archive {
                 entryCount += 1
                 guard entryCount <= resourceLimits.maxEntryCount else {
@@ -193,21 +196,66 @@ nonisolated struct EPUBParser {
                 guard entry.uncompressedSize <= resourceLimits.maxTotalUncompressedBytes else {
                     throw EPUBParserError.resourceLimitExceeded
                 }
-                guard totalUncompressedBytes <= resourceLimits.maxTotalUncompressedBytes - entry.uncompressedSize else {
+                guard declaredTotalUncompressedBytes <= resourceLimits.maxTotalUncompressedBytes - entry.uncompressedSize else {
                     throw EPUBParserError.resourceLimitExceeded
                 }
-                totalUncompressedBytes += entry.uncompressedSize
+                declaredTotalUncompressedBytes += entry.uncompressedSize
 
                 let destination = directory.appendingPathComponent(entry.path)
                 guard destination.standardizedFileURL.path.hasPrefix(directory.standardizedFileURL.path + "/") else {
                     throw EPUBParserError.corruptZip
                 }
-                _ = try archive.extract(entry, to: destination)
+                if entry.type == .directory {
+                    try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+                } else {
+                    try extractFileEntry(
+                        entry,
+                        from: archive,
+                        to: destination,
+                        totalUncompressedBytes: &actualTotalUncompressedBytes
+                    )
+                }
             }
         } catch let error as EPUBParserError {
             throw error
         } catch {
             throw EPUBParserError.corruptZip
+        }
+    }
+
+    private func extractFileEntry(
+        _ entry: Entry,
+        from archive: Archive,
+        to destination: URL,
+        totalUncompressedBytes: inout UInt64
+    ) throws {
+        guard !fileManager.fileExists(atPath: destination.path) else {
+            throw EPUBParserError.corruptZip
+        }
+        try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        guard fileManager.createFile(atPath: destination.path, contents: nil) else {
+            throw EPUBParserError.corruptZip
+        }
+
+        let handle = try FileHandle(forWritingTo: destination)
+        defer {
+            try? handle.close()
+        }
+
+        var entryUncompressedBytes: UInt64 = 0
+        do {
+            _ = try archive.extract(entry, bufferSize: epubExtractionBufferSize) { data in
+                entryUncompressedBytes += UInt64(data.count)
+                totalUncompressedBytes += UInt64(data.count)
+                guard entryUncompressedBytes <= resourceLimits.maxEntryUncompressedBytes,
+                      totalUncompressedBytes <= resourceLimits.maxTotalUncompressedBytes else {
+                    throw EPUBParserError.resourceLimitExceeded
+                }
+                try handle.write(contentsOf: data)
+            }
+        } catch {
+            try? fileManager.removeItem(at: destination)
+            throw error
         }
     }
 

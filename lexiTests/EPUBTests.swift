@@ -192,6 +192,40 @@ final class EPUBTests: XCTestCase {
         }
     }
 
+    func testArchiveActualUncompressedBytesLimitStopsLyingEntry() async throws {
+        let payloadPath = "OPS/huge.bin"
+        let fixture = try makeArchive(
+            entries: [
+                payloadPath: Data(repeating: 0x41, count: 4 * 1_024),
+            ],
+            compressionMethod: .deflate
+        )
+        defer {
+            try? FileManager.default.removeItem(at: fixture.deletingLastPathComponent())
+        }
+        try patchCentralDirectoryUncompressedSize(in: fixture, entryPath: payloadPath, uncompressedSize: 1)
+        let workingDirectoriesBefore = try lexiEPUBWorkingDirectories()
+        let fileManager = PartialExtractionTrackingFileManager()
+        let parser = EPUBParser(
+            fileManager: fileManager,
+            resourceLimits: EPUBResourceLimits(
+                maxEntryCount: 10,
+                maxEntryUncompressedBytes: 1_024,
+                maxTotalUncompressedBytes: 2_048,
+                maxDocumentBytes: EPUBResourceLimits.standard.maxDocumentBytes,
+                maxCoverBytes: EPUBResourceLimits.standard.maxCoverBytes
+            )
+        )
+
+        await XCTAssertThrowsErrorAsync(try await parser.parse(fixture)) { error in
+            XCTAssertEqual(error as? EPUBParserError, .resourceLimitExceeded)
+        }
+
+        let workingDirectoriesAfter = try lexiEPUBWorkingDirectories()
+        XCTAssertEqual(workingDirectoriesAfter, workingDirectoriesBefore)
+        XCTAssertLessThanOrEqual(fileManager.maxRemovedFileBytes, 1_024 + 64 * 1_024)
+    }
+
     private func makeEPUBFixture(hasCover: Bool) throws -> URL {
         var opfBody = """
         <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -362,7 +396,7 @@ final class EPUBTests: XCTestCase {
         ]
     }
 
-    private func makeArchive(entries: [String: Any]) throws -> URL {
+    private func makeArchive(entries: [String: Any], compressionMethod: CompressionMethod = .none) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "LexiEPUBTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -384,7 +418,7 @@ final class EPUBTests: XCTestCase {
                 with: path,
                 type: .file,
                 uncompressedSize: Int64(data.count),
-                compressionMethod: .none,
+                compressionMethod: compressionMethod,
                 provider: { position, size in
                     data.subdata(in: Int(position)..<min(Int(position) + size, data.count))
                 }
@@ -392,6 +426,106 @@ final class EPUBTests: XCTestCase {
         }
 
         return archiveURL
+    }
+
+    private func patchCentralDirectoryUncompressedSize(
+        in archiveURL: URL,
+        entryPath: String,
+        uncompressedSize: UInt32
+    ) throws {
+        var bytes = [UInt8](try Data(contentsOf: archiveURL))
+        var offset = 0
+        while offset + 46 <= bytes.count {
+            guard bytes[offset] == 0x50,
+                  bytes[offset + 1] == 0x4B,
+                  bytes[offset + 2] == 0x01,
+                  bytes[offset + 3] == 0x02 else {
+                offset += 1
+                continue
+            }
+
+            let nameLength = Int(littleEndianUInt16(bytes, at: offset + 28))
+            let extraLength = Int(littleEndianUInt16(bytes, at: offset + 30))
+            let commentLength = Int(littleEndianUInt16(bytes, at: offset + 32))
+            let nameStart = offset + 46
+            let nameEnd = nameStart + nameLength
+            guard nameEnd <= bytes.count else {
+                break
+            }
+
+            let name = String(decoding: bytes[nameStart..<nameEnd], as: UTF8.self)
+            if name == entryPath {
+                writeLittleEndianUInt32(uncompressedSize, to: &bytes, at: offset + 24)
+                try Data(bytes).write(to: archiveURL)
+                return
+            }
+
+            offset = nameEnd + extraLength + commentLength
+        }
+
+        XCTFail("Missing central directory entry for \(entryPath)")
+    }
+
+    private func lexiEPUBWorkingDirectories() throws -> Set<String> {
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+        return Set(
+            try FileManager.default.contentsOfDirectory(atPath: temporaryDirectory.path)
+                .filter { $0.hasPrefix("LexiEPUB-") }
+        )
+    }
+}
+
+private func littleEndianUInt16(_ bytes: [UInt8], at offset: Int) -> UInt16 {
+    UInt16(bytes[offset]) | (UInt16(bytes[offset + 1]) << 8)
+}
+
+private func writeLittleEndianUInt32(_ value: UInt32, to bytes: inout [UInt8], at offset: Int) {
+    bytes[offset] = UInt8(value & 0xFF)
+    bytes[offset + 1] = UInt8((value >> 8) & 0xFF)
+    bytes[offset + 2] = UInt8((value >> 16) & 0xFF)
+    bytes[offset + 3] = UInt8((value >> 24) & 0xFF)
+}
+
+private final class PartialExtractionTrackingFileManager: FileManager {
+    private(set) var maxRemovedFileBytes: UInt64 = 0
+
+    override func removeItem(at url: URL) throws {
+        recordFileBytes(at: url)
+        try super.removeItem(at: url)
+    }
+
+    private func recordFileBytes(at url: URL) {
+        var isDirectory: ObjCBool = false
+        guard fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+            return
+        }
+        if isDirectory.boolValue {
+            recordDirectoryFileBytes(at: url)
+        } else {
+            recordSingleFileBytes(at: url)
+        }
+    }
+
+    private func recordDirectoryFileBytes(at directory: URL) {
+        guard let enumerator = enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else {
+            return
+        }
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  values.isRegularFile == true,
+                  let fileSize = values.fileSize else {
+                continue
+            }
+            maxRemovedFileBytes = max(maxRemovedFileBytes, UInt64(fileSize))
+        }
+    }
+
+    private func recordSingleFileBytes(at url: URL) {
+        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+              let fileSize = values.fileSize else {
+            return
+        }
+        maxRemovedFileBytes = max(maxRemovedFileBytes, UInt64(fileSize))
     }
 }
 
