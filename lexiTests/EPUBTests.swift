@@ -40,7 +40,7 @@ final class EPUBTests: XCTestCase {
         XCTAssertEqual(payload.chapters[1].1.last?.en, "So we beat on, boats against the current, borne back ceaselessly into the past.")
 
         let database = try AppDatabase.makeTransient()
-        try await database.importBook(payload)
+        _ = try await database.importBook(payload)
 
         let bookCount = try await database.bookCount()
         let chapterCount = try await database.chapterCount()

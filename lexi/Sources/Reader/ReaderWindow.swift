@@ -20,6 +20,19 @@ private enum ReaderSurface {
     case reader
 }
 
+enum ReaderImportToast {
+    static func message(for outcome: ImportOutcome, title: String) -> String {
+        switch outcome {
+        case .inserted:
+            return "已加入书架 · \(title)"
+        case .contentReplaced:
+            return "已更新内容 · 原译文缓存已失效"
+        case .unchanged:
+            return "内容无变化 · \(title)"
+        }
+    }
+}
+
 private struct ReaderWindowContent: View {
     @ObservedObject var coordinator: LexiMenuBarCoordinator
     @Environment(\.scenePhase) private var scenePhase
@@ -570,14 +583,31 @@ private struct ReaderWindowContent: View {
             for url in urls {
                 do {
                     let payload = try await parser.parse(url)
-                    try await database.importBook(payload)
+                    let outcome = try await database.importBook(payload)
                     try await reloadShelf(from: database)
-                    showToast("已加入书架 · \(payload.book.title)")
+                    if outcome == .contentReplaced, payload.book.id == book?.id {
+                        closeReimportedCurrentBook()
+                    }
+                    showToast(ReaderImportToast.message(for: outcome, title: payload.book.title))
                 } catch {
                     showToast("导入失败 · \(error.localizedDescription)")
                 }
             }
         }
+    }
+
+    private func closeReimportedCurrentBook() {
+        scrollWriteTask?.cancel()
+        visibleParagraphId = nil
+        pendingScrollParagraphIdx = nil
+        lastKnownScrollParagraphIndex = nil
+        readAloudController?.cancelForReaderTransition()
+        book = nil
+        chapters = []
+        controller = nil
+        readAloudController = nil
+        surface = .shelf
+        coordinator.clearActiveReaderBook()
     }
 
     private func revealInFinder(_ target: ReaderBook) {

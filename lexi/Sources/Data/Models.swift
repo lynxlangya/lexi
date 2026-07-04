@@ -73,6 +73,12 @@ enum VocabUpsertResult: Equatable, Sendable {
     case updated(id: Int64)
 }
 
+enum ImportOutcome: Equatable, Sendable {
+    case inserted
+    case contentReplaced
+    case unchanged
+}
+
 extension VocabEntry {
     nonisolated static func normalized(_ word: String) -> String {
         word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
