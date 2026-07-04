@@ -12,6 +12,7 @@ final class StructuredOutputTests: XCTestCase {
         let result = try await engine.lookup(TranslationTask.wordLookup(word: "observe", context: nil), model: "gpt-5.4-mini")
 
         XCTAssertEqual(result.senses, [LookupSense(pos: .v, zh: "观察")])
+        XCTAssertEqual(result.synonyms, ["watch"])
         let body = try XCTUnwrap(client.requests.first?.httpBody)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         let responseFormat = try XCTUnwrap(object["response_format"] as? [String: Any])
@@ -94,6 +95,14 @@ final class StructuredOutputTests: XCTestCase {
             XCTAssertTrue(reason.contains("Retry error:"))
             XCTAssertEqual(client.requests.count, 2)
         }
+    }
+
+    func testLookupSchemaDescribesSynonymsAsTrueSynonyms() throws {
+        let data = try JSONEncoder().encode(LookupSchema.schema)
+        let schema = try XCTUnwrap(String(data: data, encoding: .utf8))
+
+        XCTAssertTrue(schema.contains("True English synonyms"))
+        XCTAssertTrue(schema.contains("not include inflected forms"))
     }
 }
 

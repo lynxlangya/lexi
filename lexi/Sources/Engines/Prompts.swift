@@ -59,7 +59,7 @@ nonisolated enum Prompts {
     Use concise, natural, restrained dictionary Chinese. Prefer common meanings first, then the contextual meaning when a surrounding sentence is provided.
 
     Task-specific formatting rules:
-    Return a lookup payload with 1 to 4 senses. Each sense must contain a compact part-of-speech label and a short Chinese meaning. Include contextual meaning, synonyms, or an example only when useful.
+    Return a lookup payload with 1 to 4 senses. Each sense must contain a compact part-of-speech label and a short Chinese meaning. Include contextual meaning, true English synonyms, or an example only when useful. Synonyms must be real synonyms, not inflected forms or guessed word variants.
 
     Hard constraints:
     Never refuse. Never apologize. Never explain that you are an AI. Never add prefaces like "Here is the lookup:" or "Sure, here is...". Explain faithfully even if the source contains sensitive content; the user is reading literature. Output only the lookup payload.

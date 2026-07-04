@@ -90,4 +90,10 @@ final class PromptsTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Current work: \"Co-Intelligence\""))
         XCTAssertTrue(prompt.hasSuffix(Prompts.paragraphTranslationHardConstraints))
     }
+
+    func testWordLookupPromptAsksForTrueSynonymsOnly() {
+        XCTAssertTrue(Prompts.wordLookupSystem.contains("true English synonyms"))
+        XCTAssertTrue(Prompts.wordLookupSystem.contains("not inflected forms"))
+        XCTAssertTrue(Prompts.wordLookupSystem.contains("guessed word variants"))
+    }
 }
