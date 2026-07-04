@@ -282,6 +282,41 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(try SSEParser.openAIText(from: payloads[0]), "你好")
     }
 
+    func testOpenAIEventSummaryCombinesTextFinishReasonAndDoneMarker() throws {
+        let payload = #"{"choices":[{"delta":{"content":"你好"},"finish_reason":"stop"}]}"#
+        let event = try SSEParser.openAIEvent(from: payload)
+
+        XCTAssertEqual(event.text, "你好")
+        XCTAssertEqual(event.finishReasons, ["stop"])
+        XCTAssertTrue(event.isTerminal)
+
+        let done = try SSEParser.openAIEvent(from: "[DONE]")
+        XCTAssertNil(done.text)
+        XCTAssertEqual(done.finishReasons, [])
+        XCTAssertTrue(done.isTerminal)
+    }
+
+    func testAnthropicEventSummaryCombinesTextStopReasonAndMessageStop() throws {
+        let content = try SSEParser.anthropicEvent(
+            from: #"{"type":"content_block_delta","delta":{"text":"甲"}}"#
+        )
+        XCTAssertEqual(content.text, "甲")
+        XCTAssertNil(content.stopReason)
+        XCTAssertFalse(content.isMessageStop)
+
+        let stopReason = try SSEParser.anthropicEvent(
+            from: #"{"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#
+        )
+        XCTAssertNil(stopReason.text)
+        XCTAssertEqual(stopReason.stopReason, "end_turn")
+        XCTAssertFalse(stopReason.isMessageStop)
+
+        let messageStop = try SSEParser.anthropicEvent(from: #"{"type":"message_stop"}"#)
+        XCTAssertNil(messageStop.text)
+        XCTAssertNil(messageStop.stopReason)
+        XCTAssertTrue(messageStop.isMessageStop)
+    }
+
     func testEngineRegistryBuildsConfiguredEngineFromKeychainProvider() throws {
         let registry = EngineRegistry(
             client: MockEngineHTTPClient(),

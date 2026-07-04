@@ -91,20 +91,20 @@ nonisolated struct AnthropicEngine: TranslationEngine {
             var stopReason: String?
             for try await data in stream {
                 for payload in parser.feed(data) {
-                    let isMessageStop = try SSEParser.isAnthropicMessageStop(from: payload)
-                    sawMessageStop = sawMessageStop || isMessageStop
-                    stopReason = try SSEParser.anthropicStopReason(from: payload) ?? stopReason
-                    if let text = try SSEParser.anthropicText(from: payload) {
+                    let event = try SSEParser.anthropicEvent(from: payload)
+                    sawMessageStop = sawMessageStop || event.isMessageStop
+                    stopReason = event.stopReason ?? stopReason
+                    if let text = event.text {
                         continuation.yield(TranslationChunk(index: index, text: text))
                     }
                 }
             }
 
             for payload in parser.finish() {
-                let isMessageStop = try SSEParser.isAnthropicMessageStop(from: payload)
-                sawMessageStop = sawMessageStop || isMessageStop
-                stopReason = try SSEParser.anthropicStopReason(from: payload) ?? stopReason
-                if let text = try SSEParser.anthropicText(from: payload) {
+                let event = try SSEParser.anthropicEvent(from: payload)
+                sawMessageStop = sawMessageStop || event.isMessageStop
+                stopReason = event.stopReason ?? stopReason
+                if let text = event.text {
                     continuation.yield(TranslationChunk(index: index, text: text))
                 }
             }
