@@ -1,6 +1,6 @@
 import Foundation
 
-enum CoverExtractor {
+nonisolated enum CoverExtractor {
     struct Cover: Equatable {
         var data: Data?
         var fallback: FallbackCover?
