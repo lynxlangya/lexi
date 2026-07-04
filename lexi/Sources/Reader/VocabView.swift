@@ -13,7 +13,9 @@ struct VocabView: View {
     @State private var entries: [VocabEntry] = []
     @State private var bookTitles: [String: String] = [:]
     @State private var search = ""
+    @State private var debouncedSearch = ""
     @State private var selection = Set<Int64>()
+    @State private var bookIdsByEntryID: [Int64: [String]] = [:]
     @State private var bookFilter: VocabBookFilter
     @State private var masteryFilter = VocabMasteryFilter.unmastered
     @State private var todayOnly = false
@@ -79,6 +81,9 @@ struct VocabView: View {
                 .stroke(Color.lexiRule, lineWidth: 1)
         }
         .task(load)
+        .task(id: search) {
+            await debounceSearch(search)
+        }
         .onChange(of: visibleEntryIDs) { _, ids in
             selection.formIntersection(ids)
         }
@@ -218,7 +223,7 @@ struct VocabView: View {
     }
 
     private var filteredEntries: [VocabEntry] {
-        let needle = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let needle = debouncedSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let scoped = entries
             .filter(matchesBookFilter)
             .filter(matchesMasteryFilter)
@@ -262,9 +267,23 @@ struct VocabView: View {
     }
 
     private func load() async {
-        entries = (try? await database?.allVocabEntries()) ?? []
+        let loadedEntries = (try? await database?.allVocabEntries()) ?? []
+        entries = loadedEntries
+        bookIdsByEntryID = VocabEntryBookIndex.makeBookIdsByEntryId(loadedEntries)
         bookTitles = (try? await database?.bookTitlesById()) ?? [:]
         stats = (try? await database?.vocabStats()) ?? VocabStats(total: 0, addedToday: 0, unmastered: 0)
+    }
+
+    private func debounceSearch(_ value: String) async {
+        do {
+            try await Task.sleep(nanoseconds: 150_000_000)
+        } catch {
+            return
+        }
+        guard !Task.isCancelled else {
+            return
+        }
+        debouncedSearch = value
     }
 
     private func source(for entry: VocabEntry) -> String {
@@ -273,7 +292,7 @@ struct VocabView: View {
             parts.append("全局划词")
         }
 
-        let bookNames = entry.seenInBookIds.map { bookTitles[$0] ?? $0 }
+        let bookNames = bookIds(for: entry).map { bookTitles[$0] ?? $0 }
         parts.append(contentsOf: bookNames.prefix(2))
         if bookNames.count > 2 {
             parts.append("+\(bookNames.count - 2)")
@@ -289,8 +308,15 @@ struct VocabView: View {
         case .global:
             return entry.seenGlobally
         case .specific(let bookId):
-            return entry.seenInBookIds.contains(bookId)
+            return bookIds(for: entry).contains(bookId)
         }
+    }
+
+    private func bookIds(for entry: VocabEntry) -> [String] {
+        guard let id = entry.id else {
+            return VocabEntryBookIndex.decode(entry.seenInBooks)
+        }
+        return bookIdsByEntryID[id] ?? []
     }
 
     private func matchesMasteryFilter(_ entry: VocabEntry) -> Bool {
