@@ -1,5 +1,9 @@
 import Foundation
 
+nonisolated enum AudioCachePolicy {
+    static let maxBytes: Int64 = 500 * 1024 * 1024
+}
+
 nonisolated enum AudioCacheLocation {
     static func directory() throws -> URL {
         let support = try FileManager.default.url(
@@ -19,8 +23,12 @@ nonisolated enum AudioCacheLocation {
         try directory().appending(path: "\(cacheKey).\(format)")
     }
 
-    static func removeFiles(at urls: [URL], fileManager: FileManager = .default) {
-        guard let cacheDirectory = try? directory().standardizedFileURL else {
+    static func removeFiles(
+        at urls: [URL],
+        cacheDirectory explicitCacheDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) {
+        guard let cacheDirectory = try? (explicitCacheDirectory ?? directory()).standardizedFileURL else {
             return
         }
         for url in urls {
@@ -31,4 +39,8 @@ nonisolated enum AudioCacheLocation {
             try? fileManager.removeItem(at: url)
         }
     }
+}
+
+extension Notification.Name {
+    static let lexiAudioCacheWillClear = Notification.Name("lexi.audioCacheWillClear")
 }

@@ -277,6 +277,64 @@ final class ReaderReadAloudTests: XCTestCase {
         XCTAssertEqual(controller.progress, .empty)
     }
 
+    @MainActor
+    func testAudioCacheWillClearNotificationStopsActiveReadAloud() async throws {
+        let database = try AppDatabase.makeTransient()
+        let book = ReaderBook(
+            id: "book",
+            title: "Book",
+            author: "Author",
+            fileURL: URL(fileURLWithPath: "/tmp/book.epub"),
+            addedAt: Date(lexiTimestamp: 1_800_000_000),
+            lastReadAt: nil,
+            progress: 0,
+            coverData: nil,
+            coverBg: nil,
+            coverInk: nil
+        )
+        let chapter = makeChapter(paragraphTexts: ["One."])
+        let playerFactory = ReadAloudFakePlayerFactory()
+        let controller = ReaderReadAloudController(
+            database: database,
+            registry: TTSRegistry(client: ReadAloudFailIfCalledHTTPClient(), apiKeyProvider: { _ in "key" }),
+            engineRegistry: EngineRegistry(client: ReadAloudFailIfCalledHTTPClient(), apiKeyProvider: { _ in nil }),
+            profileResolver: ReadAloudStaticProfileResolver(),
+            audioResolver: ReadAloudStaticAudioResolver(),
+            playerFactory: { url in playerFactory.makePlayer(url: url) },
+            systemSpeaker: ReadAloudFakeSystemSpeaker()
+        )
+
+        controller.start(
+            book: book,
+            chapters: [chapter],
+            chapter: chapter,
+            snapshot: ChapterTranslationSnapshot(),
+            visibleParagraphId: nil,
+            language: .source,
+            config: TTSProviderConfig(
+                provider: .doubao,
+                resourceId: "seed-tts-2.0",
+                speaker: "voice",
+                speechRate: 0,
+                format: "mp3",
+                sampleRate: 24_000
+            ),
+            engineConfig: EngineConfig(id: .deepseek, model: "model", lastTestedOK: false, lastTestedAt: nil)
+        )
+
+        await waitUntil("single chunk starts playing") {
+            controller.status.canPause && playerFactory.players.count == 1
+        }
+
+        NotificationCenter.default.post(name: .lexiAudioCacheWillClear, object: nil)
+
+        await waitUntil("read aloud stops before cache clear") {
+            controller.status == .idle
+                && controller.progress == .empty
+                && playerFactory.players.first?.didPause == true
+        }
+    }
+
     func testAudioResolverUsesCacheHitBeforeProviderCall() async throws {
         let database = try AppDatabase.makeTransient()
         let book = Book(

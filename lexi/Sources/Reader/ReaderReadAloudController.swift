@@ -129,6 +129,7 @@ final class ReaderReadAloudController: NSObject {
     private var prefetchTask: Task<Void, Never>?
     private var player: ReaderAudioPlaying?
     private var playerObserver: NSObjectProtocol?
+    private var audioCacheClearObserver: NSObjectProtocol?
     private var currentConfig = TTSProviderConfig.openAIDefault
 
     private(set) var status: ReadAloudPlaybackStatus = .idle
@@ -158,10 +159,22 @@ final class ReaderReadAloudController: NSObject {
         self.systemSpeaker.onFinish = { [weak self] in
             self?.advanceAfterCurrentChunk()
         }
+        audioCacheClearObserver = NotificationCenter.default.addObserver(
+            forName: .lexiAudioCacheWillClear,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.stop()
+            }
+        }
     }
 
     @MainActor deinit {
         stop()
+        if let audioCacheClearObserver {
+            NotificationCenter.default.removeObserver(audioCacheClearObserver)
+        }
     }
 
     var isPlaying: Bool {
@@ -494,6 +507,9 @@ nonisolated struct DefaultReadAloudAudioResolver: ReadAloudAudioResolving {
             createdAt: now,
             lastAccessedAt: now
         ))
+        if let prunedFiles = try? await database.pruneAudioCache(maxBytes: AudioCachePolicy.maxBytes) {
+            AudioCacheLocation.removeFiles(at: prunedFiles)
+        }
         return fileURL
     }
 

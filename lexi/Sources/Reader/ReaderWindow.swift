@@ -473,6 +473,9 @@ private struct ReaderWindowContent: View {
             let sharedDatabase = try AppDatabase.makeShared()
             database = sharedDatabase
             try await reloadShelf(from: sharedDatabase)
+            Task {
+                await pruneAudioCache(from: sharedDatabase)
+            }
 
             switch startupBehavior {
             case "shelf":
@@ -489,6 +492,12 @@ private struct ReaderWindowContent: View {
             presentPendingVocabIfNeeded()
         } catch {
             loadError = error.localizedDescription
+        }
+    }
+
+    private func pruneAudioCache(from database: AppDatabase) async {
+        if let prunedFiles = try? await database.pruneAudioCache(maxBytes: AudioCachePolicy.maxBytes) {
+            AudioCacheLocation.removeFiles(at: prunedFiles)
         }
     }
 
