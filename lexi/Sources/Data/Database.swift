@@ -9,7 +9,15 @@ actor AppDatabase {
         try Self.migrate(pool)
     }
 
-    static func makeShared() throws -> AppDatabase {
+    private static let sharedResult: Result<AppDatabase, Error> = Result {
+        try makeShared()
+    }
+
+    static func sharedInstance() throws -> AppDatabase {
+        try sharedResult.get()
+    }
+
+    private static func makeShared() throws -> AppDatabase {
         let url = try sharedDatabaseURL()
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),

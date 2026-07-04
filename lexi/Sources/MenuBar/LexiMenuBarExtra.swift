@@ -579,7 +579,7 @@ final class LexiMenuBarCoordinator: ObservableObject {
         guard database == nil else {
             return
         }
-        database = try? AppDatabase.makeShared()
+        database = try? AppDatabase.sharedInstance()
     }
 
     private func refreshVocabCount() {
