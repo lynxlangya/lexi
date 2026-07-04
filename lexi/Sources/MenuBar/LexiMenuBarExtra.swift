@@ -319,11 +319,11 @@ final class LexiMenuBarCoordinator: ObservableObject {
                     remember(word: trimmed)
                     show(kind: .word(lookup), near: anchor)
                 } else {
-                    let translated = try await translateTask(.sentence(text: trimmed, context: enrichedContext))
-                    guard isCurrentLookup(generation) else { return }
-                    show(
-                        kind: .sentence(SentenceLookup(text: trimmed, zh: translated, engine: currentEngine.id, model: currentEngine.model)),
-                        near: anchor
+                    try await streamSentenceTask(
+                        .sentence(text: trimmed, context: enrichedContext),
+                        sourceText: trimmed,
+                        generation: generation,
+                        anchor: anchor
                     )
                 }
             } catch is CancellationError {
@@ -337,6 +337,49 @@ final class LexiMenuBarCoordinator: ObservableObject {
 
     private func translateText(_ text: String, sentenceContext: SentenceContext? = nil) async throws -> String {
         try await translateTask(.sentence(text: text, context: sentenceContext))
+    }
+
+    private func streamSentenceTask(
+        _ task: TranslationTask,
+        sourceText: String,
+        generation: UInt64,
+        anchor: CGRect
+    ) async throws {
+        let engine = try EngineRegistry.shared.engine(for: currentEngine)
+        var result = ""
+        var updateGate = PopupStreamingUpdateGate()
+        for try await chunk in engine.translate([task], model: currentEngine.model) {
+            guard isCurrentLookup(generation) else { return }
+            result += chunk.text
+            guard !result.isEmpty, updateGate.shouldEmit() else {
+                continue
+            }
+            show(
+                kind: .sentence(
+                    SentenceLookup(
+                        text: sourceText,
+                        zh: result,
+                        engine: currentEngine.id,
+                        model: currentEngine.model,
+                        isStreaming: true
+                    )
+                ),
+                near: anchor
+            )
+        }
+        guard isCurrentLookup(generation) else { return }
+        show(
+            kind: .sentence(
+                SentenceLookup(
+                    text: sourceText,
+                    zh: result.trimmingCharacters(in: .whitespacesAndNewlines),
+                    engine: currentEngine.id,
+                    model: currentEngine.model,
+                    isStreaming: false
+                )
+            ),
+            near: anchor
+        )
     }
 
     private func translateTask(_ task: TranslationTask) async throws -> String {
@@ -602,6 +645,27 @@ final class LexiMenuBarCoordinator: ObservableObject {
         recentWords.removeAll { $0.caseInsensitiveCompare(word) == .orderedSame }
         recentWords.insert(word, at: 0)
         recentWords = Array(recentWords.prefix(5))
+    }
+}
+
+nonisolated struct PopupStreamingUpdateGate {
+    private let interval: TimeInterval
+    private var lastEmission: Date?
+
+    init(interval: TimeInterval = 0.066) {
+        self.interval = interval
+    }
+
+    mutating func shouldEmit(now: Date = Date()) -> Bool {
+        guard let lastEmission else {
+            self.lastEmission = now
+            return true
+        }
+        guard now.timeIntervalSince(lastEmission) >= interval else {
+            return false
+        }
+        self.lastEmission = now
+        return true
     }
 }
 

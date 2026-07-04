@@ -9,6 +9,7 @@ final class PopupPanel {
     private var localOutsideMonitor: Any?
     private var globalEscMonitor: Any?
     private var localEscMonitor: Any?
+    private var hostingView: NSHostingView<AnyView>?
     private(set) var pinned = false
     var onDismiss: (() -> Void)?
 
@@ -40,17 +41,35 @@ final class PopupPanel {
 
     func show(kind: PopupKind, near anchor: CGRect, actions: PopupActions, pinned: Bool) {
         self.pinned = pinned
-        let view = PopupContent(kind: kind, pinned: pinned, actions: actions)
-            .padding(contentInset)
-        let host = NSHostingView(rootView: view)
+        let view = AnyView(
+            PopupContent(kind: kind, pinned: pinned, actions: actions)
+                .padding(contentInset)
+        )
+        let host: NSHostingView<AnyView>
+        if let existingHost = hostingView {
+            existingHost.rootView = view
+            host = existingHost
+        } else {
+            let newHost = NSHostingView(rootView: view)
+            newHost.wantsLayer = true
+            newHost.layer?.backgroundColor = NSColor.clear.cgColor
+            hostingView = newHost
+            panel.contentView = newHost
+            host = newHost
+        }
+        host.layoutSubtreeIfNeeded()
         let size = host.fittingSize
         host.frame = NSRect(origin: .zero, size: size)
-        host.wantsLayer = true
-        host.layer?.backgroundColor = NSColor.clear.cgColor
 
-        panel.contentView = host
-        panel.setFrame(frame(for: size, anchor: anchor), display: true)
-        panel.orderFrontRegardless()
+        let nextFrame = frame(for: size, anchor: anchor)
+        if !panel.isVisible || shouldUpdateFrame(from: panel.frame, to: nextFrame) {
+            panel.setFrame(nextFrame, display: true)
+        } else {
+            panel.displayIfNeeded()
+        }
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
         installMonitors()
     }
 
@@ -206,6 +225,14 @@ final class PopupPanel {
 
     nonisolated static func shouldCloseForEscape(keyCode: UInt16) -> Bool {
         keyCode == 53
+    }
+
+    private func shouldUpdateFrame(from current: CGRect, to next: CGRect) -> Bool {
+        let threshold: CGFloat = 4
+        return abs(current.minX - next.minX) >= threshold
+            || abs(current.minY - next.minY) >= threshold
+            || abs(current.width - next.width) >= threshold
+            || abs(current.height - next.height) >= threshold
     }
 }
 
