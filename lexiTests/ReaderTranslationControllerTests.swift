@@ -80,6 +80,51 @@ final class ReaderTranslationControllerTests: XCTestCase {
         }
     }
 
+    func testThrottledStreamingFlushesTailOnCompletion() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["streaming"])
+        let client = ControlledReaderEngineHTTPClient()
+        let clock = ManualStreamingClock()
+        let controller = makeController(
+            database: database,
+            client: client,
+            streamClockNow: { clock.now },
+            streamFlushInterval: .milliseconds(66)
+        )
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+        await waitUntil("stream starts") {
+            client.hasStream
+        }
+
+        client.yield(#"data: {"choices":[{"delta":{"content":"one "}}]}"#)
+        await waitUntil("first chunk is visible") {
+            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) == .streaming("one ")
+        }
+
+        client.yield(#"data: {"choices":[{"delta":{"content":"two "}}]}"#)
+        client.yield(#"data: {"choices":[{"delta":{"content":"three"}}]}"#)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(
+            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id),
+            .streaming("one ")
+        )
+
+        client.yield("data: [DONE]")
+        client.finish()
+
+        await waitUntil("final throttled tail is cached") {
+            controller.paragraphState(for: chapter.paragraphs[0], in: chapter.id) == .cached("one two three")
+        }
+        let stored = try await database.cachedTranslation(
+            paragraphId: chapter.paragraphs[0].id,
+            engine: .deepseek,
+            model: "deepseek-chat"
+        )
+        XCTAssertEqual(stored, "one two three")
+    }
+
     func testPartialStreamWithoutCompletionMarkerDoesNotPersistAsCached() async throws {
         let database = try AppDatabase.makeTransient()
         let chapter = try await makeReaderChapter(
@@ -656,11 +701,18 @@ final class ReaderTranslationControllerTests: XCTestCase {
         }
     }
 
-    private func makeController(database: AppDatabase, client: EngineHTTPClient) -> ChapterTranslationController {
+    private func makeController(
+        database: AppDatabase,
+        client: EngineHTTPClient,
+        streamClockNow: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock().now },
+        streamFlushInterval: Duration = .milliseconds(66)
+    ) -> ChapterTranslationController {
         ChapterTranslationController(
             database: database,
             engineConfig: EngineConfig(id: .deepseek, model: "deepseek-chat", lastTestedOK: false, lastTestedAt: nil),
-            registry: EngineRegistry(client: client, apiKeyProvider: { _ in "test-key" })
+            registry: EngineRegistry(client: client, apiKeyProvider: { _ in "test-key" }),
+            streamClockNow: streamClockNow,
+            streamFlushInterval: streamFlushInterval
         )
     }
 
@@ -736,6 +788,10 @@ final class ReaderTranslationControllerTests: XCTestCase {
         }
         XCTFail("Timed out waiting for \(description)")
     }
+}
+
+private struct ManualStreamingClock: Sendable {
+    let now = ContinuousClock().now
 }
 
 private final class ReaderMockEngineHTTPClient: EngineHTTPClient, @unchecked Sendable {
