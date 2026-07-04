@@ -1035,6 +1035,11 @@ struct SettingsSheet: View {
             ? .unset
             : .keyOkModelUnknown
 
+        guard saveAPIKeys(notify: false) else {
+            statuses[engine] = .fail
+            return
+        }
+
         Task {
             await persistUntestedEngineModel(engine, model: model, notify: true)
         }
