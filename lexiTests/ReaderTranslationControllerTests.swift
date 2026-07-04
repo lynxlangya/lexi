@@ -510,6 +510,71 @@ final class ReaderTranslationControllerTests: XCTestCase {
         XCTAssertEqual(client.requestCount, 3)
     }
 
+    func testHTTP429RetryWaitsBeforeSecondAttempt() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["rate limited"])
+        let sleeper = RetrySleepRecorder()
+        let client = ReaderMockEngineHTTPClient(streamResponses: [
+            .success((readerSSEStream([]), readerResponse(status: 429))),
+            .success((readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"rate limited zh"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))),
+        ])
+        let controller = makeController(database: database, client: client) { nanoseconds in
+            await sleeper.record(nanoseconds)
+        }
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+
+        await waitUntil("rate-limited retry completes") {
+            controller.chapterState(for: chapter.id) == .cached
+        }
+
+        XCTAssertEqual(client.requestCount, 2)
+        let recordedSleeps = await sleeper.recordedSleeps()
+        XCTAssertEqual(recordedSleeps, [4_000_000_000])
+    }
+
+    func testMainTranslationRechecksDatabaseBeforeEachParagraphRequest() async throws {
+        let database = try AppDatabase.makeTransient()
+        let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["first", "second"])
+        let client = FirstRequestControlledReaderEngineHTTPClient(fallbackStreamText: "unexpected duplicate")
+        let controller = makeController(database: database, client: client)
+        await controller.prepare(chapters: [chapter])
+
+        controller.selectChapter(chapter, chapters: [chapter], prefetchCount: 0)
+        await waitUntil("first paragraph stream starts") {
+            client.hasControlledStream
+        }
+
+        try await database.upsertTranslation(
+            Translation(
+                id: nil,
+                paragraphId: chapter.paragraphs[1].id,
+                engine: .deepseek,
+                model: "deepseek-chat",
+                zh: "prefetched second zh",
+                createdAt: Date()
+            )
+        )
+
+        client.yieldControlled(#"data: {"choices":[{"delta":{"content":"first zh"}}]}"#)
+        client.yieldControlled("data: [DONE]")
+        client.finishControlled()
+
+        await waitUntil("chapter uses cached second paragraph") {
+            controller.chapterState(for: chapter.id) == .cached
+        }
+
+        XCTAssertEqual(client.requestCount, 1)
+        XCTAssertEqual(
+            controller.paragraphState(for: chapter.paragraphs[1], in: chapter.id),
+            .cached("prefetched second zh")
+        )
+    }
+
     func testEngineSetupFailureMarksMissingParagraphsAsError() async throws {
         let database = try AppDatabase.makeTransient()
         let chapter = try await makeReaderChapter(database: database, paragraphTexts: ["first", "second"])
@@ -705,14 +770,16 @@ final class ReaderTranslationControllerTests: XCTestCase {
         database: AppDatabase,
         client: EngineHTTPClient,
         streamClockNow: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock().now },
-        streamFlushInterval: Duration = .milliseconds(66)
+        streamFlushInterval: Duration = .milliseconds(66),
+        retrySleep: @escaping @Sendable (UInt64) async throws -> Void = { _ in }
     ) -> ChapterTranslationController {
         ChapterTranslationController(
             database: database,
             engineConfig: EngineConfig(id: .deepseek, model: "deepseek-chat", lastTestedOK: false, lastTestedAt: nil),
             registry: EngineRegistry(client: client, apiKeyProvider: { _ in "test-key" }),
             streamClockNow: streamClockNow,
-            streamFlushInterval: streamFlushInterval
+            streamFlushInterval: streamFlushInterval,
+            retrySleep: retrySleep
         )
     }
 
@@ -829,6 +896,81 @@ private final class ReaderMockEngineHTTPClient: EngineHTTPClient, @unchecked Sen
             throw EngineError.invalidResponse
         }
         return try response.get()
+    }
+}
+
+private actor RetrySleepRecorder {
+    private var sleeps: [UInt64] = []
+
+    func record(_ nanoseconds: UInt64) {
+        sleeps.append(nanoseconds)
+    }
+
+    func recordedSleeps() -> [UInt64] {
+        sleeps
+    }
+}
+
+private final class FirstRequestControlledReaderEngineHTTPClient: EngineHTTPClient, @unchecked Sendable {
+    private let lock = NSLock()
+    private var controlledContinuation: AsyncThrowingStream<Data, Error>.Continuation?
+    private var requests: [URLRequest] = []
+    private let fallbackStreamText: String
+
+    init(fallbackStreamText: String) {
+        self.fallbackStreamText = fallbackStreamText
+    }
+
+    var hasControlledStream: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return controlledContinuation != nil
+    }
+
+    var requestCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requests.count
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        throw EngineError.invalidResponse
+    }
+
+    func bytes(for request: URLRequest) async throws -> (AsyncThrowingStream<Data, Error>, HTTPURLResponse) {
+        lock.lock()
+        requests.append(request)
+        let requestCount = requests.count
+        lock.unlock()
+
+        guard requestCount == 1 else {
+            return (readerSSEStream([
+                #"data: {"choices":[{"delta":{"content":"\#(fallbackStreamText)"}}]}"#,
+                "data: [DONE]",
+            ]), readerResponse(status: 200))
+        }
+
+        let stream = AsyncThrowingStream<Data, Error> { continuation in
+            self.lock.lock()
+            self.controlledContinuation = continuation
+            self.lock.unlock()
+        }
+        return (stream, readerResponse(status: 200))
+    }
+
+    func yieldControlled(_ event: String) {
+        lock.lock()
+        let continuation = controlledContinuation
+        lock.unlock()
+        continuation?.yield(Data("\(event)\n\n".utf8))
+    }
+
+    func finishControlled() {
+        lock.lock()
+        let continuation = controlledContinuation
+        controlledContinuation = nil
+        lock.unlock()
+        continuation?.finish()
     }
 }
 

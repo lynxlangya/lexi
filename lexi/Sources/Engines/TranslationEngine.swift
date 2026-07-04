@@ -96,6 +96,7 @@ nonisolated enum EngineError: Error, Equatable, LocalizedError, Sendable {
     case invalidResponseWithReason(String)
     case httpStatus(Int, String)
     case taskFailed(index: Int, reason: String)
+    case truncatedByTokenLimit
 
     var errorDescription: String? {
         switch self {
@@ -109,6 +110,8 @@ nonisolated enum EngineError: Error, Equatable, LocalizedError, Sendable {
             return "HTTP \(status): \(reason)"
         case .taskFailed(let index, let reason):
             return "Task \(index) failed: \(reason)"
+        case .truncatedByTokenLimit:
+            return "Translation stream stopped because the model reached max_tokens."
         }
     }
 }

@@ -3,6 +3,8 @@ import Observation
 
 private let paragraphTranslationMaxAttempts = 2
 private nonisolated let paragraphStreamingFlushInterval: Duration = .milliseconds(66)
+private let defaultParagraphRetryDelayNanoseconds: UInt64 = 1_500_000_000
+private let overloadedParagraphRetryDelayNanoseconds: UInt64 = 4_000_000_000
 
 enum ChapterTranslationState: Equatable, Sendable {
     case idle
@@ -44,6 +46,7 @@ final class ChapterTranslationController {
     private let prefetchWorker: ChapterPrefetchWorker
     private let streamClockNow: @Sendable () -> ContinuousClock.Instant
     private let streamFlushInterval: Duration
+    private let retrySleep: @Sendable (UInt64) async throws -> Void
     private var task: Task<Void, Never>?
     private var paragraphRetryTasks: [Int64: Task<Void, Never>] = [:]
     private var paragraphRetryTokens: [Int64: UUID] = [:]
@@ -57,7 +60,10 @@ final class ChapterTranslationController {
         engineConfig: EngineConfig,
         registry: EngineRegistry = .shared,
         streamClockNow: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock().now },
-        streamFlushInterval: Duration = paragraphStreamingFlushInterval
+        streamFlushInterval: Duration = paragraphStreamingFlushInterval,
+        retrySleep: @escaping @Sendable (UInt64) async throws -> Void = { nanoseconds in
+            try await Task.sleep(nanoseconds: nanoseconds)
+        }
     ) {
         self.database = database
         self.currentEngineConfig = engineConfig
@@ -65,6 +71,7 @@ final class ChapterTranslationController {
         self.prefetchWorker = ChapterPrefetchWorker(database: database, registry: registry)
         self.streamClockNow = streamClockNow
         self.streamFlushInterval = streamFlushInterval
+        self.retrySleep = retrySleep
     }
 
     @MainActor deinit {
@@ -210,6 +217,13 @@ final class ChapterTranslationController {
 
             let engine = try registry.engine(for: config)
             for (missingIndex, paragraph) in missing.enumerated() {
+                if let cachedZH = try await completeCachedTranslation(for: paragraph, database: database, config: config) {
+                    snapshots[chapter.id]?.paragraphStates[paragraph.id] = .cached(cachedZH)
+                    exactCached[paragraph.id] = cachedZH
+                    reconcileChapterState(for: chapter)
+                    continue
+                }
+
                 let task = TranslationTask.paragraph(
                     text: paragraph.en,
                     context: paragraphContext(
@@ -282,8 +296,19 @@ final class ChapterTranslationController {
         model: String
     ) async -> ParagraphTranslationAttemptResult {
         var lastReason = "翻译失败"
+        var retryDelayNanoseconds = defaultParagraphRetryDelayNanoseconds
 
-        for _ in 1...paragraphTranslationMaxAttempts {
+        for attempt in 1...paragraphTranslationMaxAttempts {
+            if attempt > 1 {
+                do {
+                    try await retrySleep(retryDelayNanoseconds)
+                } catch is CancellationError {
+                    return .cancelled
+                } catch {
+                    return .cancelled
+                }
+            }
+
             snapshots[chapter.id]?.paragraphStates[paragraph.id] = .translating
             reconcileChapterState(for: chapter)
 
@@ -301,8 +326,10 @@ final class ChapterTranslationController {
                 return .cancelled
             } catch let error as ParagraphTranslationFailure {
                 lastReason = error.localizedDescription
+                retryDelayNanoseconds = defaultParagraphRetryDelayNanoseconds
             } catch {
                 lastReason = paragraphFailureReason(error)
+                retryDelayNanoseconds = retryDelay(for: error, reason: lastReason)
             }
         }
 
@@ -349,6 +376,37 @@ final class ChapterTranslationController {
         }
 
         return error.localizedDescription
+    }
+
+    private func retryDelay(for error: Error, reason: String) -> UInt64 {
+        guard let status = httpStatusCode(from: error, reason: reason),
+              status == 429 || (500..<600).contains(status) else {
+            return defaultParagraphRetryDelayNanoseconds
+        }
+        return overloadedParagraphRetryDelayNanoseconds
+    }
+
+    private func httpStatusCode(from error: Error, reason: String) -> Int? {
+        if let engineError = error as? EngineError {
+            switch engineError {
+            case .httpStatus(let status, _):
+                return status
+            case .taskFailed(_, let reason):
+                return httpStatusCode(from: reason)
+            default:
+                break
+            }
+        }
+        return httpStatusCode(from: reason)
+    }
+
+    private func httpStatusCode(from reason: String) -> Int? {
+        guard let range = reason.range(of: "HTTP ") else {
+            return nil
+        }
+        let suffix = reason[range.upperBound...]
+        let digits = suffix.prefix { $0.isWholeNumber }
+        return Int(digits)
     }
 
     private func translateParagraph(
@@ -627,6 +685,11 @@ actor ChapterPrefetchWorker {
 
             let engine = try registry.engine(for: config)
             for paragraph in missing {
+                if let cachedZH = try await completeCachedTranslation(for: paragraph, database: database, config: config) {
+                    exactCached[paragraph.id] = cachedZH
+                    continue
+                }
+
                 let task = TranslationTask.paragraph(
                     text: paragraph.en,
                     context: paragraphContext(
@@ -697,7 +760,7 @@ private enum ParagraphTranslationFailure: LocalizedError {
     }
 }
 
-private enum ParagraphTranslationCompleteness {
+private nonisolated enum ParagraphTranslationCompleteness {
     private static let sourceTerminalCharacters: Set<Character> = [".", "!", "?", "。", "！", "？", "”", "\"", "'", "’"]
     private static let translationTerminalCharacters: Set<Character> = [
         "。", "！", "？", "…", "”", "」", "』", "）", ")", ".", "!", "?", "\"", "'", "’",
@@ -726,7 +789,7 @@ private enum ParagraphTranslationCompleteness {
     }
 }
 
-private func completeCachedTranslations(_ cached: [Int64: String], in chapter: ReaderChapter) -> [Int64: String] {
+private nonisolated func completeCachedTranslations(_ cached: [Int64: String], in chapter: ReaderChapter) -> [Int64: String] {
     Dictionary(uniqueKeysWithValues: chapter.paragraphs.compactMap { paragraph in
         guard let zh = cached[paragraph.id],
               ParagraphTranslationCompleteness.isComplete(source: paragraph.en, translation: zh) else {
@@ -734,6 +797,21 @@ private func completeCachedTranslations(_ cached: [Int64: String], in chapter: R
         }
         return (paragraph.id, zh)
     })
+}
+
+private nonisolated func completeCachedTranslation(
+    for paragraph: ReaderParagraph,
+    database: AppDatabase,
+    config: EngineConfig
+) async throws -> String? {
+    guard let zh = try await database.cachedTranslation(
+        paragraphId: paragraph.id,
+        engine: config.id,
+        model: config.model
+    ), ParagraphTranslationCompleteness.isComplete(source: paragraph.en, translation: zh) else {
+        return nil
+    }
+    return zh
 }
 
 private extension EngineConfig {
