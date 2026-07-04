@@ -7,15 +7,16 @@ extension AppDatabase {
             try db.execute(
                 sql: """
                 INSERT INTO books (
-                    id, title, author, fileURL, addedAt, lastReadAt, progress, coverData, coverBg, coverInk
+                    id, title, author, fileURL, sourceBookmark, addedAt, lastReadAt, progress, coverData, coverBg, coverInk
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     book.id,
                     book.title,
                     book.author,
                     book.fileURL.absoluteString,
+                    book.sourceBookmark,
                     book.addedAt.lexiTimestamp,
                     book.lastReadAt?.lexiTimestamp,
                     book.progress,
@@ -107,6 +108,7 @@ extension AppDatabase {
                     SET title = ?,
                         author = ?,
                         fileURL = ?,
+                        sourceBookmark = ?,
                         coverData = ?,
                         coverBg = ?,
                         coverInk = ?
@@ -116,6 +118,7 @@ extension AppDatabase {
                         payload.book.title,
                         payload.book.author,
                         payload.book.fileURL.absoluteString,
+                        payload.book.sourceBookmark,
                         payload.book.coverData,
                         payload.book.coverBg,
                         payload.book.coverInk,
@@ -136,15 +139,16 @@ extension AppDatabase {
             try db.execute(
                 sql: """
                 INSERT INTO books (
-                    id, title, author, fileURL, addedAt, lastReadAt, progress, coverData, coverBg, coverInk
+                    id, title, author, fileURL, sourceBookmark, addedAt, lastReadAt, progress, coverData, coverBg, coverInk
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     payload.book.id,
                     payload.book.title,
                     payload.book.author,
                     payload.book.fileURL.absoluteString,
+                    payload.book.sourceBookmark,
                     payload.book.addedAt.lexiTimestamp,
                     payload.book.lastReadAt?.lexiTimestamp,
                     payload.book.progress,
@@ -297,12 +301,120 @@ private extension AppDatabase {
     }
 }
 
+nonisolated enum BookFileStorage {
+    static func booksDirectory(fileManager: FileManager = .default) throws -> URL {
+        let support = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let directory = support
+            .appending(path: "Lexi", directoryHint: .isDirectory)
+            .appending(path: "Books", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    static func copyIntoLibrary(
+        sourceURL: URL,
+        bookId: String,
+        booksDirectory explicitBooksDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws -> URL {
+        let directory = try (explicitBooksDirectory ?? booksDirectory(fileManager: fileManager)).standardizedFileURL
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let fileExtension = sourceURL.pathExtension.isEmpty ? "epub" : sourceURL.pathExtension
+        let destination = directory.appending(path: "\(bookId).\(fileExtension)").standardizedFileURL
+        let source = sourceURL.standardizedFileURL
+        guard source.path != destination.path else {
+            return destination
+        }
+
+        let replacement = directory
+            .appending(path: "\(bookId)-\(UUID().uuidString).\(fileExtension).tmp")
+            .standardizedFileURL
+        defer {
+            try? fileManager.removeItem(at: replacement)
+        }
+        try fileManager.copyItem(at: source, to: replacement)
+        if fileManager.fileExists(atPath: destination.path) {
+            _ = try fileManager.replaceItemAt(destination, withItemAt: replacement)
+        } else {
+            try fileManager.moveItem(at: replacement, to: destination)
+        }
+        return destination
+    }
+
+    static func importStagingDirectory(fileManager: FileManager = .default) throws -> URL {
+        let support = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let directory = support
+            .appending(path: "Lexi", directoryHint: .isDirectory)
+            .appending(path: "BookImports", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    static func copyToImportStaging(
+        sourceURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> URL {
+        let directory = try importStagingDirectory(fileManager: fileManager)
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileName = sourceURL.lastPathComponent.isEmpty ? "Dropped.epub" : sourceURL.lastPathComponent
+        let destination = directory.appending(path: fileName).standardizedFileURL
+        try fileManager.copyItem(at: sourceURL, to: destination)
+        return destination
+    }
+
+    static func removeImportStagingIfNeeded(
+        at url: URL,
+        fileManager: FileManager = .default
+    ) {
+        guard let stagingDirectory = try? importStagingDirectory(fileManager: fileManager).standardizedFileURL else {
+            return
+        }
+        let stagedFile = url.standardizedFileURL
+        guard contains(stagedFile, in: stagingDirectory) else {
+            return
+        }
+        try? fileManager.removeItem(at: stagedFile.deletingLastPathComponent())
+    }
+
+    static func removeStoredCopy(
+        at url: URL,
+        booksDirectory explicitBooksDirectory: URL? = nil,
+        fileManager: FileManager = .default
+    ) throws {
+        let directory = try (explicitBooksDirectory ?? booksDirectory(fileManager: fileManager)).standardizedFileURL
+        let target = url.standardizedFileURL
+        guard contains(target, in: directory), fileManager.fileExists(atPath: target.path) else {
+            return
+        }
+        try fileManager.removeItem(at: target)
+    }
+
+    private static func contains(_ url: URL, in directory: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        let directoryPath = directory.standardizedFileURL.path
+        return path == directoryPath || path.hasPrefix(directoryPath + "/")
+    }
+}
+
 private extension Book {
     nonisolated init(row: Row) {
         id = row["id"]
         title = row["title"]
         author = row["author"]
         fileURL = URL(string: row["fileURL"] as String) ?? URL(fileURLWithPath: row["fileURL"])
+        sourceBookmark = row["sourceBookmark"]
         addedAt = Date(lexiTimestamp: row["addedAt"])
         lastReadAt = (row["lastReadAt"] as Int64?).map(Date.init(lexiTimestamp:))
         progress = row["progress"]

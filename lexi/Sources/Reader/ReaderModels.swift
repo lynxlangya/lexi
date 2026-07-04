@@ -5,12 +5,39 @@ struct ReaderBook: Equatable, Identifiable, Sendable {
     let title: String
     let author: String
     let fileURL: URL
+    let sourceBookmark: Data?
     let addedAt: Date
     let lastReadAt: Date?
     let progress: Double
     let coverData: Data?
     let coverBg: String?
     let coverInk: String?
+
+    init(
+        id: String,
+        title: String,
+        author: String,
+        fileURL: URL,
+        sourceBookmark: Data? = nil,
+        addedAt: Date,
+        lastReadAt: Date?,
+        progress: Double,
+        coverData: Data?,
+        coverBg: String?,
+        coverInk: String?
+    ) {
+        self.id = id
+        self.title = title
+        self.author = author
+        self.fileURL = fileURL
+        self.sourceBookmark = sourceBookmark
+        self.addedAt = addedAt
+        self.lastReadAt = lastReadAt
+        self.progress = progress
+        self.coverData = coverData
+        self.coverBg = coverBg
+        self.coverInk = coverInk
+    }
 }
 
 struct ReaderChapter: Equatable, Identifiable, Sendable {
@@ -34,6 +61,7 @@ extension ReaderBook {
         title = book.title
         author = book.author
         fileURL = book.fileURL
+        sourceBookmark = book.sourceBookmark
         addedAt = book.addedAt
         lastReadAt = book.lastReadAt
         progress = book.progress
@@ -48,6 +76,7 @@ extension ReaderBook {
             title: title,
             author: author,
             fileURL: fileURL,
+            sourceBookmark: sourceBookmark,
             addedAt: addedAt,
             lastReadAt: nextLastReadAt,
             progress: nextProgress,

@@ -11,12 +11,39 @@ struct Book: Codable, Equatable, Identifiable, Sendable {
     var title: String
     var author: String
     var fileURL: URL
+    var sourceBookmark: Data?
     var addedAt: Date
     var lastReadAt: Date?
     var progress: Double
     var coverData: Data?
     var coverBg: String?
     var coverInk: String?
+
+    init(
+        id: String,
+        title: String,
+        author: String,
+        fileURL: URL,
+        sourceBookmark: Data? = nil,
+        addedAt: Date,
+        lastReadAt: Date?,
+        progress: Double,
+        coverData: Data?,
+        coverBg: String?,
+        coverInk: String?
+    ) {
+        self.id = id
+        self.title = title
+        self.author = author
+        self.fileURL = fileURL
+        self.sourceBookmark = sourceBookmark
+        self.addedAt = addedAt
+        self.lastReadAt = lastReadAt
+        self.progress = progress
+        self.coverData = coverData
+        self.coverBg = coverBg
+        self.coverInk = coverInk
+    }
 }
 
 struct Chapter: Codable, Equatable, Identifiable, Sendable {

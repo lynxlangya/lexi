@@ -7,6 +7,7 @@ enum Migrations {
         registerV2VocabEnrichment(in: &migrator)
         registerV3VocabGlobalSource(in: &migrator)
         registerV4AudioReadAloud(in: &migrator)
+        registerV5BookSourceBookmark(in: &migrator)
     }
 
     nonisolated static func registerV1Initial(in migrator: inout DatabaseMigrator) {
@@ -208,6 +209,14 @@ enum Migrations {
                 table.column("summary", .text).notNull()
                 table.column("createdAt", .integer).notNull()
                 table.column("updatedAt", .integer).notNull()
+            }
+        }
+    }
+
+    private nonisolated static func registerV5BookSourceBookmark(in migrator: inout DatabaseMigrator) {
+        migrator.registerMigration("v5_book_source_bookmark") { db in
+            try db.alter(table: "books") { table in
+                table.add(column: "sourceBookmark", .blob)
             }
         }
     }
