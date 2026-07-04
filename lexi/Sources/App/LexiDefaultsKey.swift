@@ -25,4 +25,5 @@ enum LexiDefaultsKey {
     static let readerParagraphLayout = "reader.paragraphLayout"
 
     static let shortcutsConflictDetect = "shortcuts.conflictDetect"
+    static let shortcutsClipboardFallback = "shortcuts.clipboardFallback"
 }
