@@ -1028,6 +1028,8 @@ final class DataTests: XCTestCase {
 
         XCTAssertTrue(markdown.contains("> 共 1 条 · 筛选条件：未掌握 · Co-Intelligence"))
         XCTAssertTrue(markdown.contains("## observe /əbˈzɝːv/"))
+        XCTAssertTrue(markdown.contains("- **释义**：观察"))
+        XCTAssertTrue(markdown.contains("- 语境：They observe quietly."))
         XCTAssertTrue(markdown.contains("- 来源：Co-Intelligence"))
         XCTAssertTrue(markdown.contains("- 状态：未掌握"))
     }
