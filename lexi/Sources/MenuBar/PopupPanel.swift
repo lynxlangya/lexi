@@ -5,10 +5,17 @@ import SwiftUI
 final class PopupPanel {
     private let panel: NSPanel
     private let contentInset: CGFloat = 18
-    private var outsideMonitor: Any?
-    private var escMonitor: Any?
+    private var globalOutsideMonitor: Any?
+    private var localOutsideMonitor: Any?
+    private var globalEscMonitor: Any?
+    private var localEscMonitor: Any?
     private(set) var pinned = false
     var onDismiss: (() -> Void)?
+
+    struct ScreenBounds {
+        let frame: CGRect
+        let visibleFrame: CGRect
+    }
 
     init() {
         panel = NSPanel(
@@ -58,44 +65,106 @@ final class PopupPanel {
     }
 
     private func installMonitors() {
-        if outsideMonitor == nil {
-            outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+        if globalOutsideMonitor == nil {
+            globalOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
                 Task { @MainActor in
-                    guard let self, self.panel.isVisible, !self.pinned else {
-                        return
-                    }
-                    if !self.panel.frame.contains(event.locationInScreen) {
-                        self.close()
-                    }
+                    self?.closeIfNeeded(forMouseDown: event)
                 }
             }
         }
 
-        if escMonitor == nil {
-            escMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                guard event.keyCode == 53 else {
-                    return
-                }
+        if localOutsideMonitor == nil {
+            localOutsideMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
                 Task { @MainActor in
-                    self?.close()
+                    self?.closeIfNeeded(forMouseDown: event)
                 }
+                return event
+            }
+        }
+
+        if globalEscMonitor == nil {
+            globalEscMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                Task { @MainActor in
+                    self?.closeIfNeeded(forEscape: event)
+                }
+            }
+        }
+
+        if localEscMonitor == nil {
+            localEscMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                Task { @MainActor in
+                    self?.closeIfNeeded(forEscape: event)
+                }
+                return event
             }
         }
     }
 
     private func removeMonitors() {
-        if let outsideMonitor {
-            NSEvent.removeMonitor(outsideMonitor)
-            self.outsideMonitor = nil
+        if let globalOutsideMonitor {
+            NSEvent.removeMonitor(globalOutsideMonitor)
+            self.globalOutsideMonitor = nil
         }
-        if let escMonitor {
-            NSEvent.removeMonitor(escMonitor)
-            self.escMonitor = nil
+        if let localOutsideMonitor {
+            NSEvent.removeMonitor(localOutsideMonitor)
+            self.localOutsideMonitor = nil
+        }
+        if let globalEscMonitor {
+            NSEvent.removeMonitor(globalEscMonitor)
+            self.globalEscMonitor = nil
+        }
+        if let localEscMonitor {
+            NSEvent.removeMonitor(localEscMonitor)
+            self.localEscMonitor = nil
         }
     }
 
     private func frame(for size: CGSize, anchor: CGRect) -> CGRect {
-        let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let screens = NSScreen.screens.map { ScreenBounds(frame: $0.frame, visibleFrame: $0.visibleFrame) }
+        let mainScreen = NSScreen.main.map { ScreenBounds(frame: $0.frame, visibleFrame: $0.visibleFrame) }
+        return Self.panelFrame(
+            for: size,
+            anchor: anchor,
+            contentInset: contentInset,
+            screens: screens,
+            mainScreen: mainScreen
+        )
+    }
+
+    private func closeIfNeeded(forMouseDown event: NSEvent) {
+        guard panel.isVisible else {
+            return
+        }
+        if Self.shouldCloseForMouseDown(
+            eventWindowIsPanel: event.window === panel,
+            locationInScreen: event.locationInScreen,
+            panelFrame: panel.frame,
+            pinned: pinned
+        ) {
+            close()
+        }
+    }
+
+    private func closeIfNeeded(forEscape event: NSEvent) {
+        guard panel.isVisible, Self.shouldCloseForEscape(keyCode: event.keyCode) else {
+            return
+        }
+        close()
+    }
+
+    nonisolated static func panelFrame(
+        for size: CGSize,
+        anchor: CGRect,
+        contentInset: CGFloat,
+        screens: [ScreenBounds],
+        mainScreen: ScreenBounds?
+    ) -> CGRect {
+        let fallbackFrame = CGRect(x: 0, y: 0, width: 1_440, height: 900)
+        let screenFrame = (
+            screens.first { $0.frame.intersects(anchor) } ??
+                mainScreen ??
+                ScreenBounds(frame: fallbackFrame, visibleFrame: fallbackFrame)
+        ).visibleFrame
         let margin: CGFloat = 16
         let gap: CGFloat = 10
         let visualWidth = max(0, size.width - contentInset * 2)
@@ -121,6 +190,22 @@ final class PopupPanel {
         visualY = min(max(visualY, screenFrame.minY + margin), screenFrame.maxY - visualHeight - margin)
 
         return NSRect(origin: CGPoint(x: visualX - contentInset, y: visualY - contentInset), size: size)
+    }
+
+    nonisolated static func shouldCloseForMouseDown(
+        eventWindowIsPanel: Bool,
+        locationInScreen: CGPoint,
+        panelFrame: CGRect,
+        pinned: Bool
+    ) -> Bool {
+        guard !pinned, !eventWindowIsPanel else {
+            return false
+        }
+        return !panelFrame.contains(locationInScreen)
+    }
+
+    nonisolated static func shouldCloseForEscape(keyCode: UInt16) -> Bool {
+        keyCode == 53
     }
 }
 
