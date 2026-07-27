@@ -421,6 +421,40 @@ final class ReaderTextSelectionCoordinator {
     }
 }
 
+final class ReaderSelectionLayoutManager: NSLayoutManager {
+    var readerSelectionRange: NSRange?
+    var readerSelectionBackgroundColor = NSColor.selectedTextBackgroundColor
+
+    override func fillBackgroundRectArray(
+        _ rectArray: UnsafePointer<NSRect>,
+        count rectCount: Int,
+        forCharacterRange charRange: NSRange,
+        color: NSColor
+    ) {
+        guard let readerSelectionRange,
+              readerSelectionRange.length > 0,
+              NSEqualRanges(NSIntersectionRange(readerSelectionRange, charRange), charRange) else {
+            super.fillBackgroundRectArray(
+                rectArray,
+                count: rectCount,
+                forCharacterRange: charRange,
+                color: color
+            )
+            return
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        readerSelectionBackgroundColor.setFill()
+        super.fillBackgroundRectArray(
+            rectArray,
+            count: rectCount,
+            forCharacterRange: charRange,
+            color: readerSelectionBackgroundColor
+        )
+    }
+}
+
 final class ContextTextView: NSTextView {
     var selectionContext: (() -> SentenceContext?)?
     var onSelectionChange: ((SelectedTextContext?) -> Void)?
@@ -429,6 +463,19 @@ final class ContextTextView: NSTextView {
     private var readerSelectionBackgroundColor = NSColor.selectedTextBackgroundColor
     private var readerSelectionForegroundColor = NSColor.textColor
     private var readerSelectionRange: NSRange?
+
+    override init(frame frameRect: NSRect) {
+        let textStorage = NSTextStorage()
+        let layoutManager = ReaderSelectionLayoutManager()
+        let textContainer = NSTextContainer()
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        super.init(frame: frameRect, textContainer: textContainer)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     var utf16Length: Int {
         (string as NSString).length
@@ -457,6 +504,7 @@ final class ContextTextView: NSTextView {
     func configureReaderSelectionAppearance(backgroundColor: NSColor, foregroundColor: NSColor) {
         readerSelectionBackgroundColor = backgroundColor
         readerSelectionForegroundColor = foregroundColor
+        readerSelectionLayoutManager?.readerSelectionBackgroundColor = backgroundColor
         applyNativeSelectedTextAttributes()
         needsDisplay = true
     }
@@ -473,6 +521,7 @@ final class ContextTextView: NSTextView {
     func setReaderSelectionRange(_ range: NSRange) {
         let boundedRange = boundedReaderRange(range)
         readerSelectionRange = boundedRange.length > 0 ? boundedRange : nil
+        readerSelectionLayoutManager?.readerSelectionRange = readerSelectionRange
         setSelectedRange(boundedRange)
         applyNativeSelectedTextAttributes()
         needsDisplay = true
@@ -480,6 +529,7 @@ final class ContextTextView: NSTextView {
 
     func clearReaderSelection() {
         readerSelectionRange = nil
+        readerSelectionLayoutManager?.readerSelectionRange = nil
         setSelectedRange(NSRange(location: 0, length: 0))
         applyNativeSelectedTextAttributes()
         needsDisplay = true
@@ -491,6 +541,7 @@ final class ContextTextView: NSTextView {
         }
 
         readerSelectionRange = nil
+        readerSelectionLayoutManager?.readerSelectionRange = nil
         applyNativeSelectedTextAttributes()
         needsDisplay = true
     }
@@ -513,11 +564,6 @@ final class ContextTextView: NSTextView {
             return nil
         }
         return super.accessibilitySelectedText()
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        drawReaderSelectionHighlight(in: dirtyRect)
-        super.draw(dirtyRect)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -579,12 +625,14 @@ final class ContextTextView: NSTextView {
     }
 
     private func applyNativeSelectedTextAttributes() {
-        // Cross-paragraph selections span multiple NSTextViews; Reader paints the
-        // shared background so AppKit's active/inactive selection colors cannot diverge.
         selectedTextAttributes = [
-            .backgroundColor: isDrawingReaderSelectionHighlight ? NSColor.clear : readerSelectionBackgroundColor,
+            .backgroundColor: readerSelectionBackgroundColor,
             .foregroundColor: readerSelectionForegroundColor
         ]
+    }
+
+    private var readerSelectionLayoutManager: ReaderSelectionLayoutManager? {
+        layoutManager as? ReaderSelectionLayoutManager
     }
 
     private func boundedReaderRange(_ range: NSRange) -> NSRange {
@@ -598,53 +646,5 @@ final class ContextTextView: NSTextView {
             return NSRange(location: 0, length: 0)
         }
         return bounded
-    }
-
-    private func drawReaderSelectionHighlight(in dirtyRect: NSRect) {
-        guard isDrawingReaderSelectionHighlight else {
-            return
-        }
-
-        readerSelectionBackgroundColor.setFill()
-        for rect in readerSelectionRects() where rect.intersects(dirtyRect) {
-            rect.fill()
-        }
-    }
-
-    private func readerSelectionRects() -> [NSRect] {
-        guard let readerSelectionRange,
-              readerSelectionRange.length > 0,
-              let layoutManager,
-              let textContainer else {
-            return []
-        }
-
-        let boundedRange = boundedReaderRange(readerSelectionRange)
-        guard boundedRange.length > 0 else {
-            return []
-        }
-
-        layoutManager.ensureLayout(for: textContainer)
-        let glyphRange = layoutManager.glyphRange(
-            forCharacterRange: boundedRange,
-            actualCharacterRange: nil
-        )
-        guard glyphRange.length > 0 else {
-            return []
-        }
-
-        var rects: [NSRect] = []
-        layoutManager.enumerateEnclosingRects(
-            forGlyphRange: glyphRange,
-            withinSelectedGlyphRange: glyphRange,
-            in: textContainer
-        ) { rect, _ in
-            rects.append(
-                rect
-                    .offsetBy(dx: self.textContainerOrigin.x, dy: self.textContainerOrigin.y)
-                    .integral
-            )
-        }
-        return rects
     }
 }
