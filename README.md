@@ -8,7 +8,7 @@
 
 A native macOS reader for English books, with streaming Chinese translation rendered next to the original text, AI read-aloud in a right-side player drawer, and a global selection-translation popup that follows you into any app.
 
-> **Status — v2.2.0 MVP release line.** Reader, EPUB import, streaming translation, AI read-aloud, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed as Developer ID signed, Apple-notarized DMGs through R2 and Homebrew Cask.
+> **Status — v2.2.1 MVP release line.** Reader, EPUB import, streaming translation, AI read-aloud, MenuBar popup, vocabulary list, and side-by-side dual-column layout have all shipped. Technical preview builds are distributed as Developer ID signed, Apple-notarized DMGs through R2 and Homebrew Cask.
 
 ---
 
@@ -82,7 +82,7 @@ brew install --cask lexi
 
 Or download the Developer ID signed, Apple-notarized DMG directly:
 
-[Download Lexi 2.2.0](https://pub-971ee03b82ad411a9bb26c62a06ca755.r2.dev/lexi/releases/2.2.0/Lexi-2.2.0-installer.dmg)
+[Download Lexi 2.2.1](https://pub-971ee03b82ad411a9bb26c62a06ca755.r2.dev/lexi/releases/2.2.1/Lexi-2.2.1-installer.dmg)
 
 Open the DMG, drag `Lexi.app` to `/Applications`, and open it normally. macOS may still show a standard first-launch confirmation or request Accessibility permission for global selection translation, but the current package should not require the old command-line launch workaround.
 
@@ -185,7 +185,7 @@ The test script uses a temporary DerivedData directory and removes it on exit, s
 
 ## Project status
 
-v2.2.0 is the current MVP technical preview release line: on top of the shipped MVP surface, an 18-fix audit batch has landed covering performance (background EPUB parsing, streaming render throttling, cover and vocab caching), robustness (translation retries and token-limit handling, extraction quotas, hardened Keychain writes), and Reader/popup interaction fixes. Installable Developer ID signed, Apple-notarized DMG builds are available through R2 and `lynxlangya/tap`.
+v2.2.1 is the current MVP technical preview release line: it carries forward the v2.2.0 hardening batch and fixes Reader cross-paragraph selection rendering so every selected paragraph keeps the same accent background. Installable Developer ID signed, Apple-notarized DMG builds are available through R2 and `lynxlangya/tap`.
 
 For roadmap and product decisions, see [`DESIGN.md`](DESIGN.md).
 
